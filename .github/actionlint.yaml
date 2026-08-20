@@ -3,7 +3,7 @@
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
 
-# Mirrors mindclade/.github/actionlint.yaml.
+# Mirrors mindclade/mindclade-internal-monorepo/.github/actionlint.yaml.
 self-hosted-runner:
   labels:
     - gpu

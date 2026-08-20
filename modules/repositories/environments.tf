@@ -9,6 +9,9 @@ locals {
       "${repository}:${environment}" => { repository = repository, environment = environment }
     }
   ]...)
+  project_required_environments = toset([
+    for name, environment in var.environments : name if environment.project_required
+  ])
 }
 
 resource "github_repository_environment" "this" {
@@ -58,11 +61,15 @@ check "repository_environment_references_exist" {
   }
 }
 
-check "project_environments_have_projects" {
+check "environment_project_handoff_is_empty_or_complete" {
   assert {
-    condition = alltrue([for _, v in local.environment_pairs :
-      !var.environments[v.environment].project_required || try(var.environment_project_ids[v.environment], "") != ""
-    ])
-    error_message = "An environment marked project_required has no environment_project_ids entry."
+    condition = length(var.environment_project_ids) == 0 || (
+      toset(keys(var.environment_project_ids)) == local.project_required_environments &&
+      alltrue([
+        for name in local.project_required_environments :
+        trimspace(try(var.environment_project_ids[name], "")) != ""
+      ])
+    )
+    error_message = "environment_project_ids must be {} during initial governance, or a complete exact map for every project_required environment after infrastructure apply; partial or empty project IDs are forbidden."
   }
 }

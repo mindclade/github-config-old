@@ -29,6 +29,13 @@ required-checks-go:
     - mixed
   # Promote to active only after the real monorepo reports these exact contexts.
   enforcement: evaluate
+required-checks-infra-static:
+  repositories:
+    - mindclade-internal-monorepo
+  # Observe pull-request and merge-group reporting before promotion to active. The
+  # implementation and tests are enforcement-ready; changing this value is a separate,
+  # reviewed GitHub governance rollout.
+  enforcement: evaluate
 required-checks-gitops:
   repositories:
     - gitops

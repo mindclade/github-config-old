@@ -79,4 +79,12 @@ run "policy_catalog_is_production_grade" {
     )
     error_message = "GitOps merge-queue changes must require repository-local static checks."
   }
+
+  assert {
+    condition = (
+      output.rulesets["required-checks-infra-static"].enforcement == "evaluate" &&
+      output.rulesets["required-checks-infra-static"].repositories == ["mindclade-internal-monorepo"]
+    )
+    error_message = "infra-static must remain an evaluate-mode, canonical-monorepo-only source contract until observed on pull_request and merge_group."
+  }
 }

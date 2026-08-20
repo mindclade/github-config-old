@@ -33,6 +33,14 @@ member on the next apply.
 
 ## Which group feeds which team
 
-`GROUP_FOR_TEAM` in the export script. Every key there must exist in
-[`catalog/teams.yaml`](../catalog/teams.yaml) — `membership.tf` has a `check` block that
-fails the plan and names the offending team otherwise.
+`TEAM_GROUPS` in the export script contains only verified directory addresses. Every catalog
+team is either in that map or in the explicit `DEFERRED_TEAMS` set; catalog validation fails if
+a team is missing from both, appears in both, or uses the stale `data` key instead of
+`data-platform`.
+
+The currently verified projections are `biosecurity`, `data-platform`, `engineering`, `platform`,
+`research`, and `security`. Directory addresses for `incident-command`, `infrastructure`,
+`model-serving`, `model-training`, `product`, and `release` have not been verified in source. The
+exporter warns and omits those teams rather than deriving privileged group names by convention.
+Add each real address to `TEAM_GROUPS` and remove the same key from `DEFERRED_TEAMS` in one reviewed
+change after a read-only directory inventory confirms it.

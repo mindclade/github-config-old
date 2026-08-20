@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import subprocess
 import tempfile
 import unittest
@@ -34,7 +35,11 @@ IDP = load("export_idp_groups", "scripts/export-idp-groups.py")
 class ExportSafetyTest(unittest.TestCase):
     def test_ci_generation_failure_never_calls_gh(self) -> None:
         arguments = SimpleNamespace(
-            bootstrap=ROOT, repo="mindclade/github-config", set=True, check=False
+            bootstrap=ROOT,
+            repo="mindclade/github-config",
+            stage="full",
+            set=True,
+            check=False,
         )
         with (
             mock.patch.object(CI, "parse_args", return_value=arguments),
@@ -45,6 +50,127 @@ class ExportSafetyTest(unittest.TestCase):
         ):
             self.assertEqual(CI.main(), 1)
         run.assert_not_called()
+
+    def test_disabled_buildkite_omits_deferred_inputs(self) -> None:
+        config = {
+            "bootstrap": {
+                "ENABLE_BUILDKITE_WIF": "false",
+                "BUILDKITE_ORGANIZATION_ID": "env:BUILDKITE_ORGANIZATION_ID",
+                "BUILDKITE_PIPELINE_IDS_JSON": "env:BUILDKITE_PIPELINE_IDS_JSON",
+                "BUILDKITE_PIPELINE_STEP_CONTRACTS_JSON": (
+                    "env:BUILDKITE_PIPELINE_STEP_CONTRACTS_JSON"
+                ),
+            },
+            "mindclade-internal-monorepo": {
+                name: f"env:{name}" for name in CI.BUILDKITE_DEFERRED_VARIABLES[
+                    "mindclade-internal-monorepo"
+                ]
+            },
+        }
+
+        pool = CI.configure_buildkite_phase(
+            config, {"enabled": False, "workload_identity_pool": None}
+        )
+
+        self.assertIsNone(pool)
+        self.assertEqual(config["bootstrap"], {"ENABLE_BUILDKITE_WIF": "false"})
+        self.assertEqual(config["mindclade-internal-monorepo"], {})
+
+    def test_enabled_buildkite_still_requires_valid_pool(self) -> None:
+        config = {
+            "bootstrap": {"ENABLE_BUILDKITE_WIF": "true"},
+            "mindclade-internal-monorepo": {},
+        }
+
+        with self.assertRaisesRegex(ValueError, "is missing: workload_identity_pool"):
+            CI.configure_buildkite_phase(
+                config, {"enabled": True, "workload_identity_pool": None}
+            )
+
+        with self.assertRaisesRegex(ValueError, "invalid resource name"):
+            CI.configure_buildkite_phase(
+                config,
+                {
+                    "enabled": True,
+                    "workload_identity_pool": "projects/not-numeric/locations/global/workloadIdentityPools/buildkite",
+                },
+            )
+
+    def test_bootstrap_stage_omits_deferred_catalog_inputs(self) -> None:
+        config = {
+            ".github": {"PIN_AUDIT_APP_ID": "env:PIN_AUDIT_APP_ID"},
+            ".github-private": {},
+            "github-config": {
+                "ORGANIZATION": "mindclade",
+                "BILLING_EMAIL": "env:BILLING_EMAIL",
+                "ENVIRONMENT_PROJECT_IDS": "{}",
+                "TF_PLAN_APP_ID": "env:TF_PLAN_APP_ID",
+            },
+            "bootstrap": {
+                "GH_ORGANIZATION": "mindclade",
+                "ENABLE_BUILDKITE_WIF": "false",
+            },
+            "infrastructure-live": {
+                "DOMAIN": "mindclade.com",
+                "TF_APP_ID": "env:TF_APP_ID",
+            },
+            "gitops": {
+                "MONOREPO_ORG": "mindclade",
+                "RENDER_APP_ID": "env:RENDER_APP_ID",
+            },
+            "mindclade-internal-monorepo": {
+                "ARTIFACT_REGISTRY_HOST": "us-central1-docker.pkg.dev",
+                "BINAUTHZ_BUILD_ATTESTOR": "env:BINAUTHZ_BUILD_ATTESTOR",
+            },
+        }
+
+        selected = CI.select_bootstrap_stage(config)
+
+        self.assertEqual(selected[".github"], {})
+        self.assertNotIn("TF_PLAN_APP_ID", selected["github-config"])
+        self.assertNotIn("TF_APP_ID", selected["infrastructure-live"])
+        self.assertNotIn("RENDER_APP_ID", selected["gitops"])
+        self.assertNotIn(
+            "BINAUTHZ_BUILD_ATTESTOR", selected["mindclade-internal-monorepo"]
+        )
+        self.assertEqual(selected["github-config"]["ENVIRONMENT_PROJECT_IDS"], "{}")
+        self.assertEqual(
+            selected["bootstrap"]["SECURITY_CONTACT"], "env:SECURITY_CONTACT"
+        )
+
+    def test_github_identity_variables_are_derived_from_platform_contract(self) -> None:
+        identities = {
+            repository: {
+                "repository": f"mindclade/{repository}",
+                "repository_owner_id": "123",
+                "repository_id": str(index),
+            }
+            for index, repository in enumerate(
+                (
+                    "bootstrap",
+                    "github-config",
+                    "infrastructure-live",
+                    "gitops",
+                    "mindclade-internal-monorepo",
+                ),
+                start=10,
+            )
+        }
+
+        organization, owner_id, repository_ids_json = CI.github_repository_contract(
+            {"organization": "mindclade", "repository_identities": identities}
+        )
+
+        self.assertEqual(organization, "mindclade")
+        self.assertEqual(owner_id, "123")
+        self.assertNotIn(" ", repository_ids_json)
+        self.assertEqual(
+            json.loads(repository_ids_json),
+            {
+                repository: identity["repository_id"]
+                for repository, identity in identities.items()
+            },
+        )
 
     def test_idp_api_failure_is_not_treated_as_an_unmapped_user(self) -> None:
         failure = subprocess.CalledProcessError(
@@ -60,6 +186,26 @@ class ExportSafetyTest(unittest.TestCase):
         self.assertEqual(
             IDP.empty_team_regressions(current, generated), ["security (had 1)"]
         )
+
+    def test_idp_team_inventory_is_explicit(self) -> None:
+        expected = {
+            "biosecurity",
+            "data-platform",
+            "engineering",
+            "incident-command",
+            "infrastructure",
+            "model-serving",
+            "model-training",
+            "platform",
+            "product",
+            "release",
+            "research",
+            "security",
+        }
+
+        self.assertFalse(set(IDP.TEAM_GROUPS) & IDP.DEFERRED_TEAMS)
+        self.assertEqual(set(IDP.TEAM_GROUPS) | IDP.DEFERRED_TEAMS, expected)
+        self.assertNotIn("data", IDP.TEAM_GROUPS)
 
     def test_atomic_write_replaces_complete_document(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

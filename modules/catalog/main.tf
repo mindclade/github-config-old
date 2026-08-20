@@ -199,6 +199,7 @@ check "ruleset_catalog_matches_the_implementation" {
       "required-checks-bootstrap",
       "required-checks-gitops",
       "required-checks-go",
+      "required-checks-infra-static",
       "required-checks-mixed",
       "required-checks-tf",
       "required-checks-tf-static",

@@ -22,11 +22,22 @@ ROOT = Path(__file__).resolve().parent.parent
 OUTPUT = ROOT / "idp/team-members.json"
 TEAM_GROUPS = {
     "biosecurity": "biosecurity-review@{domain}",
-    "data": "eng-data@{domain}",
+    "data-platform": "eng-data@{domain}",
     "engineering": "eng-all@{domain}",
     "platform": "eng-platform@{domain}",
     "research": "eng-research@{domain}",
     "security": "eng-security@{domain}",
+}
+
+# These catalog teams do not yet have a verified Cloud Identity group address in source. Keep
+# the omission explicit and noisy instead of guessing a privileged group name from the team key.
+DEFERRED_TEAMS = {
+    "incident-command",
+    "infrastructure",
+    "model-serving",
+    "model-training",
+    "product",
+    "release",
 }
 
 
@@ -142,6 +153,13 @@ def build_document(domain: str) -> tuple[dict[str, Any], list[str]]:
     logins: dict[str, str | None] = {}
     unmapped: set[str] = set()
     teams: dict[str, list[dict[str, str]]] = {}
+
+    if DEFERRED_TEAMS:
+        print(
+            "::warning::directory group addresses are not yet verified for catalog teams: "
+            + ", ".join(sorted(DEFERRED_TEAMS)),
+            file=sys.stderr,
+        )
 
     def resolve(email: str) -> str | None:
         if email not in logins:
