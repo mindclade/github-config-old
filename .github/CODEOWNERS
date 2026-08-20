@@ -1,0 +1,30 @@
+# Security owns anything that decides who can do what.
+#
+# The ruleset requiring code-owner review is itself in this repo, so a PR removing it needs
+# the approval of the team it protects. That circularity is intentional.
+
+*                               @Mindclade/platform @Mindclade/security
+
+# Merge requirements, bypass grants, push restrictions.
+/modules/rulesets/              @Mindclade/security
+
+# Actions allowlist, OIDC subject template, secrets policy.
+/modules/policies/              @Mindclade/security
+
+# Org-wide settings, App installation scope (the blast radius of a compromised App key),
+# and the enterprise surface.
+/modules/organization/          @Mindclade/security
+/modules/enterprise/            @Mindclade/security
+
+# The access model: teams, IdP-sourced membership, repository grants, custom properties.
+/modules/teams/                 @Mindclade/security
+/modules/repositories/          @Mindclade/security
+
+# The catalogue IS the access model — a one-line YAML edit changes who can reach what.
+/catalog/                       @Mindclade/security
+
+# Composition: which modules exist and what they are wired to.
+/main.tf                        @Mindclade/platform @Mindclade/security
+
+# The pipeline that applies all of the above.
+/.github/workflows/             @Mindclade/platform @Mindclade/security

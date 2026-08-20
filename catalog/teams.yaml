@@ -1,0 +1,53 @@
+# Copyright © 2026 Mindclade, LLC. All Rights Reserved.
+# Mindclade Proprietary and Confidential.
+# SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
+#
+---
+engineering:
+  description: All Mindclade engineers. Parent of functional engineering teams.
+  privacy: closed
+  parent: null
+platform:
+  description: Kubernetes, GitOps, developer platform, and shared workflow ownership.
+  privacy: closed
+  parent: engineering
+infrastructure:
+  description: Google Cloud organization, networking, Terraform, and recovery ownership.
+  privacy: closed
+  parent: engineering
+security:
+  description: Security, access governance, policy, trust, and incident oversight.
+  privacy: closed
+  parent: null
+data-platform:
+  description: Data ingestion, storage, lineage, and lakehouse ownership.
+  privacy: closed
+  parent: engineering
+research:
+  description: Model research and scientific experimentation.
+  privacy: closed
+  parent: engineering
+model-training:
+  description: Training platform, distributed execution, and accelerator qualification.
+  privacy: closed
+  parent: engineering
+model-serving:
+  description: Inference runtime, serving reliability, and release qualification.
+  privacy: closed
+  parent: engineering
+product:
+  description: Product applications, SDK integration, and user experience.
+  privacy: closed
+  parent: engineering
+release:
+  description: Artifact qualification and production promotion oversight.
+  privacy: closed
+  parent: null
+incident-command:
+  description: Time-bounded emergency response and approved bypass authority.
+  privacy: secret
+  parent: null
+biosecurity:
+  description: Restricted biological safety and dual-use review.
+  privacy: secret
+  parent: null

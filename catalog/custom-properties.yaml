@@ -1,0 +1,105 @@
+# Copyright © 2026 Mindclade, LLC. All Rights Reserved.
+# Mindclade Proprietary and Confidential.
+# SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
+#
+---
+mindclade_repository_class:
+  type: single_select
+  required: true
+  default_value: enterprise-control
+  description: Repository governance class.
+  values_editable_by: org_actors
+  values:
+  - enterprise-control
+  - production-control
+  - source-monorepo
+  - public-sdk
+  - archive
+mindclade_owner_team:
+  type: single_select
+  required: true
+  default_value: platform
+  description: Accountable owner team.
+  values_editable_by: org_actors
+  values:
+  - engineering
+  - platform
+  - infrastructure
+  - security
+  - data-platform
+  - research
+  - model-training
+  - model-serving
+  - product
+  - release
+  - incident-command
+  - biosecurity
+mindclade_criticality:
+  type: single_select
+  required: true
+  default_value: medium
+  description: Operational criticality.
+  values_editable_by: org_actors
+  values:
+  - low
+  - medium
+  - high
+  - critical
+mindclade_data_classification:
+  type: single_select
+  required: true
+  default_value: internal
+  description: Most sensitive allowed repository data.
+  values_editable_by: org_actors
+  values:
+  - public
+  - internal
+  - confidential
+  - restricted
+mindclade_production_authority:
+  type: single_select
+  required: true
+  default_value: 'false'
+  description: Whether the repository can change a production control plane.
+  values_editable_by: org_actors
+  values:
+  - 'true'
+  - 'false'
+mindclade_ci_profile:
+  type: single_select
+  required: true
+  default_value: none
+  description: Required CI policy profile.
+  values_editable_by: org_actors
+  values:
+  - shared-workflows
+  - terraform-control
+  - terragrunt-control
+  - gitops-control
+  - monorepo
+  - public-sdk
+  - none
+mindclade_language_profile:
+  type: single_select
+  required: true
+  default_value: none
+  description: Primary toolchain profile.
+  values_editable_by: org_actors
+  values:
+  - go
+  - python
+  - rust
+  - typescript
+  - terraform
+  - mixed
+  - none
+mindclade_lifecycle:
+  type: single_select
+  required: true
+  default_value: active
+  description: Repository lifecycle.
+  values_editable_by: org_actors
+  values:
+  - active
+  - maintenance
+  - archive

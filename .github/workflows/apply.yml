@@ -1,0 +1,240 @@
+---
+name: apply
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      allow_destroy:
+        description: Permit explicitly reviewed destructive or replacement actions.
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apply-github-config
+  cancel-in-progress: false
+
+env:
+  TF_VERSION: "1.15.9"
+  TF_IN_AUTOMATION: "true"
+  TF_PLUGIN_CACHE_DIR: /home/runner/.terraform.d/plugin-cache
+
+jobs:
+  plan:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      commit_sha: ${{ steps.metadata.outputs.commit_sha }}
+      artifact_name: ${{ steps.metadata.outputs.artifact_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+
+      - name: Validate catalog and access policy
+        run: |
+          set -euo pipefail
+          python3 scripts/validate-catalog.py
+          python3 scripts/check-access-expiry.py
+
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER_PLAN }}
+          service_account: ${{ vars.SA_GITHUB_CONFIG_PLAN }}
+
+      - id: app-token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
+        with:
+          app-id: ${{ vars.TF_PLAN_APP_ID }}
+          private-key: ${{ secrets.TF_GITHUB_PLAN_APP_PEM }}
+          owner: ${{ vars.ORGANIZATION }}
+
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Cache Terraform providers
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: /home/runner/.terraform.d/plugin-cache
+          key: tf-providers-${{ runner.os }}-${{ env.TF_VERSION }}-${{ hashFiles('.terraform.lock.hcl', 'versions.tf', 'providers.tf', 'modules/**/versions.tf') }}
+          restore-keys: |
+            tf-providers-${{ runner.os }}-${{ env.TF_VERSION }}-
+
+      - name: Initialize
+        run: |
+          set -euo pipefail
+          mkdir -p "$TF_PLUGIN_CACHE_DIR"
+          terraform init -input=false -lockfile=readonly -backend-config="bucket=${{ vars.TFSTATE_BUCKET }}"
+
+      - name: Validate required non-secret inputs
+        env:
+          CI_VARIABLES: ${{ vars.CI_VARIABLES }}
+          ENVIRONMENT_PROJECT_IDS: ${{ vars.ENVIRONMENT_PROJECT_IDS }}
+        run: |
+          set -euo pipefail
+          test -n "$CI_VARIABLES" || { echo "::error::CI_VARIABLES is unset"; exit 1; }
+          printf '%s' "$CI_VARIABLES" | jq -e 'type == "object"' >/dev/null
+          printf '%s' "$ENVIRONMENT_PROJECT_IDS" | jq -e 'type == "object"' >/dev/null
+
+      - id: metadata
+        name: Create exact merged-SHA plan
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          TF_VAR_billing_email: ${{ vars.BILLING_EMAIL }}
+          TF_VAR_wif_pool_project_number: ${{ vars.WIF_POOL_PROJECT_NUMBER }}
+          TF_VAR_environment_project_ids: ${{ vars.ENVIRONMENT_PROJECT_IDS }}
+          TF_VAR_ci_variables: ${{ vars.CI_VARIABLES }}
+        run: |
+          set -euo pipefail
+          artifact_name="github-config-plan-${GITHUB_SHA}"
+          terraform plan -input=false -no-color -lock-timeout=5m -out=tfplan
+          terraform show -no-color tfplan > plan.txt
+          terraform show -json tfplan > plan.json
+
+          destroy_count="$(jq '[.resource_changes[]? | select(.change.actions | index("delete"))] | length' plan.json)"
+          replace_count="$(jq '[.resource_changes[]? | select(.change.actions == ["delete","create"] or .change.actions == ["create","delete"])] | length' plan.json)"
+          if [ "${destroy_count}" -gt 0 ] || [ "${replace_count}" -gt 0 ]; then
+            if [ "${{ github.event_name }}" != "workflow_dispatch" ] || [ "${{ inputs.allow_destroy }}" != "true" ]; then
+              echo "::error::Plan contains ${destroy_count} delete action(s) and ${replace_count} replacement(s). Re-run manually with allow_destroy after reviewing the plan."
+              exit 1
+            fi
+          fi
+
+          sha256sum tfplan > tfplan.sha256
+          jq -n \
+            --arg commit_sha "$GITHUB_SHA" \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg run_id "$GITHUB_RUN_ID" \
+            --arg artifact_name "$artifact_name" \
+            --argjson destroy_count "$destroy_count" \
+            --argjson replace_count "$replace_count" \
+            '{commit_sha:$commit_sha,repository:$repository,run_id:$run_id,artifact_name:$artifact_name,destroy_count:$destroy_count,replace_count:$replace_count}' \
+            > plan-metadata.json
+          echo "commit_sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=$artifact_name" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### Exact post-merge plan"
+            echo "- Commit: \`$GITHUB_SHA\`"
+            echo "- Deletes: $destroy_count"
+            echo "- Replacements: $replace_count"
+            echo '```terraform'
+            tail -n 180 plan.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: ${{ steps.metadata.outputs.artifact_name }}
+          path: |
+            tfplan
+            tfplan.sha256
+            plan.txt
+            plan.json
+            plan-metadata.json
+          if-no-files-found: error
+          retention-days: 1
+
+  apply:
+    needs: plan
+    environment: governance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    permissions:
+      contents: read
+      id-token: write
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ needs.plan.outputs.commit_sha }}
+
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER_APPLY }}
+          service_account: ${{ vars.SA_GITHUB_CONFIG_APPLY }}
+
+      - id: app-token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
+        with:
+          app-id: ${{ vars.TF_APPLY_APP_ID }}
+          private-key: ${{ secrets.TF_GITHUB_APPLY_APP_PEM }}
+          owner: ${{ vars.ORGANIZATION }}
+
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Cache Terraform providers
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: /home/runner/.terraform.d/plugin-cache
+          key: tf-providers-${{ runner.os }}-${{ env.TF_VERSION }}-${{ hashFiles('.terraform.lock.hcl', 'versions.tf', 'providers.tf', 'modules/**/versions.tf') }}
+          restore-keys: |
+            tf-providers-${{ runner.os }}-${{ env.TF_VERSION }}-
+
+      - name: Initialize
+        run: |
+          set -euo pipefail
+          mkdir -p "$TF_PLUGIN_CACHE_DIR"
+          terraform init -input=false -lockfile=readonly -backend-config="bucket=${{ vars.TFSTATE_BUCKET }}"
+
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: ${{ needs.plan.outputs.artifact_name }}
+          path: plan-artifact
+
+      - name: Verify plan integrity and provenance
+        env:
+          EXPECTED_SHA: ${{ needs.plan.outputs.commit_sha }}
+        run: |
+          set -euo pipefail
+          cd plan-artifact
+          sha256sum --check tfplan.sha256
+          test "$(jq -r '.commit_sha' plan-metadata.json)" = "$EXPECTED_SHA"
+          test "$(jq -r '.repository' plan-metadata.json)" = "$GITHUB_REPOSITORY"
+          test "$EXPECTED_SHA" = "$(git -C .. rev-parse HEAD)"
+
+      - name: Apply reviewed plan
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          TF_VAR_billing_email: ${{ vars.BILLING_EMAIL }}
+          TF_VAR_wif_pool_project_number: ${{ vars.WIF_POOL_PROJECT_NUMBER }}
+          TF_VAR_environment_project_ids: ${{ vars.ENVIRONMENT_PROJECT_IDS }}
+          TF_VAR_ci_variables: ${{ vars.CI_VARIABLES }}
+        run: terraform apply -input=false -no-color -lock-timeout=5m plan-artifact/tfplan
+
+      - name: Publish audit summary
+        run: |
+          {
+            echo "### Applied GitHub governance"
+            echo "- Commit: \`${{ needs.plan.outputs.commit_sha }}\`"
+            echo "- Plan artifact: \`${{ needs.plan.outputs.artifact_name }}\`"
+            echo "- Protected environment: \`governance\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Open incident issue on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh issue create \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "github-config apply failed on ${GITHUB_SHA::7}" \
+            --label incident \
+            --label github-config \
+            --body "The protected github-config apply failed. Inspect run ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID} and verify the state lock before retrying."

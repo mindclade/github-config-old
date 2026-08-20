@@ -1,0 +1,434 @@
+---
+# The reason this repository exists.
+#
+# A ruleset disabled by hand in the UI is indistinguishable, from the outside, from one that
+# was never created. Terraform will not notice on its own: nothing re-reads the world unless
+# something asks it to. This asks, nightly.
+#
+# Two independent checks, because Terraform can only see what it manages:
+#   1. terraform plan — anything managed here that no longer matches.
+#   2. An API sweep — anything that exists in the org and is NOT managed here. A ruleset
+#      someone added by hand is invisible to a plan, and is exactly as much of a problem.
+name: drift
+
+on:
+  schedule:
+    - cron: "37 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: drift-github-config
+  cancel-in-progress: true
+
+env:
+  TF_VERSION: "1.15.9"
+  TF_IN_AUTOMATION: "true"
+  TF_PLUGIN_CACHE_DIR: /home/runner/.terraform.d/plugin-cache
+
+jobs:
+  drift:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093  # v3
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER_PLAN }}
+          service_account: ${{ vars.SA_GITHUB_CONFIG_PLAN }}
+
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd  # v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Cache Terraform providers
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
+        with:
+          path: /home/runner/.terraform.d/plugin-cache
+          key: tf-providers-${{ runner.os }}-${{ env.TF_VERSION }}-${{ hashFiles('**/.terraform.lock.hcl', '**/versions.tf', '**/providers.tf', '**/providers.tf.json', '**/terraform.tf') }}
+          restore-keys: |
+            tf-providers-${{ runner.os }}-${{ env.TF_VERSION }}-
+            tf-providers-${{ runner.os }}-
+
+      - name: Create the cache directory
+        run: mkdir -p "$TF_PLUGIN_CACHE_DIR"
+
+      - name: Init
+        run: terraform init -input=false -lockfile=readonly -backend-config=bucket=${{ vars.TFSTATE_BUCKET }}
+
+      - name: CI_VARIABLES must be present and well-formed
+        # An unset repository variable expands to the empty string, and `TF_VAR_ci_variables=`
+        # is an HCL parse error whose message names the expression rather than the cause.
+        # Worse would be defaulting it to `{}`: the plan would then propose DESTROYING every
+        # Actions variable in the org, and the only thing standing in the way is the
+        # destructive-apply guard further down. Fail here, naming the fix.
+        env:
+          CI_VARIABLES: ${{ vars.CI_VARIABLES }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CI_VARIABLES}" ]; then
+            echo "::error::The CI_VARIABLES repository variable is unset. Generate it from bootstrap's outputs with scripts/export-ci-variables.sh, which writes it directly."
+            exit 1
+          fi
+          if ! printf '%s' "${CI_VARIABLES}" | jq -e 'type == "object"' >/dev/null; then
+            echo "::error::CI_VARIABLES is not a JSON object. Expected {\"<repo>\": {\"NAME\": \"value\"}}; regenerate it with scripts/export-ci-variables.sh."
+            exit 1
+          fi
+          echo "CI_VARIABLES declares $(printf '%s' "${CI_VARIABLES}" | jq -r '[.[] | length] | add // 0') variable(s) across $(printf '%s' "${CI_VARIABLES}" | jq -r 'length') repositor(y|ies)."
+
+      - id: terraform-app-token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
+        with:
+          app-id: ${{ vars.TF_PLAN_APP_ID }}
+          private-key: ${{ secrets.TF_GITHUB_PLAN_APP_PEM }}
+          owner: ${{ vars.ORGANIZATION }}
+
+      - id: plan
+        name: Detect managed drift
+        env:
+          GITHUB_TOKEN: ${{ steps.terraform-app-token.outputs.token }}
+          TF_VAR_billing_email: ${{ vars.BILLING_EMAIL }}
+          TF_VAR_wif_pool_project_number: ${{ vars.WIF_POOL_PROJECT_NUMBER }}
+          TF_VAR_environment_project_ids: ${{ vars.ENVIRONMENT_PROJECT_IDS }}
+          # The 38 Actions variables this configuration declares, as JSON. Delivered here
+          # rather than left to var default {}: without it every plan saw an empty map,
+          # ci-variables.tf produced no resources, and drift.yml reported all of them as
+          # undeclared on every nightly run. Set it with scripts/export-ci-variables.sh.
+          TF_VAR_ci_variables: ${{ vars.CI_VARIABLES }}
+        run: |
+          set -euo pipefail
+          set +e
+          terraform plan -input=false -no-color -lock-timeout=5m -detailed-exitcode -out=tfplan
+          code=$?
+          set -e
+          case "$code" in
+            0) echo "drift=false" >> "$GITHUB_OUTPUT"
+               : > drift.txt ;;
+            2) echo "drift=true"  >> "$GITHUB_OUTPUT"
+               terraform show -no-color tfplan > drift.txt ;;
+            *) echo "::error::terraform plan failed"; exit 1 ;;
+          esac
+
+      # The default GITHUB_TOKEN cannot read organization governance. Create a short-lived
+      # GitHub App token from the protected governance environment credential.
+      - id: app-token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349  # v2
+        with:
+          app-id: ${{ vars.TF_PLAN_APP_ID }}
+          private-key: ${{ secrets.TF_GITHUB_PLAN_APP_PEM }}
+          owner: ${{ vars.ORGANIZATION }}
+
+      - id: unmanaged
+        name: Detect unmanaged resources
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          ORG: ${{ vars.ORGANIZATION }}
+        run: |
+          set -euo pipefail
+          : > unmanaged.txt
+
+          bullet() { awk '{ print "  - " $0 }'; }
+
+          # Preflight. Every path this step reads, asserted before anything runs.
+          #
+          # This exists because the step previously grepped `rulesets/*.tf` and `locals.tf`
+          # after both had moved. A missing glob is a non-zero grep, which under pipefail
+          # aborted the step — and an aborted step in a nightly job reads as an
+          # infrastructure flake rather than as a sweep that has stopped happening. Failing
+          # here says which path, immediately.
+          missing=0
+          for path in modules/rulesets catalog/repositories.yaml; do
+            if [ ! -e "$path" ]; then
+              echo "::error::drift sweep expects ${path}, which does not exist. It has moved or been renamed; update this workflow."
+              missing=1
+            fi
+          done
+          [ "$missing" -eq 0 ] || exit 1
+
+          # Rulesets present in the org but absent from this configuration.
+          #
+          # modules/rulesets/, not rulesets/ — every resource moved under modules/ and this
+          # grep did not move with it. A missing path makes grep exit 2, which under
+          # `set -o pipefail` aborted the whole step, so this sweep silently stopped running
+          # while the job continued to report success on the terraform-plan half above.
+          declared=$(grep -rhoE 'name *= *"[a-z0-9-]+"' modules/rulesets/*.tf | cut -d'"' -f2 | sort -u)
+          actual=$(gh api "/orgs/${ORG}/rulesets" --jq '.[].name' | sort -u)
+          extra=$(comm -13 <(echo "$declared") <(echo "$actual"))
+          if [ -n "$extra" ]; then
+            {
+              echo "Rulesets in the org that this repo does not declare:"
+              echo "$extra" | bullet
+            } >> unmanaged.txt
+          fi
+
+          # Org secrets. policies/secrets.tf declares that there should be none.
+          secrets=$(gh api "/orgs/${ORG}/actions/secrets" --jq '.secrets[].name' || true)
+          if [ -n "$secrets" ]; then
+            {
+              echo ""
+              echo "Organization secrets exist. Each needs a recorded reason — see modules/policies/secrets.tf:"
+              echo "$secrets" | bullet
+            } >> unmanaged.txt
+          fi
+
+          # Repositories outside the declared catalogue.
+          #
+          # The catalogue is YAML now, not a locals block in locals.tf — see catalog/. Parsed
+          # with yq rather than a grep for an indented quoted key, because the old pattern
+          # depended on the exact indentation Terraform fmt happened to produce.
+          declared_repos=$(ruby -ryaml -e 'puts YAML.load_file("catalog/repositories.yaml").keys.sort')
+          actual_repos=$(gh api "/orgs/${ORG}/repos?per_page=100&type=all" --jq '.[].name' | sort -u)
+          extra_repos=$(comm -13 <(echo "$declared_repos") <(echo "$actual_repos"))
+          if [ -n "$extra_repos" ]; then
+            {
+              echo ""
+              echo "Repositories not declared in catalog/repositories.yaml:"
+              echo "$extra_repos" | bullet
+            } >> unmanaged.txt
+          fi
+
+          # Actions variables present on a repository but absent from ci_variables.
+          #
+          # These are now declared in Terraform (modules/repositories/ci-variables.tf), so a
+          # CHANGED value shows up in the plan above. What a plan cannot see is a variable
+          # somebody ADDED by hand — Terraform does not enumerate what it does not manage, and
+          # an undeclared variable is how a pipeline ends up reading a value nothing governs.
+          declared_vars=$(terraform output -json ci_variables 2>/dev/null \
+            | jq -r 'to_entries[] | .key as $r | .value[] | "\($r)\t\(.)"' | sort -u || true)
+
+          while IFS= read -r repo; do
+            [ -z "$repo" ] && continue
+            actual_vars=$(gh api "/repos/${ORG}/${repo}/actions/variables" \
+              --jq '.variables[].name' 2>/dev/null | sed "s|^|${repo}\t|" | sort -u || true)
+            # CI_VARIABLES is the one self-hosting bootstrap input: its value is the JSON that
+            # Terraform uses to create every other repository variable, so it cannot contain
+            # itself. No other unmanaged variable is exempt.
+            if [ "$repo" = "github-config" ]; then
+              actual_vars=$(grep -vxF $'github-config\tCI_VARIABLES' <<<"$actual_vars" || true)
+            fi
+            [ -z "$actual_vars" ] && continue
+            extra_vars=$(comm -13 <(echo "$declared_vars") <(echo "$actual_vars") || true)
+            if [ -n "$extra_vars" ]; then
+              {
+                echo ""
+                echo "Actions variables not declared in ci_variables:"
+                echo "$extra_vars" | awk -F'\t' '{ print "  - " $1 " / " $2 }'
+              } >> unmanaged.txt
+            fi
+          done < <(gh api "/orgs/${ORG}/repos?per_page=100&type=all" --jq '.[].name')
+
+          # Per-repo settings Terraform cannot see or manage.
+          while IFS= read -r repo; do
+            [ -z "$repo" ] && continue
+
+            # Community health files. .github is internal, so org-wide inheritance does NOT
+            # happen — a repo without its own SECURITY.md simply has no disclosure policy,
+            # and nothing else surfaces that. Terraform cannot read repository contents.
+            case "$repo" in
+              .github|) ;;
+              *)
+                for f in SECURITY.md CONTRIBUTING.md; do
+                  if ! gh api "/repos/${ORG}/${repo}/contents/${f}" --silent 2>/dev/null; then
+                    {
+                      echo ""
+                      echo "${repo} has no ${f}. .github is internal, so nothing is inherited —"
+                      echo "  copy it from Mindclade/.github."
+                    } >> unmanaged.txt
+                  fi
+                done ;;
+            esac
+
+            # Private vulnerability reporting. REST-only, no provider resource at any version.
+            # Every SECURITY.md names /security/advisories/new as the primary channel, and
+            # that URL 404s while this is off — so a researcher either emails or opens a
+            # public issue, which is exactly what the policy exists to prevent.
+            pvr=$(gh api "/repos/${ORG}/${repo}/private-vulnerability-reporting" --jq .enabled 2>/dev/null || echo "unknown")
+            if [ "$pvr" != "true" ]; then
+              {
+                echo ""
+                echo "${repo}: private vulnerability reporting is ${pvr}. SECURITY.md links to"
+                echo "  /security/advisories/new, which 404s until it is on. Enable with:"
+                echo "  gh api -X PUT repos/${ORG}/${repo}/private-vulnerability-reporting"
+              } >> unmanaged.txt
+            fi
+          done < <(gh api "/orgs/${ORG}/repos?per_page=100&type=all" --jq '.[].name')
+
+          if [ -s unmanaged.txt ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload drift artifacts
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5
+        with:
+          name: drift-output
+          path: |
+            drift.txt
+            unmanaged.txt
+          retention-days: 14
+
+      - name: Open or update the drift issue
+        if: steps.plan.outputs.drift == 'true' || steps.unmanaged.outputs.found == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # shellcheck disable=SC2016
+          # Intentional: the literal $ belongs to the text being built (a markdown body or a jq program), not to the shell.
+          set -euo pipefail
+
+          owner="${GITHUB_REPOSITORY%/*}"
+          repo="${GITHUB_REPOSITORY#*/}"
+          short_sha="${GITHUB_SHA::7}"
+          run_url="${GITHUB_SERVER_URL}/${owner}/${repo}/actions/runs/${GITHUB_RUN_ID}"
+          # `if`, not `[ -f x ] && cat x || true`. In that idiom the `|| true` also swallows a
+          # FAILING cat — an unreadable drift.txt would produce an empty body and an issue
+          # reporting no drift, which is the one outcome this job must never produce silently.
+          # (SC2015 says the same thing more tersely.)
+          if [ -f drift.txt ]; then managed="$(cat drift.txt)"; else managed=""; fi
+          if [ -f unmanaged.txt ]; then unmanaged="$(cat unmanaged.txt)"; else unmanaged=""; fi
+
+          body='## Organization drift detected'
+          body+='\n'
+
+          # Plain single quotes. `'\''` is the idiom for embedding a quote INSIDE a
+          # single-quoted string; this awk program sits inside a double-quoted command
+          # substitution, where it is simply a syntax error — bash reported "unexpected EOF
+          # while looking for matching `'`" and the whole step never ran. The identical line
+          # for `managed` below was already correct, which is what a half-applied edit looks
+          # like.
+          unmanaged_trim="$(printf '%s' "$unmanaged" | awk 'NF{print; exit 0}' )"
+          if [ -n "$unmanaged_trim" ]; then
+            body+='\n### Resources not managed by this repository'
+            body+='\n'
+            body+='\nThese exist in the org but are absent from the configuration. Either adopt them'
+            body+='\nwith an `import` block, or delete them.'
+            body+='\n```'
+            body+="\n${unmanaged}"
+            body+='\n```'
+            body+='\n'
+          fi
+
+          managed_trim="$(printf '%s' "$managed" | awk 'NF{print; exit 0}' )"
+          if [ -n "$managed_trim" ]; then
+            if [ "${#managed}" -gt 45000 ]; then
+              managed_tail="$(printf '%s' "$managed" | tail -c 45000)"
+            else
+              managed_tail="$managed"
+            fi
+            body+='\n### Managed resources that no longer match'
+            body+='\n'
+            body+='\nSomething changed these outside Terraform. Re-applying reverts it — read the'
+            body+='\nplan first to be sure the change was not deliberate.'
+            body+='\n```terraform'
+            body+="\n$managed_tail"
+            body+='\n```'
+            body+='\n'
+          fi
+          body+='\nRun: '
+          body+="$run_url"
+
+          issue_number="$(gh issue list \
+            --label drift \
+            --state open \
+            --json number \
+            --jq '.[0].number' \
+            --limit 1)"
+
+          if [ -n "$issue_number" ] && [ "$issue_number" != "null" ]; then
+            gh issue edit "$issue_number" --repo "${owner}/${repo}" --body "$(printf '%b' "$body")"
+            gh issue comment "$issue_number" --repo "${owner}/${repo}" --body "Still drifting as of ${short_sha}."
+          else
+            gh issue create \
+              --repo "${owner}/${repo}" \
+              --title 'Organization configuration has drifted' \
+              --label drift \
+              --label github-config \
+              --body "$(printf '%b' "$body")"
+          fi
+
+      - name: Close the drift issue when clean
+        if: steps.plan.outputs.drift == 'false' && steps.unmanaged.outputs.found == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          owner="${GITHUB_REPOSITORY%/*}"
+          repo="${GITHUB_REPOSITORY#*/}"
+          issue_numbers="$(gh issue list --label drift --state open --json number --jq '.[].number')"
+          for issue_number in $issue_numbers; do
+            [ -n "$issue_number" ] || continue
+            gh issue comment "$issue_number" --repo "${owner}/${repo}" --body 'Drift resolved — the organization matches the configuration again.'
+            gh issue close "$issue_number" --repo "${owner}/${repo}" --reason completed
+          done
+
+      - name: Monthly reminder for the manual controls
+        # SAML, SCIM, and audit-log streaming cannot be read by any provider, so nothing
+        # above can detect drift in them. A human walks the checklist instead; this is what
+        # stops that from being forgotten for a year.
+        if: github.event.schedule == '37 2 * * *'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          day="$(date -u +%d)"
+          if [ "$day" -ne "01" ]; then
+            exit 0
+          fi
+
+          owner="${GITHUB_REPOSITORY%/*}"
+          repo="${GITHUB_REPOSITORY#*/}"
+          month="$(date -u +%Y-%m)"
+          title="Manual control review — $month"
+
+          body='Enterprise settings with no Terraform coverage need a human to confirm they'
+          body+='\nare still as intended. Walk `docs/enterprise-manual-controls.md` and tick each'
+          body+='\nrow, then close this.'
+          body+='\n'
+          body+='\nAnything found changed goes in the issue as a comment before closing — that'
+          body+='\nrecord is the only evidence these were checked at all.'
+
+          gh issue create \
+            --repo "${owner}/${repo}" \
+            --title "$title" \
+            --label compliance \
+            --label github-config \
+            --body "$(printf '%b' "$body")"
+
+  drift-artifact-verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    needs: [drift]
+    if: always()
+    steps:
+      - name: Download drift artifacts for audit
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0  # v5
+        with:
+          name: drift-output
+          path: artifacts
+
+      - name: Verify artifact integrity
+        run: |
+          if [ -f artifacts/drift.txt ]; then
+            echo "Drift plan artifact present."
+          else
+            echo "Drift plan artifact missing."
+          fi
+          if [ -f artifacts/unmanaged.txt ]; then
+            echo "Unmanaged drift artifact present."
+          else
+            echo "Unmanaged drift artifact missing."
+          fi

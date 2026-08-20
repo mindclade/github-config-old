@@ -1,0 +1,31 @@
+# Copyright © 2026 Mindclade, LLC. All Rights Reserved.
+# Mindclade Proprietary and Confidential.
+# SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
+#
+---
+source_of_truth: corporate-idp
+groups:
+  engineering:
+    github_team: engineering
+  platform:
+    github_team: platform
+  infrastructure:
+    github_team: infrastructure
+  security:
+    github_team: security
+  data-platform:
+    github_team: data-platform
+  research:
+    github_team: research
+  model-training:
+    github_team: model-training
+  model-serving:
+    github_team: model-serving
+  product:
+    github_team: product
+  release:
+    github_team: release
+  incident-command:
+    github_team: incident-command
+  biosecurity:
+    github_team: biosecurity

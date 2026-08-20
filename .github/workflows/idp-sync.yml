@@ -1,0 +1,135 @@
+---
+# Copyright © 2026 Mindclade, LLC. All Rights Reserved.
+# Mindclade Proprietary and Confidential.
+# SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
+#
+# Keeps idp/team-members.json honest against the IdP.
+#
+# modules/teams/membership.tf builds every github_membership and github_team_membership from
+# that file, guarded by fileexists() so a first plan works before the first sync. The guard is
+# also the hazard: with no file, a plan SUCCEEDS and creates zero memberships — a fully
+# governed organization with nobody in it, and nothing anywhere saying so. scripts/
+# export-idp-groups.sh existed to produce the file and was invoked by nothing.
+#
+# THIS JOB DOES NOT COMMIT. It runs the export read-only and compares. Writing to the default
+# branch from CI would need a token with contents:write on the repository that governs the
+# organization, which is a larger standing grant than the problem is worth — and membership
+# changes are exactly the diff a human should see. The scheduled run opens an issue naming
+# what moved; the artifact it uploads is the file to commit.
+#
+# Its identity is the PLAN service account: read-only in GCP, and Cloud Identity group reads
+# are all this needs. bootstrap grants it roles/cloudidentity.groups.readonly at the
+# organization for this job specifically.
+name: idp-sync
+
+on:
+  schedule:
+    # 03:11 UTC, ahead of the 02:37 drift run's next occurrence and well clear of it. Off the
+    # hour because scheduled runs cluster on :00 and queue behind everyone else's cron.
+    - cron: "11 3 * * *"
+  pull_request:
+    paths:
+      - 'idp/**'
+      - 'scripts/export-idp-groups.sh'
+      - 'catalog/teams.yaml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: idp-sync-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  export:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    outputs:
+      stale: ${{ steps.check.outputs.stale }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093  # v3
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER_PLAN }}
+          service_account: ${{ vars.SA_GITHUB_CONFIG_PLAN }}
+
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db  # v3
+
+      - uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342  # v31.11.0
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = false
+
+      - id: check
+        name: Is the committed export current?
+        # --check compares and writes nothing. The script refuses to emit a document with zero
+        # org members, so an IdP outage fails here rather than producing an empty export that
+        # would remove every member on the next apply.
+        run: |
+          set -euo pipefail
+          set +e
+          nix develop --command ./scripts/export-idp-groups.sh --check
+          code=$?
+          set -e
+          # 3 is "stale" specifically; the script reserves it for that. Anything else is a
+          # broken read — an unreachable directory, a missing customer id — and must fail the
+          # job rather than be reported as a file that needs regenerating.
+          case "$code" in
+            0) echo "stale=false" >> "$GITHUB_OUTPUT"; echo "idp/team-members.json is current." ;;
+            3) echo "stale=true"  >> "$GITHUB_OUTPUT"; echo "::warning::idp/team-members.json is stale." ;;
+            *) echo "::error::the export failed with status ${code} — this is a broken read, not a stale file."; exit 1 ;;
+          esac
+
+      - name: Produce the file that should be committed
+        if: steps.check.outputs.stale == 'true'
+        run: nix develop --command ./scripts/export-idp-groups.sh
+
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5
+        if: steps.check.outputs.stale == 'true'
+        with:
+          name: team-members-json
+          path: idp/team-members.json
+          retention-days: 14
+
+
+  report:
+    if: github.event_name == 'schedule' && needs.export.result == 'success' && needs.export.outputs.stale == 'true'
+    needs: [export]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Open or update the IdP drift issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          body='`idp/team-members.json` no longer matches the IdP.'
+          body+='\nEvery GitHub organization and team membership is compiled from that file.'
+          body+='\nIf someone was offboarded in the directory, access remains stale until the file is reviewed and applied.'
+          body+='\n\nDownload the `team-members-json` artifact, commit it through a reviewed PR, and let apply.yml reconcile.'
+          body+="\n\nRun: ${RUN_URL}"
+          existing="$(gh issue list --repo "${GITHUB_REPOSITORY}" --state open \
+            --label idp-sync --json number --jq '.[0].number' || true)"
+          if [ -n "$existing" ] && [ "$existing" != "null" ]; then
+            gh issue comment "$existing" --repo "${GITHUB_REPOSITORY}" --body "$(printf '%b' "$body")"
+          else
+            gh issue create \
+              --title 'IdP export is stale — organization membership is not current' \
+              --repo "${GITHUB_REPOSITORY}" \
+              --label idp-sync \
+              --label security \
+              --body "$(printf '%b' "$body")"
+          fi

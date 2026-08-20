@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Mindclade repository governance entry",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "name",
+    "repository_class",
+    "owner_team",
+    "visibility",
+    "default_branch",
+    "lifecycle"
+  ],
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "repository_class": {
+      "enum": [
+        "enterprise-control",
+        "production-control",
+        "source-monorepo",
+        "public-sdk",
+        "archive"
+      ]
+    },
+    "owner_team": {
+      "type": "string",
+      "minLength": 1
+    },
+    "visibility": {
+      "enum": [
+        "private",
+        "internal",
+        "public"
+      ]
+    },
+    "default_branch": {
+      "const": "main"
+    },
+    "lifecycle": {
+      "enum": [
+        "active",
+        "incubating",
+        "deprecated",
+        "archived"
+      ]
+    },
+    "production_authority": {
+      "type": "boolean"
+    }
+  }
+}

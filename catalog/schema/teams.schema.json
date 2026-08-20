@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": {
+    "type": "object",
+    "required": [
+      "description",
+      "privacy",
+      "parent"
+    ],
+    "properties": {
+      "description": {
+        "type": "string"
+      },
+      "privacy": {
+        "enum": [
+          "closed",
+          "secret"
+        ]
+      },
+      "parent": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "additionalProperties": false
+  }
+}

@@ -1,0 +1,42 @@
+# Copyright © 2026 Mindclade, LLC. All Rights Reserved.
+# Mindclade Proprietary and Confidential.
+# SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
+#
+---
+schema_version: 1
+repository: github-config
+repository_class: enterprise-control
+visibility: private
+authority:
+    - github-enterprise-governance
+    - repositories
+    - teams
+    - access
+    - rulesets
+    - environments
+    - actions-policy
+    - oidc-policy
+forbidden_authority:
+    - google-cloud-resources
+    - kubernetes-desired-state
+    - shared-workflow-implementation
+    - application-source
+required_paths:
+    - catalog/repositories.yaml
+    - catalog/teams.yaml
+    - catalog/access.yaml
+    - catalog/environments.yaml
+    - modules/rulesets
+    - modules/repositories
+    - modules/teams
+forbidden_paths:
+    - .terraform
+    - .terragrunt-cache
+default_branch: main
+change_model: pull-request
+production_controls:
+  required_reviews: true
+  codeowners: true
+  merge_queue: true
+  immutable_actions: true
+  oidc_only_cloud_authentication: true

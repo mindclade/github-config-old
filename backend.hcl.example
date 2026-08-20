@@ -1,0 +1,10 @@
+# Copyright © 2026 Mindclade, LLC. All Rights Reserved.
+# Mindclade Proprietary and Confidential.
+# SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
+#
+# Copy to backend.hcl and fill in from `terraform output` in the bootstrap repo.
+#   terraform init -backend-config=backend.hcl
+#
+# backend.hcl is gitignored: it names a bucket, which is not a secret, but pinning it in
+# git makes standing up a second environment a code change rather than a flag.
+bucket = "REPLACE_ME-tfstate-org"

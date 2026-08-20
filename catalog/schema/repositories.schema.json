@@ -1,0 +1,813 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    ".github",
+    "github-config",
+    "bootstrap",
+    "infrastructure-live",
+    "gitops",
+    "mindclade-internal-monorepo"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    ".github": {
+      "type": "object",
+      "required": [
+        "description",
+        "default_branch",
+        "visibility",
+        "repository_class",
+        "criticality",
+        "data_classification",
+        "production_authority",
+        "owner_team",
+        "ci_profile",
+        "language_profile",
+        "lifecycle",
+        "environments",
+        "topics",
+        "has_issues",
+        "has_projects"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "visibility": {
+          "enum": [
+            "private",
+            "internal",
+            "public"
+          ]
+        },
+        "repository_class": {
+          "enum": [
+            "enterprise-control",
+            "production-control",
+            "source-monorepo",
+            "public-sdk",
+            "archive"
+          ]
+        },
+        "criticality": {
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "data_classification": {
+          "enum": [
+            "public",
+            "internal",
+            "confidential",
+            "restricted"
+          ]
+        },
+        "production_authority": {
+          "enum": [
+            "true",
+            "false"
+          ]
+        },
+        "owner_team": {
+          "enum": [
+            "engineering",
+            "platform",
+            "infrastructure",
+            "security",
+            "data-platform",
+            "research",
+            "model-training",
+            "model-serving",
+            "product",
+            "release",
+            "incident-command",
+            "biosecurity"
+          ]
+        },
+        "ci_profile": {
+          "type": "string",
+          "minLength": 1
+        },
+        "language_profile": {
+          "enum": [
+            "go",
+            "python",
+            "rust",
+            "typescript",
+            "terraform",
+            "mixed",
+            "none"
+          ]
+        },
+        "lifecycle": {
+          "enum": [
+            "active",
+            "maintenance",
+            "archive"
+          ]
+        },
+        "environments": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "development",
+              "staging",
+              "production",
+              "governance",
+              "bootstrap",
+              "release",
+              "break-glass"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "topics": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "has_issues": {
+          "type": "boolean"
+        },
+        "has_projects": {
+          "type": "boolean"
+        },
+        "default_branch": {
+          "const": "main"
+        }
+      }
+    },
+    "github-config": {
+      "type": "object",
+      "required": [
+        "description",
+        "default_branch",
+        "visibility",
+        "repository_class",
+        "criticality",
+        "data_classification",
+        "production_authority",
+        "owner_team",
+        "ci_profile",
+        "language_profile",
+        "lifecycle",
+        "environments",
+        "topics",
+        "has_issues",
+        "has_projects"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "visibility": {
+          "enum": [
+            "private",
+            "internal",
+            "public"
+          ]
+        },
+        "repository_class": {
+          "enum": [
+            "enterprise-control",
+            "production-control",
+            "source-monorepo",
+            "public-sdk",
+            "archive"
+          ]
+        },
+        "criticality": {
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "data_classification": {
+          "enum": [
+            "public",
+            "internal",
+            "confidential",
+            "restricted"
+          ]
+        },
+        "production_authority": {
+          "enum": [
+            "true",
+            "false"
+          ]
+        },
+        "owner_team": {
+          "enum": [
+            "engineering",
+            "platform",
+            "infrastructure",
+            "security",
+            "data-platform",
+            "research",
+            "model-training",
+            "model-serving",
+            "product",
+            "release",
+            "incident-command",
+            "biosecurity"
+          ]
+        },
+        "ci_profile": {
+          "type": "string",
+          "minLength": 1
+        },
+        "language_profile": {
+          "enum": [
+            "go",
+            "python",
+            "rust",
+            "typescript",
+            "terraform",
+            "mixed",
+            "none"
+          ]
+        },
+        "lifecycle": {
+          "enum": [
+            "active",
+            "maintenance",
+            "archive"
+          ]
+        },
+        "environments": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "development",
+              "staging",
+              "production",
+              "governance",
+              "bootstrap",
+              "release",
+              "break-glass"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "topics": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "has_issues": {
+          "type": "boolean"
+        },
+        "has_projects": {
+          "type": "boolean"
+        },
+        "default_branch": {
+          "const": "main"
+        }
+      }
+    },
+    "bootstrap": {
+      "type": "object",
+      "required": [
+        "description",
+        "default_branch",
+        "visibility",
+        "repository_class",
+        "criticality",
+        "data_classification",
+        "production_authority",
+        "owner_team",
+        "ci_profile",
+        "language_profile",
+        "lifecycle",
+        "environments",
+        "topics",
+        "has_issues",
+        "has_projects"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "visibility": {
+          "enum": [
+            "private",
+            "internal",
+            "public"
+          ]
+        },
+        "repository_class": {
+          "enum": [
+            "enterprise-control",
+            "production-control",
+            "source-monorepo",
+            "public-sdk",
+            "archive"
+          ]
+        },
+        "criticality": {
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "data_classification": {
+          "enum": [
+            "public",
+            "internal",
+            "confidential",
+            "restricted"
+          ]
+        },
+        "production_authority": {
+          "enum": [
+            "true",
+            "false"
+          ]
+        },
+        "owner_team": {
+          "enum": [
+            "engineering",
+            "platform",
+            "infrastructure",
+            "security",
+            "data-platform",
+            "research",
+            "model-training",
+            "model-serving",
+            "product",
+            "release",
+            "incident-command",
+            "biosecurity"
+          ]
+        },
+        "ci_profile": {
+          "type": "string",
+          "minLength": 1
+        },
+        "language_profile": {
+          "enum": [
+            "go",
+            "python",
+            "rust",
+            "typescript",
+            "terraform",
+            "mixed",
+            "none"
+          ]
+        },
+        "lifecycle": {
+          "enum": [
+            "active",
+            "maintenance",
+            "archive"
+          ]
+        },
+        "environments": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "development",
+              "staging",
+              "production",
+              "governance",
+              "bootstrap",
+              "release",
+              "break-glass"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "topics": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "has_issues": {
+          "type": "boolean"
+        },
+        "has_projects": {
+          "type": "boolean"
+        },
+        "default_branch": {
+          "const": "main"
+        }
+      }
+    },
+    "infrastructure-live": {
+      "type": "object",
+      "required": [
+        "description",
+        "default_branch",
+        "visibility",
+        "repository_class",
+        "criticality",
+        "data_classification",
+        "production_authority",
+        "owner_team",
+        "ci_profile",
+        "language_profile",
+        "lifecycle",
+        "environments",
+        "topics",
+        "has_issues",
+        "has_projects"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "visibility": {
+          "enum": [
+            "private",
+            "internal",
+            "public"
+          ]
+        },
+        "repository_class": {
+          "enum": [
+            "enterprise-control",
+            "production-control",
+            "source-monorepo",
+            "public-sdk",
+            "archive"
+          ]
+        },
+        "criticality": {
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "data_classification": {
+          "enum": [
+            "public",
+            "internal",
+            "confidential",
+            "restricted"
+          ]
+        },
+        "production_authority": {
+          "enum": [
+            "true",
+            "false"
+          ]
+        },
+        "owner_team": {
+          "enum": [
+            "engineering",
+            "platform",
+            "infrastructure",
+            "security",
+            "data-platform",
+            "research",
+            "model-training",
+            "model-serving",
+            "product",
+            "release",
+            "incident-command",
+            "biosecurity"
+          ]
+        },
+        "ci_profile": {
+          "type": "string",
+          "minLength": 1
+        },
+        "language_profile": {
+          "enum": [
+            "go",
+            "python",
+            "rust",
+            "typescript",
+            "terraform",
+            "mixed",
+            "none"
+          ]
+        },
+        "lifecycle": {
+          "enum": [
+            "active",
+            "maintenance",
+            "archive"
+          ]
+        },
+        "environments": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "development",
+              "staging",
+              "production",
+              "governance",
+              "bootstrap",
+              "release",
+              "break-glass"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "topics": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "has_issues": {
+          "type": "boolean"
+        },
+        "has_projects": {
+          "type": "boolean"
+        },
+        "default_branch": {
+          "const": "main"
+        }
+      }
+    },
+    "gitops": {
+      "type": "object",
+      "required": [
+        "description",
+        "default_branch",
+        "visibility",
+        "repository_class",
+        "criticality",
+        "data_classification",
+        "production_authority",
+        "owner_team",
+        "ci_profile",
+        "language_profile",
+        "lifecycle",
+        "environments",
+        "topics",
+        "has_issues",
+        "has_projects"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "visibility": {
+          "enum": [
+            "private",
+            "internal",
+            "public"
+          ]
+        },
+        "repository_class": {
+          "enum": [
+            "enterprise-control",
+            "production-control",
+            "source-monorepo",
+            "public-sdk",
+            "archive"
+          ]
+        },
+        "criticality": {
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "data_classification": {
+          "enum": [
+            "public",
+            "internal",
+            "confidential",
+            "restricted"
+          ]
+        },
+        "production_authority": {
+          "enum": [
+            "true",
+            "false"
+          ]
+        },
+        "owner_team": {
+          "enum": [
+            "engineering",
+            "platform",
+            "infrastructure",
+            "security",
+            "data-platform",
+            "research",
+            "model-training",
+            "model-serving",
+            "product",
+            "release",
+            "incident-command",
+            "biosecurity"
+          ]
+        },
+        "ci_profile": {
+          "type": "string",
+          "minLength": 1
+        },
+        "language_profile": {
+          "enum": [
+            "go",
+            "python",
+            "rust",
+            "typescript",
+            "terraform",
+            "mixed",
+            "none"
+          ]
+        },
+        "lifecycle": {
+          "enum": [
+            "active",
+            "maintenance",
+            "archive"
+          ]
+        },
+        "environments": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "development",
+              "staging",
+              "production",
+              "governance",
+              "bootstrap",
+              "release",
+              "break-glass"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "topics": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "has_issues": {
+          "type": "boolean"
+        },
+        "has_projects": {
+          "type": "boolean"
+        },
+        "default_branch": {
+          "const": "main"
+        }
+      }
+    },
+    "mindclade-internal-monorepo": {
+      "type": "object",
+      "required": [
+        "description",
+        "default_branch",
+        "visibility",
+        "repository_class",
+        "criticality",
+        "data_classification",
+        "production_authority",
+        "owner_team",
+        "ci_profile",
+        "language_profile",
+        "lifecycle",
+        "environments",
+        "topics",
+        "has_issues",
+        "has_projects"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "visibility": {
+          "enum": [
+            "private",
+            "internal",
+            "public"
+          ]
+        },
+        "repository_class": {
+          "enum": [
+            "enterprise-control",
+            "production-control",
+            "source-monorepo",
+            "public-sdk",
+            "archive"
+          ]
+        },
+        "criticality": {
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "data_classification": {
+          "enum": [
+            "public",
+            "internal",
+            "confidential",
+            "restricted"
+          ]
+        },
+        "production_authority": {
+          "enum": [
+            "true",
+            "false"
+          ]
+        },
+        "owner_team": {
+          "enum": [
+            "engineering",
+            "platform",
+            "infrastructure",
+            "security",
+            "data-platform",
+            "research",
+            "model-training",
+            "model-serving",
+            "product",
+            "release",
+            "incident-command",
+            "biosecurity"
+          ]
+        },
+        "ci_profile": {
+          "type": "string",
+          "minLength": 1
+        },
+        "language_profile": {
+          "enum": [
+            "go",
+            "python",
+            "rust",
+            "typescript",
+            "terraform",
+            "mixed",
+            "none"
+          ]
+        },
+        "lifecycle": {
+          "enum": [
+            "active",
+            "maintenance",
+            "archive"
+          ]
+        },
+        "environments": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "development",
+              "staging",
+              "production",
+              "governance",
+              "bootstrap",
+              "release",
+              "break-glass"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "topics": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "has_issues": {
+          "type": "boolean"
+        },
+        "has_projects": {
+          "type": "boolean"
+        },
+        "default_branch": {
+          "const": "main"
+        }
+      }
+    }
+  }
+}

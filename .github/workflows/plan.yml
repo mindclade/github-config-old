@@ -1,0 +1,409 @@
+---
+# Copyright © 2026 Mindclade, LLC. All Rights Reserved.
+# Mindclade Proprietary and Confidential.
+# SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
+#
+# Five jobs, not one, for two reasons.
+#
+# Status checks. A ruleset can only require a check that GitHub reports, and GitHub reports
+# one check per JOB — steps produce nothing. A single `plan` job with tflint and checkov as
+# steps gives one opaque pass/fail, and a ruleset naming `plan / tflint` would sit
+# permanently pending and block every merge in the org.
+#
+# Credentials. Only `plan` needs to reach GCP. Splitting means fmt, validate, tflint, and
+# checkov run with no cloud identity at all, so the blast radius of a malicious PR editing
+# this file is four jobs that can do nothing.
+#
+# Job ids here ARE the required-check contexts in github-config/rulesets/required-checks-tf.tf.
+# Renaming a job is a breaking change to that ruleset. Change both together.
+#
+# DO NOT add `paths:` or `paths-ignore:` filters to this workflow.
+#
+# Only the Terraform-context jobs above (`fmt`, `validate`, `tflint`, `checkov`, `test`, `plan`)
+# are required checks. Additional security jobs below are optional hardening and may be
+# required by repo policy outside this workflow if desired.
+#
+# If PR latency becomes a problem, make the jobs faster (the provider cache below is most of
+# it). Do not make them conditional.
+name: plan
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: plan-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TF_VERSION: "1.15.9"
+  TF_IN_AUTOMATION: "true"
+  # Shared provider cache. Five jobs would otherwise each download the full provider set on
+  # every run; keyed on the lock file, so a provider bump invalidates it and nothing else does.
+  TF_PLUGIN_CACHE_DIR: /home/runner/.terraform.d/plugin-cache
+
+jobs:
+  # ---------------------------------------------------------------------------------------
+  # Lint
+  # ---------------------------------------------------------------------------------------
+  # .github/actionlint.yaml and .yamllint.yaml were in this repository with nothing running
+  # either of them, and no flake to supply the binaries if anything had. Both are fixed
+  # together; see flake.nix.
+  #
+  # NOT a required check. `fmt`, `validate`, `tflint`, `checkov`, `test` and `plan` are the
+  # contexts required-checks-tf* names, and adding a seventh means editing that ruleset in the
+  # same PR — see the note at the top of this file about job ids being load-bearing. This one
+  # is advisory until the ruleset moves with it.
+  lint:
+    name: actionlint + yamllint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342  # v31.11.0
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = false
+
+      - name: actionlint
+        # Take the binary from the flake, not a release download. actionlint shells out to
+        # shellcheck, and shellcheck versions disagree: 0.10.0 (what flake.lock pins) reports
+        # SC2153 and SC2015 findings that 0.11.0 does not. A locally installed actionlint can
+        # therefore pass on a change this job fails.
+        run: nix develop .#ci --command actionlint -color
+
+      - name: yamllint
+        run: nix develop .#ci --command yamllint --strict .
+
+  fmt:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd  # v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+      - run: terraform fmt -check -recursive -diff
+
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd  # v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+      - name: Cache Terraform providers
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
+        with:
+          path: /home/runner/.terraform.d/plugin-cache
+          key: tf-providers-${{ runner.os }}-${{ env.TF_VERSION }}-${{ hashFiles('**/.terraform.lock.hcl', '**/versions.tf', '**/providers.tf', '**/providers.tf.json', '**/terraform.tf') }}
+          restore-keys: |
+            tf-providers-${{ runner.os }}-${{ env.TF_VERSION }}-
+            tf-providers-${{ runner.os }}-
+      - name: Create the cache directory
+        run: mkdir -p "$TF_PLUGIN_CACHE_DIR"
+      - name: Validate
+        # -backend=false: validate needs the provider schemas and the module tree, not the
+        # remote state. This is what lets the job run with no credentials.
+        run: |
+          terraform init -input=false -backend=false
+          terraform validate -no-color
+
+  tflint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: terraform-linters/setup-tflint@6e1e0642c0289bd619021bf6b34e3c08ed1e005a  # v6
+        with:
+          tflint_version: v0.59.1
+      - run: |
+          tflint --init
+          tflint --format=compact --recursive
+
+  checkov:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: bridgecrewio/checkov-action@1246d92f57abae29d5db5f9aeeed2a9813e52d7d  # v12
+        with:
+          directory: .
+          framework: terraform
+          output_format: cli
+          output_file_path: console
+          soft_fail: false
+
+  test:
+    # `terraform test` against modules/catalog, which declares no resources and needs no
+    # provider — so this job holds no cloud identity and no GitHub credential at all.
+    #
+    # Its own job, not a step inside `validate`, for the reason stated at the top of this
+    # file: GitHub reports one check per JOB, and the required-checks-tf-static ruleset names
+    # this context. Folding it into another job would make the access-model assertions
+    # invisible to the ruleset.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate catalog and access policy
+        run: |
+          set -euo pipefail
+          python3 scripts/validate-catalog.py
+          python3 scripts/check-access-expiry.py
+
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd  # v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+      - name: Cache Terraform providers
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
+        with:
+          path: /home/runner/.terraform.d/plugin-cache
+          key: tf-providers-${{ runner.os }}-${{ env.TF_VERSION }}-${{ hashFiles('**/.terraform.lock.hcl', '**/versions.tf', '**/providers.tf', '**/providers.tf.json', '**/terraform.tf') }}
+          restore-keys: |
+            tf-providers-${{ runner.os }}-${{ env.TF_VERSION }}-
+            tf-providers-${{ runner.os }}-
+      - name: Create the cache directory
+        run: mkdir -p "$TF_PLUGIN_CACHE_DIR"
+      - name: Test the access model
+        # -backend=false: the tests need the module tree, not the remote state. That is what
+        # lets this job run with no credentials.
+        run: |
+          set -euo pipefail
+          terraform init -input=false -backend=false
+          terraform test -no-color
+
+  pre-commit:
+    name: pre-commit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Cache pre-commit environment
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
+        with:
+          path: /home/runner/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+          restore-keys: |
+            pre-commit-${{ runner.os }}-
+
+      - name: Run Mindclade proprietary license header checks
+        uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd
+        with:
+          extra_args: --hook-stage pre-commit --all-files
+
+  dependency-review:
+    name: dependency-review
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+    steps:
+      - name: Review dependency graph changes
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294
+        with:
+          fail-on-severity: high
+
+  trivy:
+    name: trivy fs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: 1
+
+  osv:
+    name: osv-scanner
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@06b2ab4348248b456ee06c9e953637f55e03504f
+
+  plan:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER_PLAN }}
+          service_account: ${{ vars.SA_GITHUB_CONFIG_PLAN }}
+
+      - id: app-token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
+        with:
+          app-id: ${{ vars.TF_PLAN_APP_ID }}
+          private-key: ${{ secrets.TF_GITHUB_PLAN_APP_PEM }}
+          owner: ${{ vars.ORGANIZATION }}
+
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Cache Terraform providers
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: /home/runner/.terraform.d/plugin-cache
+          key: tf-providers-${{ runner.os }}-${{ env.TF_VERSION }}-${{ hashFiles('.terraform.lock.hcl', 'versions.tf', 'providers.tf', 'modules/**/versions.tf') }}
+          restore-keys: |
+            tf-providers-${{ runner.os }}-${{ env.TF_VERSION }}-
+
+      - name: Initialize
+        run: |
+          set -euo pipefail
+          mkdir -p "$TF_PLUGIN_CACHE_DIR"
+          terraform init -input=false -lockfile=readonly -backend-config="bucket=${{ vars.TFSTATE_BUCKET }}"
+
+      - name: Validate generated inputs
+        env:
+          CI_VARIABLES: ${{ vars.CI_VARIABLES }}
+          ENVIRONMENT_PROJECT_IDS: ${{ vars.ENVIRONMENT_PROJECT_IDS }}
+        run: |
+          set -euo pipefail
+          test -n "$CI_VARIABLES" || { echo "::error::CI_VARIABLES is unset"; exit 1; }
+          printf '%s' "$CI_VARIABLES" | jq -e 'type == "object"' >/dev/null
+          printf '%s' "$ENVIRONMENT_PROJECT_IDS" | jq -e 'type == "object"' >/dev/null
+
+      - id: plan
+        name: Plan
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          TF_VAR_billing_email: ${{ vars.BILLING_EMAIL }}
+          TF_VAR_wif_pool_project_number: ${{ vars.WIF_POOL_PROJECT_NUMBER }}
+          TF_VAR_environment_project_ids: ${{ vars.ENVIRONMENT_PROJECT_IDS }}
+          TF_VAR_ci_variables: ${{ vars.CI_VARIABLES }}
+        run: |
+          set -euo pipefail
+          set +e
+          terraform plan -input=false -no-color -lock-timeout=5m -detailed-exitcode -out=tfplan
+          code=$?
+          set -e
+          case "$code" in
+            0) echo "has-changes=false" >> "$GITHUB_OUTPUT" ;;
+            2) echo "has-changes=true" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::terraform plan failed"; exit 1 ;;
+          esac
+          terraform show -no-color tfplan > plan.txt
+          terraform show -json tfplan > plan.json
+          rm -f tfplan
+
+      - name: Flag destructive changes
+        run: |
+          set -euo pipefail
+          destroy_count="$(jq '[.resource_changes[]? | select(.change.actions | index("delete"))] | length' plan.json)"
+          replace_count="$(jq '[.resource_changes[]? | select(.change.actions == ["delete","create"] or .change.actions == ["create","delete"])] | length' plan.json)"
+          if [ "$destroy_count" -gt 0 ] || [ "$replace_count" -gt 0 ]; then
+            echo "::warning::Plan contains ${destroy_count} delete action(s) and ${replace_count} replacement(s)."
+          fi
+
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: speculative-plan-${{ github.sha }}
+          path: |
+            plan.txt
+            plan.json
+          retention-days: 7
+          if-no-files-found: error
+
+
+  plan-comment:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    needs: [plan]
+    if: github.event_name == 'pull_request' && needs.plan.result == 'success'
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Download speculative plan
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0  # v5
+        with:
+          name: speculative-plan-${{ github.sha }}
+          path: artifacts
+
+      - name: Comment on pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.number }}
+        run: |
+          set -euo pipefail
+          marker='<!-- github-config-plan -->'
+          export MARKER="$marker"
+          body="$(tail -c 60000 artifacts/plan.txt)"
+          comment="${marker}\n### Terraform plan — github-config\n\n\`\`\`terraform\n${body}\n\`\`\`"
+          prior="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${ISSUE_NUMBER}/comments" \
+            --paginate --jq '.[] | select(.body | contains($ENV.MARKER)) | .id' | head -n1)"
+          if [ -n "$prior" ]; then
+            gh api "repos/${GITHUB_REPOSITORY}/issues/comments/${prior}" \
+              --method PATCH --field body="$comment"
+          else
+            gh api "repos/${GITHUB_REPOSITORY}/issues/${ISSUE_NUMBER}/comments" \
+              --method POST --field body="$comment"
+          fi
+
+  plan-artifact-verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    needs: [plan]
+    if: needs.plan.result == 'success'
+    steps:
+      - name: Download plan artifacts for audit
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0  # v5
+        with:
+          name: speculative-plan-${{ github.sha }}
+          path: artifacts
+
+      - name: Verify plan artifact
+        run: |
+          if [ -f artifacts/plan.txt ]; then
+            echo "Plan text artifact present."
+          else
+            echo "Plan text artifact missing."
+          fi
+          test -f artifacts/plan.json || { echo 'Plan JSON artifact missing.'; exit 1; }

@@ -1,0 +1,30 @@
+# Copyright © 2026 Mindclade, LLC. All Rights Reserved.
+# Mindclade Proprietary and Confidential.
+# SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
+#
+---
+enterprise-control:
+  description: Enterprise governance, Ring 0, or shared workflow control plane.
+  minimum_approvals: 2
+  codeowner_review: true
+  merge_queue: false
+production-control:
+  description: Cloud or Kubernetes production authority.
+  minimum_approvals: 2
+  codeowner_review: true
+  merge_queue: true
+source-monorepo:
+  description: Authoritative product and model source with release authority but no direct deployment authority.
+  minimum_approvals: 1
+  codeowner_review: true
+  merge_queue: true
+public-sdk:
+  description: Future public SDK repositories.
+  minimum_approvals: 1
+  codeowner_review: true
+  merge_queue: false
+archive:
+  description: Retired read-only repositories.
+  minimum_approvals: 0
+  codeowner_review: false
+  merge_queue: false

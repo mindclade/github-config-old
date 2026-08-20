@@ -1,0 +1,57 @@
+# Copyright © 2026 Mindclade, LLC. All Rights Reserved.
+# Mindclade Proprietary and Confidential.
+# SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
+#
+# Non-secret Actions variables. `env:NAME` means export-ci-variables.sh must obtain the value
+# from the operator environment; unresolved or empty values fail before GitHub is changed.
+---
+.github:
+  PIN_AUDIT_APP_ID: env:PIN_AUDIT_APP_ID
+
+github-config:
+  ORGANIZATION: Mindclade
+  BILLING_EMAIL: billing@mindclade.com
+  ENVIRONMENT_PROJECT_IDS: '{"development":"mc-development-platform","staging":"mc-staging-platform","production":"mc-production-platform"}'
+  TF_PLAN_APP_ID: env:TF_PLAN_APP_ID
+  TF_APPLY_APP_ID: env:TF_APPLY_APP_ID
+
+bootstrap:
+  GCP_ORG_ID: env:GCP_ORG_ID
+  BILLING_ACCOUNT: env:BILLING_ACCOUNT
+  GITHUB_ORG: Mindclade
+  GITHUB_ORG_ID: env:GITHUB_ORG_ID
+  GITHUB_REPOSITORY_IDS_JSON: env:GITHUB_REPOSITORY_IDS_JSON
+  RESOURCE_PREFIX: mc
+  GCP_REGION: us-central1
+  STATE_BUCKET_LOCATION: US
+  STATE_KMS_LOCATION: us
+  STATE_REPLICA_LOCATION: europe-west4
+  STATE_REPLICA_KMS_LOCATION: europe-west4
+  BREAK_GLASS_PRINCIPALS_JSON: env:BREAK_GLASS_PRINCIPALS_JSON
+  SECURITY_CONTACT: security@mindclade.com
+  ENABLE_BUILDKITE_WIF: 'true'
+  BUILDKITE_ORGANIZATION_ID: env:BUILDKITE_ORGANIZATION_ID
+  BUILDKITE_PIPELINE_IDS_JSON: env:BUILDKITE_PIPELINE_IDS_JSON
+
+infrastructure-live:
+  TF_APP_ID: env:TF_APP_ID
+  MONOREPO_ORG: Mindclade
+  RESOURCE_PREFIX: mc
+  PRIMARY_REGION: us-central1
+  DOMAIN: mindclade.com
+  BUILDKITE_WIF_POOL_NAME: env:BUILDKITE_WIF_POOL_NAME
+
+gitops:
+  RENDER_APP_ID: env:RENDER_APP_ID
+  MONOREPO_ORG: Mindclade
+  SECRETS_PROJECT_ID: mc-common-security
+  SA_GITOPS_RENDER: sa-gitops-render@mc-common-security.iam.gserviceaccount.com
+  SA_GITOPS_VERIFIER: sa-gitops-verifier@mc-common-security.iam.gserviceaccount.com
+
+mindclade-internal-monorepo:
+  ARTIFACT_REGISTRY_HOST: us-central1-docker.pkg.dev
+  DEV_PLATFORM_PROJECT_ID: mc-development-platform
+  STAGING_PLATFORM_PROJECT_ID: mc-staging-platform
+  PRODUCTION_PLATFORM_PROJECT_ID: mc-production-platform
+  ATTESTOR: build-attestor
+  ATTESTOR_KEY: env:ATTESTOR_KEY

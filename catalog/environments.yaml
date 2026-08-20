@@ -1,0 +1,57 @@
+# Copyright © 2026 Mindclade, LLC. All Rights Reserved.
+# Mindclade Proprietary and Confidential.
+# SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
+#
+---
+development:
+  wait_timer: 0
+  reviewer_teams: []
+  protected_branches: true
+  prevent_self_review: false
+  project_required: true
+staging:
+  wait_timer: 0
+  reviewer_teams:
+  - platform
+  protected_branches: true
+  prevent_self_review: true
+  project_required: true
+production:
+  wait_timer: 10
+  reviewer_teams:
+  - platform
+  - security
+  protected_branches: true
+  prevent_self_review: true
+  project_required: true
+governance:
+  wait_timer: 5
+  reviewer_teams:
+  - security
+  protected_branches: true
+  prevent_self_review: true
+  project_required: false
+bootstrap:
+  wait_timer: 10
+  reviewer_teams:
+  - infrastructure
+  - security
+  protected_branches: true
+  prevent_self_review: true
+  project_required: false
+release:
+  wait_timer: 5
+  reviewer_teams:
+  - release
+  - security
+  protected_branches: true
+  prevent_self_review: true
+  project_required: false
+break-glass:
+  wait_timer: 0
+  reviewer_teams:
+  - incident-command
+  - security
+  protected_branches: true
+  prevent_self_review: true
+  project_required: false

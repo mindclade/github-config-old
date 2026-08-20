@@ -1,0 +1,135 @@
+# Copyright © 2026 Mindclade, LLC. All Rights Reserved.
+# Mindclade Proprietary and Confidential.
+# SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
+#
+---
+.github:
+  default_branch: main
+  description: Organization profile, required workflows, reusable workflows, and shared templates.
+  visibility: internal
+  repository_class: enterprise-control
+  criticality: high
+  data_classification: internal
+  production_authority: 'false'
+  owner_team: platform
+  ci_profile: shared-workflows
+  language_profile: none
+  lifecycle: active
+  environments: []
+  topics:
+  - github
+  - governance
+  - reusable-workflows
+  has_issues: true
+  has_projects: false
+github-config:
+  default_branch: main
+  description: GitHub Enterprise organization, repository, team, ruleset, and access governance.
+  visibility: private
+  repository_class: enterprise-control
+  criticality: critical
+  data_classification: restricted
+  production_authority: 'true'
+  owner_team: security
+  ci_profile: terraform-control
+  language_profile: terraform
+  lifecycle: active
+  environments:
+  - governance
+  topics:
+  - terraform
+  - github-enterprise
+  - governance
+  has_issues: true
+  has_projects: false
+bootstrap:
+  default_branch: main
+  description: Ring 0 Google Cloud state, automation trust, seed projects, and break-glass recovery.
+  visibility: private
+  repository_class: enterprise-control
+  criticality: critical
+  data_classification: restricted
+  production_authority: 'true'
+  owner_team: infrastructure
+  ci_profile: terraform-control
+  language_profile: terraform
+  lifecycle: active
+  environments:
+  - bootstrap
+  - break-glass
+  topics:
+  - terraform
+  - gcp
+  - bootstrap
+  - recovery
+  has_issues: true
+  has_projects: false
+infrastructure-live:
+  default_branch: main
+  description: Authoritative live Google Cloud organization, environment, network, project, and workload infrastructure.
+  visibility: private
+  repository_class: production-control
+  criticality: critical
+  data_classification: confidential
+  production_authority: 'true'
+  owner_team: infrastructure
+  ci_profile: terragrunt-control
+  language_profile: terraform
+  lifecycle: active
+  environments:
+  - development
+  - staging
+  - production
+  - break-glass
+  topics:
+  - terragrunt
+  - gcp
+  - infrastructure
+  has_issues: true
+  has_projects: false
+gitops:
+  default_branch: main
+  description: Authoritative Kubernetes desired state, Argo CD orchestration, policy, and environment promotion.
+  visibility: internal
+  repository_class: production-control
+  criticality: critical
+  data_classification: confidential
+  production_authority: 'true'
+  owner_team: platform
+  ci_profile: gitops-control
+  language_profile: none
+  lifecycle: active
+  environments:
+  - development
+  - staging
+  - production
+  - break-glass
+  topics:
+  - argocd
+  - gitops
+  - kubernetes
+  has_issues: true
+  has_projects: false
+mindclade-internal-monorepo:
+  default_branch: main
+  description: Mindclade product, model, training, data, serving, platform, and SDK source monorepo.
+  visibility: internal
+  repository_class: source-monorepo
+  criticality: critical
+  data_classification: confidential
+  production_authority: 'false'
+  owner_team: engineering
+  ci_profile: monorepo
+  language_profile: mixed
+  lifecycle: active
+  environments:
+  - release
+  topics:
+  - monorepo
+  - go
+  - rust
+  - python
+  - bazel
+  - ai
+  has_issues: true
+  has_projects: false

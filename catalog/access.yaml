@@ -1,0 +1,29 @@
+# Copyright © 2026 Mindclade, LLC. All Rights Reserved.
+# Mindclade Proprietary and Confidential.
+# SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
+#
+---
+.github:
+  platform: maintain
+  security: push
+  engineering: pull
+github-config:
+  security: maintain
+  infrastructure: push
+bootstrap:
+  infrastructure: maintain
+  security: push
+infrastructure-live:
+  infrastructure: maintain
+  security: push
+  platform: pull
+gitops:
+  platform: maintain
+  security: push
+  infrastructure: pull
+  engineering: pull
+mindclade-internal-monorepo:
+  engineering: maintain
+  platform: maintain
+  security: push
+  release: push
