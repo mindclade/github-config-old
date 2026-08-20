@@ -27,6 +27,11 @@ releases. Cloud IAM remains in `bootstrap` or `infrastructure-live`.
 GitHub-owned and verified-creator actions are not implicitly trusted; an action must match the
 reviewed allowlist. Service-account JSON keys are not an accepted authentication path.
 
+Action subpaths are separate allowlist identities. A repository-level entry such as
+`actions/cache@*` does not authorize the reviewed `actions/cache/restore` and
+`actions/cache/save` entry points; each subpath used by a workflow must be listed explicitly.
+The same rule applies to actions invoked transitively by an allowlisted reusable workflow.
+
 Changes to the allowlist, OIDC policy, required workflows, protected workflow paths, or token
 permissions are security changes and require the owners declared by `CODEOWNERS`.
 
