@@ -197,6 +197,18 @@ run "deployment_gates_match_risk" {
 
   assert {
     condition = (
+      toset(output.environments["break-glass"].reviewer_teams) == toset(["security"]) &&
+      alltrue([
+        for repository, config in output.repositories :
+        !contains(config.environments, "break-glass") ||
+        try(output.team_access[repository]["incident-command"], "") == "pull"
+      ])
+    )
+    error_message = "Break-glass review uses closed security; secret incident-command retains read-only incident access."
+  }
+
+  assert {
+    condition = (
       contains(output.repositories["bootstrap"].environments, "bootstrap-recovery-read") &&
       contains(output.environments["bootstrap-recovery-read"].reviewer_teams, "infrastructure") &&
       contains(output.environments["bootstrap-recovery-read"].reviewer_teams, "security") &&

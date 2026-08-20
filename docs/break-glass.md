@@ -36,6 +36,11 @@ by design; fix the proposed change or the rule through the reviewed path.
 1. Activate the approved, time-bounded emergency membership for the minimum eligible team.
    The secret `incident-command` team is the general incident-response actor; security-only
    bypasses remain separate.
+   GitHub does not retain secret teams as protected-environment reviewers, even when they have
+   repository read access. The closed `security` team is therefore the enforced `break-glass`
+   environment reviewer, while `incident-command` stays secret with read-only access for incident
+   coordination. GitHub required-reviewer lists are any-one-of, so listing both teams would not
+   create a two-approval quorum.
 2. Reauthenticate with phishing-resistant MFA.
 3. Use the existing recovery pull request and request only the declared bypass for the
    specific blocking rule.
