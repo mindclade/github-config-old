@@ -5,6 +5,7 @@
 > **Audience:** Identity and security operators
 > **Outcome:** Provision least-privilege GitHub access through the corporate identity path and
 > verify the resulting team grants.
+> **Risk:** high—incorrect group assignment can grant protected control-plane authority.
 
 ## Prerequisites
 
@@ -44,6 +45,12 @@ identity provider and is mapped to catalog-managed GitHub teams.
 Record the verification in the onboarding request. If synchronization grants more access
 than approved, remove the upstream IdP group, treat the excess grant as a security event, and
 do not mask it with a manual GitHub edit.
+
+## Roll back or recover
+
+Remove the incorrect upstream IdP group and let managed synchronization revoke the derived GitHub
+team membership. Confirm effective access is gone and preserve the request, group delta, sync event,
+and repository access check. Escalate excess privileged access as a security incident.
 
 ## Related documentation
 

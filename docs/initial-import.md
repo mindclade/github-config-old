@@ -5,6 +5,7 @@
 > **Audience:** Security and platform bootstrap operators
 > **Outcome:** Import this tree without losing history, validate it offline, and activate
 > governance only after its dependencies and negative authorization tests are qualified.
+> **Risk:** critical—the first apply can alter organization-wide repositories, access, and rules.
 
 ## Prerequisites
 
@@ -66,3 +67,10 @@ negative authorization tests.
 
 The platform import order is `.github`, `bootstrap`, `github-config`,
 `infrastructure-live`, then `gitops`.
+
+## Roll back or recover
+
+Before the first governance apply, close the pull request or revert the import commit. After apply,
+use a reviewed catalog correction and protected exact plan; do not restore GitHub objects with
+manual edits that drift from `main`. If governance blocks incident recovery, follow
+[GitHub break-glass](break-glass.md) and reconcile the resting policy immediately afterward.

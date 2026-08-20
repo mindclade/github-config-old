@@ -2,9 +2,10 @@
 
 # GitHub governance blocks an emergency change
 
-> **Audience:** Incident commander, security responder, and GitHub enterprise owner
-> **Outcome:** Use the smallest declared bypass surface, preserve evidence, restore catalog
-> authority, and revoke temporary access.
+> **Use when:** a declared incident cannot proceed through an available ordinary governance path.
+> **Impact:** a narrow bypass can change organization-wide governance and repository protection.
+> **Primary owner:** incident commander with security and GitHub enterprise operators.
+> **Escalate:** when no declared bypass exists, audit evidence is unavailable, or scope expands.
 
 ## Symptoms
 
@@ -50,7 +51,7 @@ by design; fix the proposed change or the rule through the reviewed path.
 - `nix develop --command make validate` passes on the recovery state.
 - Drift detection reports no unexplained change.
 
-## Revoke and follow up
+## Revoke, escalate, and follow up
 
 1. Remove temporary emergency membership and confirm the team no longer appears in the
    operator's effective grants.
