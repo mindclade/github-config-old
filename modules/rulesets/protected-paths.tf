@@ -61,35 +61,13 @@ resource "github_organization_ruleset" "protected_paths" {
       }
 
       required_reviewers {
-        # `modules/rulesets/**`, not `rulesets/**`. The rulesets moved under modules/ and this
-        # pattern did not follow, so security review on the files that define every merge
-        # requirement in the org had silently stopped matching anything. A path pattern that
-        # matches nothing is invisible: the ruleset applies, the reviewer requirement is
-        # configured, and no PR ever triggers it.
-        #
-        # `**/rulesets/**` rather than the exact path so a future move does not repeat this.
-        file_patterns     = ["policy/**", "**/rulesets/**", "**/binary-authorization/**"]
-        minimum_approvals = 1
-        reviewer {
-          id   = var.security_team_id
-          type = "Team"
-        }
-      }
-
-      required_reviewers {
-        # Terraform anywhere in these repos changes real infrastructure.
-        file_patterns     = ["**/*.tf", "**/*.hcl"]
-        minimum_approvals = 1
-        reviewer {
-          id   = var.infrastructure_team_id
-          type = "Team"
-        }
-      }
-
-      required_reviewers {
-        # Identity, trust, privileged workflow, and public-visibility controls are security
-        # changes even when the implementation language is Terraform or YAML.
+        # GitHub requires each reviewer to occur only once in the required-reviewers payload, so
+        # all security-sensitive patterns share one block. `**/rulesets/**` remains resilient to
+        # module layout changes while the remaining patterns cover identity, trust, privileged
+        # workflow, artifact-policy, and repository-governance changes.
         file_patterns = [
+          "policy/**",
+          "**/rulesets/**",
           "**/identity/**",
           "**/wif*",
           "**/oidc*",
@@ -105,6 +83,16 @@ resource "github_organization_ruleset" "protected_paths" {
         minimum_approvals = 1
         reviewer {
           id   = var.security_team_id
+          type = "Team"
+        }
+      }
+
+      required_reviewers {
+        # Terraform anywhere in these repos changes real infrastructure.
+        file_patterns     = ["**/*.tf", "**/*.hcl"]
+        minimum_approvals = 1
+        reviewer {
+          id   = var.infrastructure_team_id
           type = "Team"
         }
       }
