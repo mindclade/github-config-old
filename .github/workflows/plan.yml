@@ -259,6 +259,13 @@ jobs:
       actions: read
       security-events: write
     uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@06b2ab4348248b456ee06c9e953637f55e03504f
+    with:
+      # This governance repository has no supported package lockfiles. Treat that exact case as
+      # a clean no-op while retaining the reusable workflow's fail-on-vuln=true default.
+      scan-args: |-
+        -r
+        --allow-no-lockfiles
+        ./
 
   plan:
     if: >-

@@ -34,11 +34,6 @@ variable "repositories" {
   }))
 }
 
-variable "repository_classes" {
-  description = "Repository-class policy from catalog/repository-classes.yaml."
-  type        = map(any)
-}
-
 variable "enforcement_overrides" {
   description = "Temporary reviewed per-ruleset overrides."
   type        = map(string)
