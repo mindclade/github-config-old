@@ -3,25 +3,67 @@
 # Mindclade · GitHub configuration documentation
 
 > **Platform Foundation · GitHub governance**  
-> Architecture, access contracts, activation procedures, and operator controls for
-> `mindclade/github-config`.
+> Understand, change, and recover Mindclade's catalog-driven GitHub Enterprise control plane.
 
-| Need | Document | Page type |
+## Choose your path
+
+| If you need to... | Start with | You will... |
 | --- | --- | --- |
-| Understand boundaries and change flow | [Architecture](architecture.md) | Architecture |
-| Understand grants, classes, and ownership | [Access model](access-model.md) | Concept |
-| Look up repository-class behavior | [Repository classes](repository-classes.md) | Reference |
-| Look up Actions restrictions | [GitHub Actions policy](actions-policy.md) | Reference |
-| Understand GitHub OIDC governance | [OIDC governance](oidc.md) | Concept |
-| Adopt an existing enterprise organization | [Adoption](adoption.md) | How-to |
-| Import and activate this repository | [Initial import](initial-import.md) | How-to |
-| Onboard an engineer | [Engineering onboarding](onboarding.md) | How-to |
-| Offboard an engineer | [Offboarding](offboarding.md) | How-to |
-| Operate controls Terraform cannot own | [Enterprise manual controls](enterprise-manual-controls.md) | Reference |
-| Respond to a GitHub governance emergency | [GitHub break-glass](break-glass.md) | Runbook |
-| Understand the full platform | [Enterprise platform blueprint](MINDCLADE_ENTERPRISE_PLATFORM_FOUNDATION_BLUEPRINT.md) | Blueprint |
+| Understand the control plane | [Architecture](architecture.md) | Learn authority, compilation, trust, and failure boundaries |
+| Import or adopt existing GitHub state | [Initial import](initial-import.md) | Preserve history, import resources, and activate protected apply |
+| Change access safely | [Access model](access-model.md) | Understand IdP, team, repository, and environment grants |
+| Operate manual enterprise controls | [Manual controls](enterprise-manual-controls.md) | Review settings Terraform cannot own |
+| Respond to blocked emergency work | [GitHub break-glass](break-glass.md) | Use and revoke the smallest declared bypass |
 
-Start with [architecture](architecture.md) before changing catalog structure or Terraform
-modules. Use the procedure pages for execution; do not infer emergency authority from an
-architecture or reference page.
+## Getting started
 
+- [Initial import and activation](initial-import.md) — import the repository and qualify
+  separate plan and apply identities.
+- [Adopt an existing organization](adoption.md) — inventory and import resources without
+  destructive recreation.
+- [Onboard an engineer](onboarding.md) and [offboard an engineer](offboarding.md) — change
+  access through the corporate identity path.
+
+## Concepts and architecture
+
+- [Architecture](architecture.md) — catalog compilation, trust separation, and failure domains.
+- [Access model](access-model.md) — repository classes, grants, owners, and review gates.
+- [OIDC governance](oidc.md) — GitHub claim policy and the cloud-trust change sequence.
+
+## Operations
+
+- [Enterprise manual controls](enterprise-manual-controls.md) — monthly review and remediation
+  for controls outside the Terraform provider boundary.
+- [GitHub break-glass](break-glass.md) — symptom-first emergency governance recovery.
+- [`idp/` membership export](../idp/README.md) — generated membership shape, safety checks,
+  and IdP ownership.
+
+## Reference and governance
+
+- [Repository classes](repository-classes.md) — policy class definitions and assignment rules.
+- [GitHub Actions policy](actions-policy.md) — organization restrictions and required workflow
+  ownership.
+- [Enterprise reference module](../modules/enterprise/README.md) — deliberately inactive
+  enterprise-account resource boundary.
+- [Repository production blueprint](../BLUEPRINT.md) — compact authority and exclusion contract.
+- [Enterprise platform blueprint](MINDCLADE_ENTERPRISE_PLATFORM_FOUNDATION_BLUEPRINT.md) —
+  stable pointer to the canonical estate-wide contract.
+
+## Source of truth
+
+The catalog under `catalog/`, its JSON schemas, provider-free normalization in
+`modules/catalog/`, Terraform resource modules, protected workflows, tests, and
+`contracts/repository.yaml` are authoritative. Documentation explains those controls; it does
+not grant access or override a reviewed plan.
+
+## Validate documentation changes
+
+Run from the repository root with no local Terraform cache in the tree:
+
+```sh
+nix develop --command make validate
+```
+
+Check local links, verify changed examples against the catalog and tests, and preview rendered
+Markdown before merge. New pages follow the canonical
+[Mindclade documentation templates](https://github.com/mindclade/.github/tree/main/docs/templates).

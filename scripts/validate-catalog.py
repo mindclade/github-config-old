@@ -90,6 +90,8 @@ REQUIRED_CI_VARIABLES = {
         "GH_REPOSITORY_IDS_JSON": "env:GH_REPOSITORY_IDS_JSON",
     },
     "infrastructure-live": {
+        "CLOUD_IDENTITY_CUSTOMER_ID": "env:CLOUD_IDENTITY_CUSTOMER_ID",
+        "ORG_POLICY_ACTIVATION_PHASE": "baseline",
         "PRIMARY_REGION": "us-central1",
         "GPU_ZONE": "us-central1-b",
     },

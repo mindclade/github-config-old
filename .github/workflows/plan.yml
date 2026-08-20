@@ -171,7 +171,9 @@ jobs:
           set -euo pipefail
           python3 scripts/validate-catalog.py
           python3 scripts/check-access-expiry.py
-          python3 -m unittest -v tests/test_configure_workspace_remotes.py
+          python3 -m unittest -v \
+            tests/test_configure_workspace_remotes.py \
+            tests/test_operational_scripts.py
 
       - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd  # v3
         with:

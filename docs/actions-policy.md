@@ -3,20 +3,49 @@
 # GitHub Actions policy
 
 > **Audience:** Workflow authors and governance reviewers
-> **Outcome:** Understand which repository owns Actions policy and which controls are
-> mandatory for privileged workflows.
+> **Outcome:** Look up the organization restrictions, ownership boundary, and validation path
+> for privileged GitHub Actions workflows.
+
+## Ownership boundary
 
 `github-config` declares organization Actions policy and attaches mandatory workflow rules.
-The `.github` repository owns the workflow implementations and immutable releases.
+The `.github` repository owns the required workflow implementations, contracts, and immutable
+releases. Cloud IAM remains in `bootstrap` or `infrastructure-live`.
 
-Privileged workflows use explicit permissions, immutable third-party action SHAs, protected
-environments, and GitHub OIDC with Google Cloud Workload Identity Federation. Service-account
-JSON keys are not an accepted authentication path. Mandatory workflow implementations are
-referenced by the immutable full-semver tag in `catalog/rulesets.yaml`.
+## Enforced controls
 
-Changes to Actions allowlists, OIDC policy, required workflows, or protected workflow paths
-are security changes and require the owners identified by `CODEOWNERS`.
+| Control | Current contract | Source of truth |
+| --- | --- | --- |
+| Repository coverage | All governed repositories | [`catalog/actions-policy.yaml`](../catalog/actions-policy.yaml) |
+| Allowed actions | Selected allowlist only | [`catalog/actions-policy.yaml`](../catalog/actions-policy.yaml) |
+| Default token permissions | Read | [`catalog/actions-policy.yaml`](../catalog/actions-policy.yaml) |
+| Workflow PR approval | Disabled for `GITHUB_TOKEN` | [`catalog/actions-policy.yaml`](../catalog/actions-policy.yaml) |
+| Third-party references | Full commit SHA required | Catalog plus repository pin validators |
+| Mandatory workflows | Immutable full-semver `.github` release | [`catalog/rulesets.yaml`](../catalog/rulesets.yaml) |
+| Privileged cloud jobs | Protected environment and GitHub OIDC/WIF | [OIDC governance](oidc.md) |
 
-See [OIDC governance](oidc.md), the
-[shared workflow trust model](https://github.com/mindclade/.github/blob/main/docs/workflow-trust.md),
-and [architecture](architecture.md).
+GitHub-owned and verified-creator actions are not implicitly trusted; an action must match the
+reviewed allowlist. Service-account JSON keys are not an accepted authentication path.
+
+Changes to the allowlist, OIDC policy, required workflows, protected workflow paths, or token
+permissions are security changes and require the owners declared by `CODEOWNERS`.
+
+## Validate a change
+
+From the repository root:
+
+```sh
+python3 scripts/validate-catalog.py
+terraform test -no-color
+```
+
+Then review the Terraform plan for organization-wide widening, workflow replacement, or a
+required check that will never report. A successful parser run does not prove the resulting
+GitHub policy is least privilege.
+
+## Related documentation
+
+- [OIDC governance](oidc.md)
+- [Repository classes](repository-classes.md)
+- [Shared workflow trust model](https://github.com/mindclade/.github/blob/main/docs/workflow-trust.md)
+- [Architecture](architecture.md)

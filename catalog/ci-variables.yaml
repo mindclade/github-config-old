@@ -40,6 +40,8 @@ bootstrap:
 
 infrastructure-live:
   TF_APP_ID: env:TF_APP_ID
+  CLOUD_IDENTITY_CUSTOMER_ID: env:CLOUD_IDENTITY_CUSTOMER_ID
+  ORG_POLICY_ACTIVATION_PHASE: baseline
   MONOREPO_ORG: mindclade
   RESOURCE_PREFIX: mc
   PRIMARY_REGION: us-central1
