@@ -73,7 +73,6 @@ release:
 break-glass:
   wait_timer: 0
   reviewer_teams:
-    - incident-command
     - security
   protected_branches: true
   custom_branch_policies: false

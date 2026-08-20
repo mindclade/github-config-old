@@ -328,6 +328,20 @@ if "infrastructure" not in plan_environment.get("reviewer_teams", []):
     err("environment plan: infrastructure review is required")
 if not plan_environment.get("prevent_self_review"):
     err("environment plan: self-review must be disabled")
+break_glass_environment = environments.get("break-glass", {})
+if set(break_glass_environment.get("reviewer_teams", [])) != {"security"}:
+    err(
+        "environment break-glass: the closed security team must be the sole GitHub "
+        "reviewer; GitHub does not retain secret teams as environment reviewers"
+    )
+for repository, config in repos.items():
+    if "break-glass" in config.get("environments", []) and access.get(repository, {}).get(
+        "incident-command"
+    ) != "pull":
+        err(
+            f"{repository}/break-glass: secret incident-command requires read-only "
+            "incident access"
+        )
 for repository in ("bootstrap", "github-config", "infrastructure-live"):
     if "plan" not in repos.get(repository, {}).get("environments", []):
         err(f"{repository} must declare the protected plan environment")
