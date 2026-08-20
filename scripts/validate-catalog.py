@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import ast
 from datetime import date
 import json
 from pathlib import Path
@@ -57,6 +58,7 @@ EXPECTED_RULESETS = {
     "required-checks-bootstrap",
     "required-checks-gitops",
     "required-checks-go",
+    "required-checks-infra-static",
     "required-checks-mixed",
     "required-checks-tf",
     "required-checks-tf-static",
@@ -84,10 +86,17 @@ UNIVERSAL_OIDC_CLAIMS = {
 REQUIRED_WIF_CLAIMS = UNIVERSAL_OIDC_CLAIMS | {"event_name"}
 FORBIDDEN_ORG_SUBJECT_CLAIMS = {"environment", "job_workflow_ref", "job_workflow_sha"}
 REQUIRED_CI_VARIABLES = {
+    "github-config": {
+        "BILLING_EMAIL": "env:BILLING_EMAIL",
+    },
     "bootstrap": {
-        "GH_ORGANIZATION": "mindclade",
-        "GH_ORGANIZATION_ID": "env:GH_ORGANIZATION_ID",
-        "GH_REPOSITORY_IDS_JSON": "env:GH_REPOSITORY_IDS_JSON",
+        "ENABLE_BUILDKITE_WIF": "false",
+        "BUILDKITE_ORGANIZATION_ID": "env:BUILDKITE_ORGANIZATION_ID",
+        "BUILDKITE_PIPELINE_IDS_JSON": "env:BUILDKITE_PIPELINE_IDS_JSON",
+        "BUILDKITE_PIPELINE_STEP_CONTRACTS_JSON": (
+            "env:BUILDKITE_PIPELINE_STEP_CONTRACTS_JSON"
+        ),
+        "SECURITY_CONTACT": "security@mindclade.com",
     },
     "infrastructure-live": {
         "CLOUD_IDENTITY_CUSTOMER_ID": "env:CLOUD_IDENTITY_CUSTOMER_ID",
@@ -102,6 +111,13 @@ REQUIRED_CI_VARIABLES = {
         "SA_GITOPS_VERIFIER": "env:SA_GITOPS_VERIFIER",
     },
     "mindclade-internal-monorepo": {
+        "BUILDKITE_ORGANIZATION_ID": "env:BUILDKITE_ORGANIZATION_ID",
+        "BUILDKITE_BUILD_PIPELINE_ID": "env:BUILDKITE_BUILD_PIPELINE_ID",
+        "BUILDKITE_QUALIFICATION_PIPELINE_ID": "env:BUILDKITE_QUALIFICATION_PIPELINE_ID",
+        "BUILDKITE_PROMOTION_PIPELINE_ID": "env:BUILDKITE_PROMOTION_PIPELINE_ID",
+        "BUILDKITE_BUILDER_IDENTITY": "env:BUILDKITE_BUILDER_IDENTITY",
+        "BUILDKITE_QUALIFIER_IDENTITY": "env:BUILDKITE_QUALIFIER_IDENTITY",
+        "BUILDKITE_PROMOTER_IDENTITY": "env:BUILDKITE_PROMOTER_IDENTITY",
         "BINAUTHZ_BUILD_ATTESTOR_PROJECT": "env:BINAUTHZ_BUILD_ATTESTOR_PROJECT",
         "BINAUTHZ_BUILD_ATTESTOR": "env:BINAUTHZ_BUILD_ATTESTOR",
         "BINAUTHZ_QUALIFICATION_ATTESTOR_PROJECT": "env:BINAUTHZ_QUALIFICATION_ATTESTOR_PROJECT",
@@ -157,6 +173,13 @@ rulesets = load_yaml("rulesets.yaml") or {}
 exceptions = load_yaml("access-exceptions.yaml") or []
 ci_variables = load_yaml("ci-variables.yaml") or {}
 
+idp_mappings_path = ROOT / "idp" / "mappings.yaml"
+try:
+    idp_mappings = yaml.safe_load(idp_mappings_path.read_text(encoding="utf-8")) or {}
+except Exception as exc:  # pragma: no cover - diagnostic path
+    err(f"idp/mappings.yaml: cannot parse YAML: {exc}")
+    idp_mappings = {}
+
 if set(repos) != EXPECTED_REPOS:
     err(f"repository estate differs: {sorted(set(repos) ^ EXPECTED_REPOS)}")
 if set(classes) != EXPECTED_CLASSES:
@@ -192,6 +215,44 @@ for start in teams:
             break
         seen.add(current)
         current = teams.get(current, {}).get("parent")
+
+# The IdP export may intentionally defer teams whose real directory address has not been
+# verified, but every catalog team must be accounted for exactly once. This makes omissions
+# visible without inventing privileged group names.
+idp_exporter_path = ROOT / "scripts" / "export-idp-groups.py"
+idp_exporter_text = idp_exporter_path.read_text(encoding="utf-8")
+idp_exporter_tree = ast.parse(idp_exporter_text, filename=str(idp_exporter_path))
+idp_export_literals: dict[str, Any] = {}
+for node in idp_exporter_tree.body:
+    if isinstance(node, ast.Assign):
+        for target in node.targets:
+            if isinstance(target, ast.Name) and target.id in {
+                "TEAM_GROUPS",
+                "DEFERRED_TEAMS",
+            }:
+                idp_export_literals[target.id] = ast.literal_eval(node.value)
+idp_exported_teams = set(idp_export_literals.get("TEAM_GROUPS", {}))
+idp_deferred_teams = set(idp_export_literals.get("DEFERRED_TEAMS", set()))
+if idp_exported_teams & idp_deferred_teams:
+    err(
+        "IdP exporter teams cannot be both mapped and deferred: "
+        f"{sorted(idp_exported_teams & idp_deferred_teams)}"
+    )
+if idp_exported_teams | idp_deferred_teams != set(teams):
+    err(
+        "IdP exporter mapped/deferred inventory differs from catalog/teams.yaml: "
+        f"{sorted((idp_exported_teams | idp_deferred_teams) ^ set(teams))}"
+    )
+mapped_github_teams = {
+    str(config.get("github_team", ""))
+    for config in idp_mappings.get("groups", {}).values()
+    if isinstance(config, dict)
+}
+if mapped_github_teams != set(teams):
+    err(
+        "idp/mappings.yaml GitHub team inventory differs from catalog/teams.yaml: "
+        f"{sorted(mapped_github_teams ^ set(teams))}"
+    )
 
 # Repository cross references, visibility and owner access.
 for repo, cfg in repos.items():
@@ -428,6 +489,25 @@ for forbidden_context in ("render", "provenance"):
         err(
             f"required-checks-gitops cannot require unsupported {forbidden_context} context"
         )
+infra_static_checks = rulesets.get("required-checks-infra-static", {})
+if infra_static_checks.get("enforcement") != "evaluate":
+    err("required-checks-infra-static must remain evaluate until rollout evidence is reviewed")
+if infra_static_checks.get("repositories") != ["mindclade-internal-monorepo"]:
+    err(
+        "required-checks-infra-static must target only the canonical "
+        "mindclade-internal-monorepo repository"
+    )
+infra_static_ruleset = (
+    ROOT / "modules" / "rulesets" / "required-checks-infra-static.tf"
+).read_text(encoding="utf-8")
+for fragment in (
+    'include = ["mindclade-internal-monorepo"]',
+    'context = "infra-static"',
+    "strict_required_status_checks_policy = true",
+    "do_not_enforce_on_create             = true",
+):
+    if fragment not in infra_static_ruleset:
+        err(f"required-checks-infra-static implementation omits {fragment}")
 
 # Time-bounded access exceptions.
 if not isinstance(exceptions, list):
@@ -507,6 +587,28 @@ for repo, required in REQUIRED_CI_VARIABLES.items():
     for name, expected_value in required.items():
         if variables.get(name) != expected_value:
             err(f"ci-variables: {repo}/{name} must be {expected_value!r}")
+environment_project_handoff = ci_variables.get("github-config", {}).get(
+    "ENVIRONMENT_PROJECT_IDS"
+)
+if environment_project_handoff not in {"{}", "env:ENVIRONMENT_PROJECT_IDS"}:
+    err(
+        "ci-variables: github-config/ENVIRONMENT_PROJECT_IDS must be '{}' during initial "
+        "governance or env:ENVIRONMENT_PROJECT_IDS after exact infrastructure outputs exist"
+    )
+for contract_derived_name in (
+    "GCP_ORG_ID",
+    "BILLING_ACCOUNT",
+    "GH_ORGANIZATION",
+    "GH_ORGANIZATION_ID",
+    "GH_REPOSITORY_IDS_JSON",
+    "BOOTSTRAP_FOLDER_ID",
+    "AUTOMATION_SECRET_LOCATION",
+):
+    if contract_derived_name in ci_variables.get("bootstrap", {}):
+        err(
+            "ci-variables: bootstrap/"
+            f"{contract_derived_name} must not be a free-form catalog input"
+        )
 legacy_signing_variables = {
     "ATTESTOR",
     "ATTESTOR_KEY",
@@ -548,9 +650,13 @@ if '"platform_contract"' not in ci_variable_exporter:
 for fragment in (
     'platform.get("contract_version") != "1.2.0"',
     '"replica_buckets"',
-    'buildkite.get("enabled") is not True',
+    'if not enabled:',
     '"workload_identity_pool"',
     '"principal"',
+    '"repository_identities"',
+    'selected["bootstrap"]["SECURITY_CONTACT"] = "env:SECURITY_CONTACT"',
+    'if buildkite_pool is not None:',
+    'choices=("bootstrap", "full")',
 ):
     if fragment not in ci_variable_exporter:
         err(f"ci-variable exporter omits bootstrap 1.2 contract fragment: {fragment}")
@@ -560,6 +666,35 @@ if '"state_replica_buckets"' in ci_variable_exporter:
     )
 if '"GITHUB_WIF_POOL_NAME"' in ci_variable_exporter:
     err("ci-variable exporter uses forbidden GITHUB_WIF_POOL_NAME")
+if '"BOOTSTRAP_FOLDER_ID"' in ci_variable_exporter:
+    err("ci-variable exporter must not publish the bootstrap adopt-existing folder input")
+if '"AUTOMATION_SECRET_LOCATION"' in ci_variable_exporter:
+    err("ci-variable exporter must not publish an unused bootstrap default as a repository variable")
+
+imports = (ROOT / "imports.tf").read_text(encoding="utf-8")
+for fragment in (
+    'github_repository.this[".github-private"]',
+    "for_each = local.preexisting_bootstrap_actions_variables",
+    'id       = "bootstrap:${each.value}"',
+    "for_each = local.preexisting_repository_environments",
+    "github_repository_environment.this[each.value]",
+):
+    if fragment not in imports:
+        err(f"declarative adoption imports omit {fragment}")
+for stale_import in ('"BOOTSTRAP_FOLDER_ID"', '"AUTOMATION_SECRET_LOCATION"'):
+    if stale_import in imports:
+        err(f"declarative adoption imports retain absent live variable {stale_import}")
+
+environment_module = (
+    ROOT / "modules" / "repositories" / "environments.tf"
+).read_text(encoding="utf-8")
+for fragment in (
+    'check "environment_project_handoff_is_empty_or_complete"',
+    "length(var.environment_project_ids) == 0",
+    "toset(keys(var.environment_project_ids)) == local.project_required_environments",
+):
+    if fragment not in environment_module:
+        err(f"environment project staged handoff omits {fragment}")
 
 # Every managed repository must actively restore GitHub's default subject. Merely declining to
 # opt in leaves an out-of-band repository template untouched and breaks bootstrap's
@@ -657,6 +792,19 @@ if initial_import_path.is_file():
         err("initial-import.md must use the immutable v3.0.0 workflow-contract tag")
     if "protected `v1` workflow-contract tag" in initial_import:
         err("initial-import.md retains the stale v1 workflow-contract tag")
+
+adoption = (ROOT / "docs" / "adoption.md").read_text(encoding="utf-8")
+for fragment in (
+    "`mindclade/.github`",
+    "under `.github/workflows/`",
+    "--stage bootstrap",
+    "`BOOTSTRAP_FOLDER_ID` is an adopt-existing bootstrap input",
+    "## One-time founder OAuth adoption",
+    'export GITHUB_TOKEN="$(gh auth token)"',
+    "use App tokens exclusively for normal plan/apply operation",
+):
+    if fragment not in adoption:
+        err(f"adoption.md omits activation-safety contract: {fragment}")
 
 # Repository hygiene is part of the policy compiler contract.
 if (ROOT / "CODEOWNERS").exists():

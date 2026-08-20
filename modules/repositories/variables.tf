@@ -35,7 +35,6 @@ variable "custom_properties" {
 }
 variable "team_access" { type = map(map(string)) }
 variable "team_ids" { type = map(string) }
-variable "team_slugs" { type = map(string) }
 variable "environments" {
   type = map(object({
     wait_timer             = number

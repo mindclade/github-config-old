@@ -4,6 +4,7 @@
 
 resource "github_repository" "this" {
   # checkov:skip=CKV_GIT_1: Repositories here are `internal`, which checkov does not model.
+  # checkov:skip=CKV2_GIT_1: Branch protection is enforced by organization rulesets in modules/rulesets; Checkov cannot associate those name/property-targeted resources with this for_each repository resource.
   #
   # CKV_GIT_1 asserts `visibility == "private"`. Repositories in this catalog are private or internal — readable by the enterprise, invisible outside it — and that is a decision
   # catalog/repositories.yaml records at length, not an oversight.

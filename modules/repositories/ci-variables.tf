@@ -35,9 +35,11 @@
 # It now arrives as the CI_VARIABLES repository variable, which plan.yml, apply.yml (both
 # jobs) and drift.yml pass through as TF_VAR_ci_variables. Build it rather than typing it:
 #
-#   python3 scripts/export-ci-variables.py --bootstrap ../bootstrap --set
+#   python3 scripts/export-ci-variables.py --stage bootstrap --bootstrap ../bootstrap --set
 #
-# That merges catalog/ci-variables.yaml — the half a human decides — with
+# Bootstrap stage emits only authoritative inputs for initial governance; the default full stage
+# is used after downstream infrastructure and Apps exist. Both merge catalog/ci-variables.yaml
+# — the half a human decides — with
 # `terraform -chdir=../bootstrap output -json` — the half bootstrap generated. It refuses to
 # write while any value is empty, and names which.
 #
@@ -133,34 +135,54 @@ check "service_accounts_are_not_shared_across_repositories" {
   }
 }
 
-# GitOps validates the same deployment attestor that the protected signer writes. Allowing
-# those roots to drift creates either an outage or, worse, a verifier that trusts a different
-# attestor from the one reviewers approved.
+locals {
+  deployment_attestor_contract = [
+    try(var.ci_variables["gitops"]["BINAUTHZ_DEPLOYMENT_ATTESTOR_PROJECT"], ""),
+    try(var.ci_variables["gitops"]["BINAUTHZ_DEPLOYMENT_ATTESTOR"], ""),
+    try(var.ci_variables["mindclade-internal-monorepo"]["BINAUTHZ_DEPLOYMENT_ATTESTOR_PROJECT"], ""),
+    try(var.ci_variables["mindclade-internal-monorepo"]["BINAUTHZ_DEPLOYMENT_ATTESTOR"], ""),
+  ]
+  monorepo_attestor_contract = [
+    try(var.ci_variables["mindclade-internal-monorepo"]["BINAUTHZ_BUILD_ATTESTOR_PROJECT"], ""),
+    try(var.ci_variables["mindclade-internal-monorepo"]["BINAUTHZ_BUILD_ATTESTOR"], ""),
+    try(var.ci_variables["mindclade-internal-monorepo"]["BINAUTHZ_QUALIFICATION_ATTESTOR_PROJECT"], ""),
+    try(var.ci_variables["mindclade-internal-monorepo"]["BINAUTHZ_QUALIFICATION_ATTESTOR"], ""),
+    try(var.ci_variables["mindclade-internal-monorepo"]["BINAUTHZ_DEPLOYMENT_ATTESTOR_PROJECT"], ""),
+    try(var.ci_variables["mindclade-internal-monorepo"]["BINAUTHZ_DEPLOYMENT_ATTESTOR"], ""),
+  ]
+}
+
+# GitOps validates the same deployment attestor that the protected signer writes. Initial
+# governance may omit the entire not-yet-provisioned contract; once any field is supplied,
+# require the complete, matching pair so a partial handoff can never become trusted state.
 check "artifact_trust_roots_match_consumers" {
   assert {
     condition = (
-      try(var.ci_variables["gitops"]["BINAUTHZ_DEPLOYMENT_ATTESTOR_PROJECT"], "") ==
-      try(var.ci_variables["mindclade-internal-monorepo"]["BINAUTHZ_DEPLOYMENT_ATTESTOR_PROJECT"], null) &&
-      try(var.ci_variables["gitops"]["BINAUTHZ_DEPLOYMENT_ATTESTOR"], "") ==
-      try(var.ci_variables["mindclade-internal-monorepo"]["BINAUTHZ_DEPLOYMENT_ATTESTOR"], null)
+      alltrue([for value in local.deployment_attestor_contract : value == ""]) ||
+      (
+        alltrue([for value in local.deployment_attestor_contract : value != ""]) &&
+        local.deployment_attestor_contract[0] == local.deployment_attestor_contract[2] &&
+        local.deployment_attestor_contract[1] == local.deployment_attestor_contract[3]
+      )
     )
-    error_message = "GitOps and the protected artifact signer must use the same Binary Authorization deployment attestor."
+    error_message = "The deployment attestor handoff must be wholly absent before infrastructure exists, or complete and identical for GitOps and the protected artifact signer."
   }
 }
 
 check "build_qualification_and_deployment_attestors_are_distinct" {
   assert {
     condition = (
-      length(toset([
-        "${try(var.ci_variables["mindclade-internal-monorepo"]["BINAUTHZ_BUILD_ATTESTOR_PROJECT"], "")}/${try(var.ci_variables["mindclade-internal-monorepo"]["BINAUTHZ_BUILD_ATTESTOR"], "")}",
-        "${try(var.ci_variables["mindclade-internal-monorepo"]["BINAUTHZ_QUALIFICATION_ATTESTOR_PROJECT"], "")}/${try(var.ci_variables["mindclade-internal-monorepo"]["BINAUTHZ_QUALIFICATION_ATTESTOR"], "")}",
-        "${try(var.ci_variables["mindclade-internal-monorepo"]["BINAUTHZ_DEPLOYMENT_ATTESTOR_PROJECT"], "")}/${try(var.ci_variables["mindclade-internal-monorepo"]["BINAUTHZ_DEPLOYMENT_ATTESTOR"], "")}",
-      ])) == 3 &&
-      try(var.ci_variables["mindclade-internal-monorepo"]["BINAUTHZ_BUILD_ATTESTOR"], "") != "" &&
-      try(var.ci_variables["mindclade-internal-monorepo"]["BINAUTHZ_QUALIFICATION_ATTESTOR"], "") != "" &&
-      try(var.ci_variables["mindclade-internal-monorepo"]["BINAUTHZ_DEPLOYMENT_ATTESTOR"], "") != ""
+      alltrue([for value in local.monorepo_attestor_contract : value == ""]) ||
+      (
+        alltrue([for value in local.monorepo_attestor_contract : value != ""]) &&
+        length(toset([
+          "${local.monorepo_attestor_contract[0]}/${local.monorepo_attestor_contract[1]}",
+          "${local.monorepo_attestor_contract[2]}/${local.monorepo_attestor_contract[3]}",
+          "${local.monorepo_attestor_contract[4]}/${local.monorepo_attestor_contract[5]}",
+        ])) == 3
+      )
     )
-    error_message = "Buildkite build/provenance, Buildkite qualification, and production deployment evidence must use three distinct, non-empty attestors."
+    error_message = "The monorepo attestor handoff must be wholly absent before infrastructure exists, or complete with distinct build, qualification, and deployment attestors."
   }
 }
 

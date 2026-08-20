@@ -13,7 +13,8 @@
 - the `.github` repository's protected `v3.0.0` workflow-contract tag, which is the
   full-semver baseline referenced by `catalog/rulesets.yaml`;
 - completed Ring-0 bootstrap state and GitHub-to-Google Cloud federation;
-- plan and apply GitHub Apps with distinct minimum permissions;
+- plan and apply GitHub Apps with distinct minimum permissions, or the approved one-time founder
+  OAuth adoption exception documented in [adoption](adoption.md);
 - `plan` and `governance` protected environments; and
 - approved non-secret variables and protected secrets required by the workflows.
 
@@ -38,8 +39,22 @@ negative authorization tests.
 5. Compare repository inventory, teams, environments, and rulesets in `catalog/` with the
    target organization. Follow [adoption](adoption.md) for resources that must be imported
    rather than created.
-6. Open a pull request and inspect the speculative plan. Unexpected deletion, replacement,
+6. Confirm the declarative imports cover the existing `.github-private` repository plus every
+   pre-existing Actions variable and environment that the staged payload will manage. Existing
+   deferred variables are not authority for unavailable outputs and must not be imported under
+   placeholder values.
+7. Compile the initial payload with `export-ci-variables.py --stage bootstrap` as documented in
+   [adoption](adoption.md). Use the current verified billing and security recipients and an empty
+   environment-project map; do not invent normal-plane project IDs, App IDs, attestors, or
+   Buildkite UUIDs.
+8. Open a pull request and inspect the speculative plan. Unexpected deletion, replacement,
    ownership, or visibility change is a stop condition.
+
+If the Apps do not exist yet, follow the one-time local founder OAuth procedure in
+[adoption](adoption.md). Keep the token only in `GITHUB_TOKEN`, apply only the saved reviewed plan,
+record an expiry, and add the founder manually only to required reviewer teams after Terraform has
+created them. Normal operation becomes App-only as soon as the distinct Apps are installed and
+qualified.
 
 ## Activate
 

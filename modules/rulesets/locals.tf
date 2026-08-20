@@ -27,6 +27,7 @@ check "catalog_matches_implemented_rulesets" {
       "required-checks-bootstrap",
       "required-checks-gitops",
       "required-checks-go",
+      "required-checks-infra-static",
       "required-checks-mixed",
       "required-checks-tf",
       "required-checks-tf-static",

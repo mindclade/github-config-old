@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
 
 ---
-# Mirrors mindclade/.yamllint.yaml so both repos lint identically.
+# Mirrors mindclade/mindclade-internal-monorepo/.yamllint.yaml so both repos lint identically.
 extends: default
 rules:
   line-length: disable

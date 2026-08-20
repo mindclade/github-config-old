@@ -16,7 +16,6 @@ locals {
   team_access             = module.catalog.team_access
   environments            = module.catalog.environments
   repository_environments = { for name, cfg in module.catalog.repositories : name => cfg.environments }
-  security_link           = "https://github.com/${var.organization}/.github/blob/main/SECURITY.md"
 }
 
 module "organization" {
@@ -46,7 +45,6 @@ module "repositories" {
   custom_properties       = module.catalog.custom_properties
   team_access             = local.team_access
   team_ids                = module.teams.team_ids
-  team_slugs              = module.teams.team_slugs
   environments            = local.environments
   repository_environments = local.repository_environments
   environment_project_ids = var.environment_project_ids
@@ -63,7 +61,6 @@ module "rulesets" {
 
   rulesets              = module.catalog.rulesets
   repositories          = local.repositories
-  repository_classes    = module.catalog.repository_classes
   enforcement_overrides = var.ruleset_enforcement_overrides
 
   # Custom-property-targeted rulesets must not race repository/property creation.

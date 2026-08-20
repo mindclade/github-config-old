@@ -12,20 +12,18 @@
 
 github-config:
   ORGANIZATION: mindclade
-  BILLING_EMAIL: billing@mindclade.com
-  ENVIRONMENT_PROJECT_IDS: '{"development":"mc-development-platform","staging":"mc-staging-platform","production":"mc-production-platform"}'
+  # Keep operator-derived until the billing group mailbox is actually provisioned.
+  BILLING_EMAIL: env:BILLING_EMAIL
+  # Initial governance creates and protects environments before infrastructure-live exists.
+  # Promote this to env:ENVIRONMENT_PROJECT_IDS only with exact applied infrastructure outputs.
+  ENVIRONMENT_PROJECT_IDS: '{}'
   TF_PLAN_APP_ID: env:TF_PLAN_APP_ID
   TF_APPLY_APP_ID: env:TF_APPLY_APP_ID
 
 bootstrap:
   # export-ci-variables.py augments this catalog from bootstrap platform_contract 1.2.0. In
-  # particular, state.replica_buckets.bootstrap becomes TFSTATE_REPLICA_BUCKET for the governed
-  # bootstrap-recovery-read workflow; an empty or missing value fails before GitHub changes.
-  GCP_ORG_ID: env:GCP_ORG_ID
-  BILLING_ACCOUNT: env:BILLING_ACCOUNT
-  GH_ORGANIZATION: mindclade
-  GH_ORGANIZATION_ID: env:GH_ORGANIZATION_ID
-  GH_REPOSITORY_IDS_JSON: env:GH_REPOSITORY_IDS_JSON
+  # particular, organization/billing/GitHub immutable IDs and state buckets come directly from
+  # that machine contract; operators cannot substitute free-form copies of those identifiers.
   RESOURCE_PREFIX: mc
   GCP_REGION: us-central1
   STATE_BUCKET_LOCATION: US
@@ -33,10 +31,15 @@ bootstrap:
   STATE_REPLICA_LOCATION: europe-west4
   STATE_REPLICA_KMS_LOCATION: europe-west4
   BREAK_GLASS_PRINCIPALS_JSON: env:BREAK_GLASS_PRINCIPALS_JSON
+  # Full activation targets the provisioned security group. Bootstrap-stage export instead
+  # requires SECURITY_CONTACT from the operator so it preserves the current live recipient.
   SECURITY_CONTACT: security@mindclade.com
-  ENABLE_BUILDKITE_WIF: "true"
+  # The current Ring-0 contract deliberately disables Buildkite. The exporter omits all
+  # UUID-derived Buildkite inputs until both this flag and platform_contract agree on enabled.
+  ENABLE_BUILDKITE_WIF: "false"
   BUILDKITE_ORGANIZATION_ID: env:BUILDKITE_ORGANIZATION_ID
   BUILDKITE_PIPELINE_IDS_JSON: env:BUILDKITE_PIPELINE_IDS_JSON
+  BUILDKITE_PIPELINE_STEP_CONTRACTS_JSON: env:BUILDKITE_PIPELINE_STEP_CONTRACTS_JSON
 
 infrastructure-live:
   TF_APP_ID: env:TF_APP_ID
@@ -61,6 +64,13 @@ gitops:
 
 mindclade-internal-monorepo:
   ARTIFACT_REGISTRY_HOST: us-central1-docker.pkg.dev
+  BUILDKITE_ORGANIZATION_ID: env:BUILDKITE_ORGANIZATION_ID
+  BUILDKITE_BUILD_PIPELINE_ID: env:BUILDKITE_BUILD_PIPELINE_ID
+  BUILDKITE_QUALIFICATION_PIPELINE_ID: env:BUILDKITE_QUALIFICATION_PIPELINE_ID
+  BUILDKITE_PROMOTION_PIPELINE_ID: env:BUILDKITE_PROMOTION_PIPELINE_ID
+  BUILDKITE_BUILDER_IDENTITY: env:BUILDKITE_BUILDER_IDENTITY
+  BUILDKITE_QUALIFIER_IDENTITY: env:BUILDKITE_QUALIFIER_IDENTITY
+  BUILDKITE_PROMOTER_IDENTITY: env:BUILDKITE_PROMOTER_IDENTITY
   DEV_PLATFORM_PROJECT_ID: mc-development-platform
   STAGING_PLATFORM_PROJECT_ID: mc-staging-platform
   PRODUCTION_PLATFORM_PROJECT_ID: mc-production-platform
