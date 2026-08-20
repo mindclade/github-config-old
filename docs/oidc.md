@@ -21,6 +21,14 @@ bootstrap WIF binding is activated. Resetting a repository to `use_default = tru
 custom claim template; it is not accepted as evidence that a pre-cutover repository has been
 opted into immutable defaults.
 
+The pinned GitHub provider does not expose the REST API's `use_immutable_subject` field.
+Terraform continues to own the organization claim template and repository `use_default` flags;
+`scripts/enforce-immutable-oidc.py` is the deliberately narrow adapter for the missing field.
+Speculative plan and drift run it read-only. The exact post-merge apply sets the field only after
+Terraform succeeds, then re-reads the organization and every catalog repository and verifies an
+ID-bearing `sub_claim_prefix`. Removing that adapter while the provider gap exists is a trust
+regression.
+
 The dormant custom template contains only claims available to every workflow job:
 
 ```text

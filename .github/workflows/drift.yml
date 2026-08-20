@@ -144,6 +144,16 @@ jobs:
 
           bullet() { awk '{ print "  - " $0 }'; }
 
+          # Provider 6.13 does not model GitHub's use_immutable_subject field. The apply
+          # workflow restores it after Terraform, and this check makes a manual opt-out
+          # visible instead of accepting a legacy, name-recyclable OIDC subject.
+          if ! oidc_drift="$(python3 scripts/enforce-immutable-oidc.py 2>&1)"; then
+            {
+              echo "Immutable GitHub Actions OIDC subject policy is not enforced:"
+              printf '%s\n' "$oidc_drift" | bullet
+            } >> unmanaged.txt
+          fi
+
           # Preflight. Every path this step reads, asserted before anything runs.
           #
           # This exists because the step previously grepped `rulesets/*.tf` and `locals.tf`
@@ -233,7 +243,7 @@ jobs:
           done < <(gh api "/orgs/${ORG}/repos?per_page=100&type=all" --jq '.[].name')
 
           # Per-repo settings Terraform cannot see or manage.
-          while IFS= read -r repo; do
+          while IFS=$'\t' read -r repo visibility; do
             [ -z "$repo" ] && continue
 
             # Community health files. .github is internal, so org-wide inheritance does NOT
@@ -253,20 +263,21 @@ jobs:
                 done ;;
             esac
 
-            # Private vulnerability reporting. REST-only, no provider resource at any version.
-            # Every SECURITY.md names /security/advisories/new as the primary channel, and
-            # that URL 404s while this is off — so a researcher either emails or opens a
-            # public issue, which is exactly what the policy exists to prevent.
-            pvr=$(gh api "/repos/${ORG}/${repo}/private-vulnerability-reporting" --jq .enabled 2>/dev/null || echo "unknown")
-            if [ "$pvr" != "true" ]; then
-              {
-                echo ""
-                echo "${repo}: private vulnerability reporting is ${pvr}. SECURITY.md links to"
-                echo "  /security/advisories/new, which 404s until it is on. Enable with:"
-                echo "  gh api -X PUT repos/${ORG}/${repo}/private-vulnerability-reporting"
-              } >> unmanaged.txt
+            # Private vulnerability reporting is a public-repository feature. Internal and
+            # private repositories return 404 by design; treating that as drift produces a
+            # permanent false incident. SECURITY.md remains mandatory above for every repo.
+            if [ "$visibility" = "public" ]; then
+              pvr=$(gh api "/repos/${ORG}/${repo}/private-vulnerability-reporting" --jq .enabled 2>/dev/null || echo "unknown")
+              if [ "$pvr" != "true" ]; then
+                {
+                  echo ""
+                  echo "${repo}: private vulnerability reporting is ${pvr}. SECURITY.md links to"
+                  echo "  /security/advisories/new, which 404s until it is on. Enable with:"
+                  echo "  gh api -X PUT repos/${ORG}/${repo}/private-vulnerability-reporting"
+                } >> unmanaged.txt
+              fi
             fi
-          done < <(gh api "/orgs/${ORG}/repos?per_page=100&type=all" --jq '.[].name')
+          done < <(gh api "/orgs/${ORG}/repos?per_page=100&type=all" --jq '.[] | [.name, .visibility] | @tsv')
 
           if [ -s unmanaged.txt ]; then
             echo "found=true" >> "$GITHUB_OUTPUT"

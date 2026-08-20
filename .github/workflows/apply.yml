@@ -222,6 +222,12 @@ jobs:
           TF_VAR_ci_variables: ${{ vars.CI_VARIABLES }}
         run: terraform apply -input=false -no-color -lock-timeout=5m plan-artifact/tfplan
 
+      - name: Enforce and verify immutable OIDC subjects
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          ORGANIZATION: ${{ vars.ORGANIZATION }}
+        run: python3 scripts/enforce-immutable-oidc.py --apply
+
       - name: Publish audit summary
         run: |
           {

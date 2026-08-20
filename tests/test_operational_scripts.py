@@ -30,6 +30,7 @@ def load(name: str, path: str):
 
 CI = load("export_ci_variables", "scripts/export-ci-variables.py")
 IDP = load("export_idp_groups", "scripts/export-idp-groups.py")
+OIDC = load("enforce_immutable_oidc", "scripts/enforce-immutable-oidc.py")
 
 
 class ExportSafetyTest(unittest.TestCase):
@@ -213,6 +214,70 @@ class ExportSafetyTest(unittest.TestCase):
             target.write_text("old", encoding="utf-8")
             IDP.atomic_write(target, "new\n")
             self.assertEqual(target.read_text(encoding="utf-8"), "new\n")
+
+    def test_immutable_oidc_inputs_are_catalog_derived(self) -> None:
+        self.assertEqual(
+            OIDC.top_level_keys(ROOT / "catalog/repositories.yaml"),
+            [
+                ".github",
+                ".github-private",
+                "github-config",
+                "bootstrap",
+                "infrastructure-live",
+                "gitops",
+                "mindclade-internal-monorepo",
+            ],
+        )
+        claims, repository_opt_in, immutable_required = OIDC.oidc_policy(
+            ROOT / "catalog/oidc-policy.yaml"
+        )
+        self.assertEqual(
+            claims,
+            [
+                "repository_owner_id",
+                "repository_id",
+                "repository",
+                "workflow_ref",
+                "ref",
+            ],
+        )
+        self.assertFalse(repository_opt_in)
+        self.assertTrue(immutable_required)
+
+    def test_immutable_oidc_check_rejects_legacy_subject(self) -> None:
+        errors = OIDC.repository_expected(
+            "bootstrap",
+            {
+                "use_default": True,
+                "use_immutable_subject": False,
+                "sub_claim_prefix": "repo:mindclade/bootstrap",
+            },
+            organization="mindclade",
+            use_default=True,
+            claims=[],
+        )
+        self.assertIn("bootstrap: use_immutable_subject is not true", errors)
+        self.assertIn(
+            "bootstrap: immutable sub_claim_prefix is absent or malformed", errors
+        )
+
+    def test_immutable_oidc_apply_uses_gh_without_a_token_argument(self) -> None:
+        completed = SimpleNamespace(returncode=0, stdout="", stderr="")
+        with mock.patch.object(OIDC.subprocess, "run", return_value=completed) as run:
+            OIDC.apply_policy(
+                "mindclade",
+                ["bootstrap"],
+                ["repository_owner_id", "repository_id"],
+                False,
+            )
+
+        self.assertEqual(run.call_count, 2)
+        for call in run.call_args_list:
+            command = call.args[0]
+            self.assertEqual(command[:2], ["gh", "api"])
+            self.assertNotIn("Authorization", " ".join(command))
+            self.assertNotIn("Bearer", " ".join(command))
+            self.assertIn("use_immutable_subject=true", command)
 
 
 if __name__ == "__main__":

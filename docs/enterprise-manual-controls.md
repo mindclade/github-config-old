@@ -68,9 +68,12 @@ this root. The enterprise policy is the ceiling and must not silently widen them
 
 ### Private vulnerability reporting
 
-Enable private vulnerability reporting on every repository and as the default for new
-repositories. The pinned provider does not manage this setting, so `drift.yml` checks it with
-the GitHub API and reports any repository where it is disabled.
+Enable private vulnerability reporting on every **public** repository and as the default for new
+public repositories. GitHub exposes this reporter-facing feature only for public repositories;
+private and internal repositories return `404` from the endpoint. `drift.yml` therefore checks
+the setting only when the repository API reports `visibility=public`. Every repository still
+requires its own `SECURITY.md` because the internal `.github` repository does not provide public
+community-health inheritance.
 
 ### Immutable OIDC default subjects
 
@@ -78,8 +81,9 @@ Every managed repository must use GitHub's immutable default OIDC subject, inclu
 repository IDs. Repositories created after July 15, 2026 receive that format automatically;
 pre-cutover repositories require an explicit opt-in through GitHub settings or the REST API.
 The pinned Terraform provider resets custom templates with `use_default = true` but does not
-prove that an older repository has enabled immutable defaults. Record the observed subject mode
-and immutable IDs during monthly review and before activating or rotating bootstrap WIF trust.
+model the immutable opt-in. The post-Terraform REST adapter enforces this provider-gap field and
+drift checks it nightly. Record the observed subject mode and immutable IDs during monthly review
+and before activating or rotating bootstrap WIF trust.
 
 ### Billing and contacts
 
