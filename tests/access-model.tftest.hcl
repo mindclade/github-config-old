@@ -184,6 +184,18 @@ run "deployment_gates_match_risk" {
   }
 
   assert {
+    condition = alltrue(flatten([
+      for repository, config in output.repositories : [
+        for environment in config.environments : alltrue([
+          for reviewer in output.environments[environment].reviewer_teams :
+          contains(keys(output.team_access[repository]), reviewer)
+        ])
+      ]
+    ]))
+    error_message = "Every environment reviewer team must have access to the repository it reviews."
+  }
+
+  assert {
     condition = (
       contains(output.repositories["bootstrap"].environments, "bootstrap-recovery-read") &&
       contains(output.environments["bootstrap-recovery-read"].reviewer_teams, "infrastructure") &&
