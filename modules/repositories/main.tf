@@ -53,11 +53,11 @@ resource "github_repository" "this" {
   auto_init = true
 
   security_and_analysis {
-    # Private and internal repositories, which supports GHAS. The guard remains because
-    # advanced_security cannot be set on a PUBLIC repository — GitHub enables it there
-    # unconditionally and rejects an explicit value — and this is the line that would
-    # otherwise fail the apply if one were ever flipped public.
-    dynamic "advanced_security" {
+    # GitHub's current repository API reports the organization-managed control as
+    # `code_security`; the legacy `advanced_security` field is rejected once the organization
+    # configuration owns the policy. Public repositories receive this control automatically,
+    # so omit the explicit block there to preserve provider/API compatibility.
+    dynamic "code_security" {
       for_each = each.value.visibility == "public" ? [] : [1]
       content {
         status = "enabled"
