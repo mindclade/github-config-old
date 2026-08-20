@@ -13,6 +13,15 @@
 # ~ALL with no exclusions. If one is ever made public, exclude it by name here or the ruleset
 # will fail to apply against it.
 
+locals {
+  push_blocked_extensions = [
+    # GitHub's ruleset API requires extension patterns, including the literal `*.` prefix.
+    "*.pem", "*.key", "*.p12", "*.pfx", "*.jks", "*.keystore", "*.asc", "*.ppk",
+    "*.tfstate", "*.tfstate.backup",
+    "*.kubeconfig", "*.netrc",
+  ]
+}
+
 resource "github_organization_ruleset" "push_blocklist" {
   name        = "push-blocklist"
   target      = "push"
@@ -40,16 +49,7 @@ resource "github_organization_ruleset" "push_blocklist" {
 
   rules {
     file_extension_restriction {
-      restricted_file_extensions = [
-        # Private keys and certificate bundles
-        "pem", "key", "p12", "pfx", "jks", "keystore", "asc", "ppk",
-        # Terraform state — contains every value marked sensitive, in plaintext
-        "tfstate", "tfstate.backup",
-        # Cluster and cloud credentials
-        "kubeconfig",
-        # Archives, which is how the above get smuggled past an extension check
-        "netrc",
-      ]
+      restricted_file_extensions = local.push_blocked_extensions
     }
 
     file_path_restriction {
@@ -83,5 +83,12 @@ resource "github_organization_ruleset" "push_blocklist" {
     max_file_path_length {
       max_file_path_length = 255
     }
+  }
+}
+
+check "push_blocked_extensions_are_api_patterns" {
+  assert {
+    condition     = alltrue([for extension in local.push_blocked_extensions : startswith(extension, "*.")])
+    error_message = "Every push-blocked extension must use GitHub's required *.extension pattern."
   }
 }
