@@ -190,6 +190,19 @@ elif REPOSITORY == "github-config":
         )
     if "require_immutable_default_subject: true" not in oidc_policy:
         error("catalog does not require GitHub immutable default OIDC subjects")
+    immutable_adapter = ROOT / "scripts/enforce-immutable-oidc.py"
+    if not immutable_adapter.is_file():
+        error("missing immutable OIDC provider-gap adapter")
+    for workflow_name, invocation in (
+        ("plan.yml", "scripts/enforce-immutable-oidc.py"),
+        ("apply.yml", "scripts/enforce-immutable-oidc.py --apply"),
+        ("drift.yml", "scripts/enforce-immutable-oidc.py"),
+    ):
+        workflow = (ROOT / ".github/workflows" / workflow_name).read_text(
+            "utf-8", errors="ignore"
+        )
+        if invocation not in workflow:
+            error(f"{workflow_name} omits immutable OIDC enforcement: {invocation}")
     ci_variables = (ROOT / "modules/repositories/ci-variables.tf").read_text(
         "utf-8", errors="ignore"
     )
