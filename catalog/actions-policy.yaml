@@ -13,6 +13,8 @@ verified_creator_allowed: false
 allowed_action_patterns:
   - actions/attest@*
   - actions/cache@*
+  - actions/cache/restore@*
+  - actions/cache/save@*
   - actions/checkout@*
   - actions/create-github-app-token@*
   - actions/dependency-review-action@*
@@ -37,6 +39,8 @@ allowed_action_patterns:
   - google-github-actions/get-secretmanager-secrets@*
   - google-github-actions/setup-gcloud@*
   - google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@*
+  - google/osv-scanner-action/osv-reporter-action@*
+  - google/osv-scanner-action/osv-scanner-action@*
   - hashicorp/setup-terraform@*
   - infracost/actions/setup@*
   - mindclade/.github/.github/workflows/*@*
