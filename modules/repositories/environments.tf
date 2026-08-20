@@ -29,9 +29,17 @@ resource "github_repository_environment" "this" {
     }
   }
 
-  deployment_branch_policy {
-    protected_branches     = var.environments[each.value.environment].protected_branches
-    custom_branch_policies = var.environments[each.value.environment].custom_branch_policies
+  dynamic "deployment_branch_policy" {
+    # GitHub rejects an explicit false/false branch-policy object. Omitting the block is the API
+    # representation for environments such as `plan` that must accept pull-request merge refs.
+    for_each = (
+      var.environments[each.value.environment].protected_branches ||
+      var.environments[each.value.environment].custom_branch_policies
+    ) ? [1] : []
+    content {
+      protected_branches     = var.environments[each.value.environment].protected_branches
+      custom_branch_policies = var.environments[each.value.environment].custom_branch_policies
+    }
   }
 }
 
