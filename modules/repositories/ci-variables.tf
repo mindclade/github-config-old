@@ -55,6 +55,44 @@ locals {
       "${repo}:${name}" => { repository = repo, name = name, value = value }
     }
   ]...)
+  arc_artifact_authority = {
+    canary = {
+      provider_variable = "WIF_PROVIDER_ARC_CANARY"
+      provider_id       = "gh-arc-canary"
+      account_variable  = "SA_ARC_CANARY"
+      account_id        = "sa-arc-canary"
+    }
+    builder = {
+      provider_variable = "WIF_PROVIDER_ARC_BUILDER"
+      provider_id       = "gh-arc-builder"
+      account_variable  = "SA_ARTIFACT_BUILDER"
+      account_id        = "sa-artifact-builder"
+    }
+    qualification_reader = {
+      provider_variable = "WIF_PROVIDER_ARC_QUALIFICATION_READER"
+      provider_id       = "gh-arc-qualification-reader"
+      account_variable  = "SA_ARTIFACT_QUALIFICATION_READER"
+      account_id        = "sa-artifact-qual-reader"
+    }
+    qualifier = {
+      provider_variable = "WIF_PROVIDER_ARC_QUALIFIER"
+      provider_id       = "gh-arc-qualifier"
+      account_variable  = "SA_ARTIFACT_QUALIFIER"
+      account_id        = "sa-artifact-qualifier"
+    }
+    signer = {
+      provider_variable = "WIF_PROVIDER_SIGNER"
+      provider_id       = "gh-mindclade-internal-monorepo"
+      account_variable  = "SA_ARTIFACT_SIGNER"
+      account_id        = "sa-artifact-signer"
+    }
+    promoter = {
+      provider_variable = "WIF_PROVIDER_ARC_PROMOTER"
+      provider_id       = "gh-arc-promoter"
+      account_variable  = "SA_ARTIFACT_PROMOTER"
+      account_id        = "sa-artifact-promoter"
+    }
+  }
 }
 
 resource "github_actions_variable" "this" {
@@ -204,9 +242,30 @@ check "artifact_signer_contract_matches_consumers" {
         try(var.ci_variables["infrastructure-live"]["ARTIFACT_SIGNER_PRINCIPAL"], "")
       )) &&
       try(var.ci_variables["infrastructure-live"]["ARTIFACT_SIGNER_JOB_WORKFLOW_REF"], "") ==
-      "mindclade/.github/.github/workflows/reusable-binauthz-sign.yml@refs/tags/v3.0.0"
+      "mindclade/.github/.github/workflows/reusable-binauthz-sign.yml@refs/tags/v4.0.0"
     )
-    error_message = "Infrastructure signer IAM and the monorepo release job must consume bootstrap's exact, immutable-default, release-environment-scoped v3.0.0 signer trust tuple."
+    error_message = "Infrastructure signer IAM and the monorepo release job must consume bootstrap's exact, immutable-default, release-environment-scoped v4.0.0 signer trust tuple."
+  }
+}
+
+check "arc_artifact_authority_contract_is_capability_exact" {
+  assert {
+    condition = alltrue([
+      for _, identity in local.arc_artifact_authority : can(regex(
+        "^projects/[0-9]+/locations/global/workloadIdentityPools/github/providers/${identity.provider_id}$",
+        try(var.ci_variables["mindclade-internal-monorepo"][identity.provider_variable], "")
+      ))
+      ]) && (
+      alltrue([
+        for _, identity in local.arc_artifact_authority :
+        try(var.ci_variables["mindclade-internal-monorepo"][identity.account_variable], "") == ""
+        ]) || alltrue([
+        for _, identity in local.arc_artifact_authority :
+        try(var.ci_variables["mindclade-internal-monorepo"][identity.account_variable], "") ==
+        "${identity.account_id}@${try(var.ci_variables["mindclade-internal-monorepo"]["CI_PROJECT_ID"], "")}.iam.gserviceaccount.com"
+      ])
+    )
+    error_message = "Every ARC capability must use its dedicated bootstrap provider and applied common-CI service account."
   }
 }
 

@@ -47,8 +47,8 @@ import {
 }
 
 # Read-only GitHub API inventory on 2026-08-20 proved these bootstrap variables already exist.
-# Import the exact intersection of live variables and the Buildkite-disabled compiled catalog.
-# Deferred Buildkite values are absent from both live state and this import set until federation
+# Import the exact intersection of live variables and the ARC-authority compiled catalog.
+# Retired Buildkite authority values are absent from both live state and this import set.
 # is enabled and its real UUID contract is available.
 locals {
   preexisting_bootstrap_actions_variables = toset([

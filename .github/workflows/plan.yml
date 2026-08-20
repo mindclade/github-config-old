@@ -72,6 +72,9 @@ jobs:
             experimental-features = nix-command flakes
             accept-flake-config = false
 
+      - name: Locked flake contract
+        run: nix flake check --no-update-lock-file --show-trace
+
       - name: actionlint
         # Take the binary from the flake, not a release download. actionlint shells out to
         # shellcheck, and shellcheck versions disagree: 0.10.0 (what flake.lock pins) reports

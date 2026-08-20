@@ -27,7 +27,9 @@ module "organization" {
   # secret-delivery path exist. No HMAC secret is serialized into Terraform plans/state.
   webhook_url    = ""
   webhook_secret = ""
-  app_scopes     = var.app_scopes
+  app_scopes = {
+    for slug, app in module.catalog.github_apps : slug => app.repositories
+  }
 }
 
 module "teams" {
@@ -51,12 +53,20 @@ module "repositories" {
   ci_variables            = var.ci_variables
 }
 
+module "runner_groups" {
+  source = "./modules/runner-groups"
+
+  runner_groups  = module.catalog.runner_groups
+  repository_ids = module.repositories.repository_ids
+}
+
 module "rulesets" {
   source = "./modules/rulesets"
 
   security_team_id       = tonumber(module.teams.team_ids["security"])
   platform_team_id       = tonumber(module.teams.team_ids["platform"])
   infrastructure_team_id = tonumber(module.teams.team_ids["infrastructure"])
+  release_team_id        = tonumber(module.teams.team_ids["release"])
   dot_github_repo_id     = module.repositories.repository_ids[".github"]
 
   rulesets              = module.catalog.rulesets
