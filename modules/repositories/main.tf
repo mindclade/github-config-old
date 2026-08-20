@@ -45,7 +45,9 @@ resource "github_repository" "this" {
   # applies here, so it is off even on the public repo, where a fork is a PR away anyway.
   allow_forking = false
 
-  web_commit_signoff_required = true
+  # Organization settings own and enforce web commit signoff. Provider v6.13 deliberately
+  # omits this field from repository PATCH requests only when it is not configured here;
+  # GitHub rejects any repository-level value once organization enforcement is active.
 
   # Setting auto_init on an import is a no-op, while a genuinely new repository needs an
   # initial `main` branch before github_branch_default can manage it. The provider ignores
@@ -53,16 +55,9 @@ resource "github_repository" "this" {
   auto_init = true
 
   security_and_analysis {
-    # GitHub's current repository API reports the organization-managed control as
-    # `code_security`; the legacy `advanced_security` field is rejected once the organization
-    # configuration owns the policy. Public repositories receive this control automatically,
-    # so omit the explicit block there to preserve provider/API compatibility.
-    dynamic "code_security" {
-      for_each = each.value.visibility == "public" ? [] : [1]
-      content {
-        status = "enabled"
-      }
-    }
+    # Code Security is organization-managed. GitHub reports it on repository reads but rejects
+    # repository-level mutation after the organization policy owns the setting. Keep the
+    # repository-scoped controls that remain independently mutable here.
     secret_scanning {
       status = "enabled"
     }
