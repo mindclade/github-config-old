@@ -59,7 +59,7 @@ disabled until an audited endpoint and non-persisted secret-delivery path exist.
 | Repository deletion/transfer | Restricted |
 | Base repository permission | Does not weaken the organization default |
 | Private/internal forking | Disabled unless explicitly approved |
-| Actions policy | No broader than `catalog/actions-policy.yaml` |
+| Actions policy | No broader than `catalog/actions-policy.yaml`, and not narrower than its required internal action paths |
 | Runner groups | Public/untrusted repositories cannot reach private runners |
 | Enterprise bypass | Minimal, named, and reviewed |
 

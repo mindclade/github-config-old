@@ -14,9 +14,13 @@ run "policy_catalog_is_production_grade" {
     condition = (
       output.actions_policy.default_workflow_permissions == "read" &&
       output.actions_policy.allowed_actions == "selected" &&
-      output.actions_policy.sha_pinning_required
+      output.actions_policy.sha_pinning_required &&
+      contains(
+        output.actions_policy.allowed_action_patterns,
+        "mindclade/.github/actions/validate-repository-home@*"
+      )
     )
-    error_message = "Actions must be selected-only, read-by-default, and SHA-pinned."
+    error_message = "Actions must be selected-only, read-by-default, SHA-pinned, and include the repository-home validator."
   }
 
   assert {
