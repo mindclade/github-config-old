@@ -27,6 +27,7 @@ forbidden_authority:
   - shared-workflow-implementation
   - application-source
 required_paths:
+  - AGENTS.md
   - catalog/repositories.yaml
   - catalog/teams.yaml
   - catalog/access.yaml

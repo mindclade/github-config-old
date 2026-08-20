@@ -49,8 +49,8 @@ run "policy_catalog_is_production_grade" {
   }
 
   assert {
-    condition     = output.rulesets["ruleset-workflows"].workflow_ref == "refs/tags/v3.0.0"
-    error_message = "Mandatory workflow enforcement must use the controlled v3.0.0 release tag."
+    condition     = output.rulesets["ruleset-workflows"].workflow_ref == "refs/tags/v4.0.0"
+    error_message = "Mandatory workflow enforcement must use the controlled v4.0.0 release tag."
   }
 
   assert {

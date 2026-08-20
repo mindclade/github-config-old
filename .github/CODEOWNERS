@@ -14,6 +14,7 @@
 
 # Actions allowlist, OIDC subject template, secrets policy.
 /modules/policies/              @mindclade/security
+/modules/runner-groups/         @mindclade/security
 
 # Org-wide settings, App installation scope (the blast radius of a compromised App key),
 # and the enterprise surface.

@@ -75,7 +75,7 @@ export TF_VAR_environment_project_ids='{}'
 
 Use that exact output for the reviewed local plan/apply and, when ready to activate CI, set the
 self-hosting `CI_VARIABLES` repository variable with the same exporter command plus `--set`. The
-bootstrap stage deliberately omits unavailable GitHub App IDs, Buildkite UUIDs,
+bootstrap stage deliberately omits unavailable GitHub App IDs, retired Buildkite inputs,
 normal-plane identities, environment projects, and attestors. It uses `ENVIRONMENT_PROJECT_IDS={}`,
 which creates and protects environments but omits every environment-level `GCP_PROJECT_ID`.
 Terraform accepts only this empty initial handoff or a complete map for all project-required
@@ -89,19 +89,31 @@ After `infrastructure-live` creates normal-plane GitOps service accounts, exact 
 projects, and supply-chain attestors, change `ENVIRONMENT_PROJECT_IDS` to
 `env:ENVIRONMENT_PROJECT_IDS`, supply only exact applied outputs for every remaining `env:` input,
 run the default full exporter, and reapply `github-config`. Full mode remains fail-closed on every
-unresolved non-Buildkite input.
+unresolved normal-plane input.
 
-The same export requires bootstrap `platform_contract` version `1.2.0`, reads
+The same export requires bootstrap `platform_contract` version `1.3.0`, reads
 `state.replica_buckets.bootstrap`, and publishes it as the managed
 `bootstrap/TFSTATE_REPLICA_BUCKET` Actions variable. The protected
 `bootstrap-recovery-read` environment is catalog-managed; never allow the recovery workflow to
 auto-create an unprotected environment with that name.
 
-When `platform_contract.buildkite.enabled` is false, the exporter requires the matching catalog
-flag, omits Buildkite UUID inputs, and does not publish
-`infrastructure-live/BUILDKITE_WIF_POOL_NAME`. Infrastructure remains fail-closed until reviewed
-bootstrap and catalog changes enable federation with a valid contract pool and real UUIDs. Enabled
-mode retains strict pool-name and required-input validation.
+The exporter requires `platform_contract.buildkite` to remain disabled with null pool/provider
+and the matching catalog flag. Buildkite cannot be re-enabled through an operator input. It also
+validates all six capability-specific ARC providers, collision-resistant mapped principals,
+trusted-main caller, and immutable v4 reusable workflows before publishing any release variable.
+
+The ARC catalog is desired-state and preflight evidence, not proof of a live GitHub App
+installation. Before enabling the canary provider, create or verify both exact installations:
+
+- `mindclade-arc`: selected to `mindclade-internal-monorepo`, organization
+  self-hosted-runners write, repository Actions/metadata read;
+- `mindclade-release-promoter`: selected to `gitops`, repository contents/pull-requests write
+  and metadata read.
+
+Apply and verify runner group `mindclade-arc-artifact-authority` as private/selected, with only
+the monorepo and only its `release.yml@refs/heads/main` workflow. Record the live IDs and
+effective permissions as connected evidence. Do not infer installation from the catalog or add
+broader App scopes to make a failed canary pass.
 
 `BOOTSTRAP_FOLDER_ID` is an adopt-existing bootstrap input, not an output handoff. The exporter
 never publishes it. Keep the bootstrap repository variable absent while Terraform owns the folder;
