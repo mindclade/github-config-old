@@ -20,7 +20,7 @@ releases. Cloud IAM remains in `bootstrap` or `infrastructure-live`.
 | Allowed actions | Selected allowlist only | [`catalog/actions-policy.yaml`](../catalog/actions-policy.yaml) |
 | Default token permissions | Read | [`catalog/actions-policy.yaml`](../catalog/actions-policy.yaml) |
 | Workflow PR approval | Disabled for `GITHUB_TOKEN` | [`catalog/actions-policy.yaml`](../catalog/actions-policy.yaml) |
-| Third-party references | Full commit SHA required | Catalog plus repository pin validators |
+| Composite-action references | Full commit SHA required | Catalog plus repository pin validators |
 | Mandatory workflows | Immutable full-semver `.github` release | [`catalog/rulesets.yaml`](../catalog/rulesets.yaml) |
 | Privileged cloud jobs | Protected environment and GitHub OIDC/WIF | [OIDC governance](oidc.md) |
 
@@ -31,6 +31,9 @@ Action subpaths are separate allowlist identities. A repository-level entry such
 `actions/cache@*` does not authorize the reviewed `actions/cache/restore` and
 `actions/cache/save` entry points; each subpath used by a workflow must be listed explicitly.
 The same rule applies to actions invoked transitively by an allowlisted reusable workflow.
+Mindclade's repository-home action is allowlisted only at its exact
+`mindclade/.github/actions/validate-repository-home` subpath; adding another first-party action
+requires its own reviewed catalog entry.
 
 Changes to the allowlist, OIDC policy, required workflows, protected workflow paths, or token
 permissions are security changes and require the owners declared by `CODEOWNERS`.

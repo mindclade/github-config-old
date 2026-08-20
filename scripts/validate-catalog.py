@@ -501,6 +501,8 @@ if not any(
     str(item).startswith("mindclade/.github/.github/workflows/") for item in patterns
 ):
     err("actions policy: Mindclade shared workflows are not allowlisted")
+if "mindclade/.github/actions/validate-repository-home@*" not in patterns:
+    err("actions policy: the repository-home validator action is not allowlisted")
 
 # OIDC policy. Optional claims must not be required organization-wide.
 subject_claims = set(oidc.get("subject_claim_keys", []))

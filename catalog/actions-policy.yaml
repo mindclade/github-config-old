@@ -45,6 +45,7 @@ allowed_action_patterns:
   - hashicorp/setup-terraform@*
   - infracost/actions/setup@*
   - mindclade/.github/.github/workflows/*@*
+  - mindclade/.github/actions/validate-repository-home@*
   - ossf/scorecard-action@*
   - pnpm/action-setup@*
   - terraform-linters/setup-tflint@*
