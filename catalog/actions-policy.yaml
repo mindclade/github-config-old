@@ -47,5 +47,4 @@ allowed_action_patterns:
   - mindclade/.github/.github/workflows/*@*
   - ossf/scorecard-action@*
   - pnpm/action-setup@*
-  - pre-commit/action@*
   - terraform-linters/setup-tflint@*
