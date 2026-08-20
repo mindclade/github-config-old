@@ -33,6 +33,106 @@ env:
   TF_PLUGIN_CACHE_DIR: /home/runner/.terraform.d/plugin-cache
 
 jobs:
+  access-expiry:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342  # v31.11.0
+
+      - id: expiry
+        name: Check access exception deadlines
+        run: |
+          set -euo pipefail
+          set +e
+          nix develop .#ci --command python3 scripts/check-access-expiry.py --warn-days 14 \
+            >access-expiry.txt 2>&1
+          code=$?
+          set -e
+          cat access-expiry.txt
+          case "$code" in
+            0) echo "state=clean" >> "$GITHUB_OUTPUT" ;;
+            1) echo "state=expired" >> "$GITHUB_OUTPUT" ;;
+            2) echo "state=upcoming" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::access expiry check returned unexpected status ${code}"
+               exit "$code" ;;
+          esac
+
+      - name: Open or update the renewal issue
+        if: steps.expiry.outputs.state != 'clean'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPIRY_STATE: ${{ steps.expiry.outputs.state }}
+        run: |
+          set -euo pipefail
+          title='Access exception renewal or revocation required'
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          {
+            echo '## Access exception deadline detected'
+            echo
+            echo "State: **${EXPIRY_STATE}**"
+            echo
+            echo '```text'
+            cat access-expiry.txt
+            echo '```'
+            echo
+            echo 'At T-3, complete a protected renewal or revoke the membership. Renewal is never automatic.'
+            echo
+            echo "Run: ${run_url}"
+          } >access-expiry-issue.md
+
+          issue_number="$(gh issue list \
+            --repo "$GITHUB_REPOSITORY" \
+            --state open \
+            --limit 100 \
+            --json number,title \
+            --jq '.[] | select(.title == "Access exception renewal or revocation required") | .number' \
+            | head -n 1)"
+          if [ -n "$issue_number" ]; then
+            gh issue edit "$issue_number" \
+              --repo "$GITHUB_REPOSITORY" \
+              --body-file access-expiry-issue.md
+          else
+            gh issue create \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$title" \
+              --body-file access-expiry-issue.md
+          fi
+
+      - name: Close the renewal issue when clean
+        if: steps.expiry.outputs.state == 'clean'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          issue_numbers="$(gh issue list \
+            --repo "$GITHUB_REPOSITORY" \
+            --state open \
+            --limit 100 \
+            --json number,title \
+            --jq '.[] | select(.title == "Access exception renewal or revocation required") | .number')"
+          for issue_number in $issue_numbers; do
+            gh issue comment "$issue_number" \
+              --repo "$GITHUB_REPOSITORY" \
+              --body 'All catalog access exceptions are outside the 14-day warning window.'
+            gh issue close "$issue_number" \
+              --repo "$GITHUB_REPOSITORY" \
+              --reason completed
+          done
+
+      - name: Fail on expired access
+        if: steps.expiry.outputs.state == 'expired'
+        run: |
+          echo '::error::One or more access exceptions have expired.'
+          exit 1
+
   drift:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04

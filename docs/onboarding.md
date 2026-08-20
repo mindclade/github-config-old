@@ -26,7 +26,9 @@ identity provider and is mapped to catalog-managed GitHub teams.
 5. Compare the resulting teams with `catalog/teams.yaml` and grants with
    `catalog/access.yaml`.
 6. Obtain separate approval before assigning any group that maps to `security`,
-   `infrastructure`, `platform`, `release`, `incident-command`, or `biosecurity` authority.
+   `infrastructure`, `platform`, `release`, `incident-command`, `biosecurity`, or
+   `bootstrap-reviewers` authority. The last group is restricted to the documented expiring
+   solo-founder procedure and is not ordinary onboarding access.
 7. Ask the engineer to clone only a repository they are expected to access:
 
    ```sh
@@ -57,3 +59,4 @@ and repository access check. Escalate excess privileged access as a security inc
 - [Access model](access-model.md)
 - [Offboarding](offboarding.md)
 - [GitHub break-glass](break-glass.md)
+- [Solo-founder bootstrap reviewer](solo-founder-reviewer.md)
