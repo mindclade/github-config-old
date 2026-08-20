@@ -149,15 +149,17 @@ check "oidc_policy_uses_universal_claims" {
   }
   assert {
     condition = alltrue([
-      local.oidc_policy.repository_opt_in,
+      !local.oidc_policy.repository_opt_in,
+      local.oidc_policy.require_immutable_default_subject,
       local.oidc_policy.require_trusted_owner_id,
       local.oidc_policy.require_repository_id,
       local.oidc_policy.require_workflow_ref,
       local.oidc_policy.require_ref,
+      local.oidc_policy.require_protected_environment_for_sensitive_plan,
       local.oidc_policy.require_protected_environment_for_apply,
       local.oidc_policy.explicit_audience_required,
     ])
-    error_message = "OIDC policy disables a required trust control."
+    error_message = "OIDC policy must preserve immutable default subjects and every required trust control."
   }
 }
 
@@ -194,6 +196,8 @@ check "ruleset_catalog_matches_the_implementation" {
       "merge-queue",
       "protected-paths",
       "push-blocklist",
+      "required-checks-bootstrap",
+      "required-checks-gitops",
       "required-checks-go",
       "required-checks-mixed",
       "required-checks-tf",

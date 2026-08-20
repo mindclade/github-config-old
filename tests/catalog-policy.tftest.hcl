@@ -40,14 +40,43 @@ run "policy_catalog_is_production_grade" {
 
   assert {
     condition = (
+      !output.oidc_policy.repository_opt_in &&
+      output.oidc_policy.require_immutable_default_subject &&
       output.oidc_policy.require_protected_environment_for_sensitive_plan &&
       output.oidc_policy.require_protected_environment_for_apply
     )
-    error_message = "Sensitive plan and apply identities must require protected environments."
+    error_message = "Immutable default subjects and protected plan/apply environments must remain enabled."
   }
 
   assert {
     condition     = output.rulesets["ruleset-workflows"].workflow_ref == "refs/tags/v3.0.0"
     error_message = "Mandatory workflow enforcement must use the controlled v3.0.0 release tag."
+  }
+
+  assert {
+    condition = (
+      !output.repository_classes["enterprise-control"].merge_queue &&
+      toset(output.rulesets["merge-queue"].classes) == toset([
+        "production-control",
+        "source-monorepo",
+      ])
+    )
+    error_message = "Merge queue must remain limited to production-control and source-monorepo repositories."
+  }
+
+  assert {
+    condition = (
+      output.rulesets["required-checks-bootstrap"].enforcement == "active" &&
+      output.rulesets["required-checks-bootstrap"].repositories == ["bootstrap"]
+    )
+    error_message = "Ring-0 bootstrap changes must require the repository-local speculative plan check."
+  }
+
+  assert {
+    condition = (
+      output.rulesets["required-checks-gitops"].enforcement == "active" &&
+      output.rulesets["required-checks-gitops"].repositories == ["gitops"]
+    )
+    error_message = "GitOps merge-queue changes must require repository-local static checks."
   }
 }

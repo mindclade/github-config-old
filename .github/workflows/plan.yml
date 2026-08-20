@@ -166,11 +166,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
-      - name: Validate catalog and access policy
+      - name: Validate catalog, access policy, and local tooling
         run: |
           set -euo pipefail
           python3 scripts/validate-catalog.py
           python3 scripts/check-access-expiry.py
+          python3 -m unittest -v tests/test_configure_workspace_remotes.py
 
       - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd  # v3
         with:

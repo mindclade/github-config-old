@@ -19,12 +19,22 @@ protected-paths:
 push-blocklist:
   target: all-private-internal
   enforcement: active
+required-checks-bootstrap:
+  repositories:
+    - bootstrap
+  enforcement: active
 required-checks-go:
   language_profiles:
     - go
     - mixed
   # Promote to active only after the real monorepo reports these exact contexts.
   enforcement: evaluate
+required-checks-gitops:
+  repositories:
+    - gitops
+  # Credential-free merge-group gates only. Render and provenance remain explicit activation
+  # evidence until those cross-repository/cloud trust workflows support merge_group safely.
+  enforcement: active
 required-checks-mixed:
   language_profiles:
     - mixed

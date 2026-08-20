@@ -5,10 +5,23 @@ Identity Federation. No service-account JSON keys are permitted.
 
 ## Subject policy
 
-`catalog/oidc-policy.yaml` is authoritative. The organization template and every
-managed repository are configured from the same catalog value.
+`catalog/oidc-policy.yaml` is authoritative. The organization template records a possible
+future custom format, but every managed repository is explicitly kept on GitHub's default
+subject (`use_default = true`). Mindclade also requires GitHub's immutable default-subject mode.
+Protected plan and release bindings use this environment form:
 
-The subject uses only claims available to every workflow job:
+```text
+repo:OWNER@OWNER-ID/REPO@REPO-ID:environment:ENVIRONMENT-NAME
+```
+
+According to GitHub's [immutable subject claims documentation](https://docs.github.com/en/actions/reference/security/oidc#immutable-subject-claims),
+repositories created after July 15, 2026 receive immutable default subjects automatically.
+Older repositories must be opted in through GitHub's OIDC settings or REST API before any
+bootstrap WIF binding is activated. Resetting a repository to `use_default = true` removes a
+custom claim template; it is not accepted as evidence that a pre-cutover repository has been
+opted into immutable defaults.
+
+The dormant custom template contains only claims available to every workflow job:
 
 ```text
 repository_owner_id
@@ -25,23 +38,31 @@ organization-wide would break plan, validation, and direct workflow jobs.
 
 ## Cloud trust
 
-Google Cloud trust must independently require the immutable organization ID and
-repository ID, expected repository, explicit audience, and an allowed workflow
-and ref. Apply service accounts are bound to the exact `apply.yml` workflow on
-`refs/heads/main`. The apply job itself references a protected GitHub environment,
-so it cannot start or request its token before that environment gate is passed.
+Google Cloud trust must require the exact immutable default `sub`, immutable organization ID,
+repository ID, expected repository, explicit audience, and an allowed workflow and ref. Apply
+service accounts are bound to the exact `apply.yml` workflow on `refs/heads/main`. The apply job
+itself references a protected GitHub environment, so it cannot start or request its token before
+that environment gate is passed.
 
-The subject is useful for audit and defense in depth; mapped immutable claims are
-the authorization source of truth.
+Default subjects preserve environment identity. Separately mapped immutable repository IDs,
+workflow/ref claims, explicit audiences, and provider conditions supply defense in depth.
+
+`idp-sync.yml` has two explicit cloud-authentication paths. Internal pull requests use the
+protected `plan` environment subject. Schedule and main-branch dispatch runs use the exact
+`idp-sync.yml@refs/heads/main` workflow identity bootstrap allowlists, with no environment, so a
+nightly offboarding check cannot stall behind an interactive approval.
 
 ## Change sequence
 
 Changing the subject template is a trust migration:
 
-1. make the bootstrap WIF mapping/conditions accept the intended claims;
-2. verify plan and apply token exchange in a non-production path;
-3. apply this repository's subject-template change;
-4. verify every control repository can authenticate;
-5. remove obsolete compatibility conditions.
+1. record every immutable owner and repository ID from an authoritative GitHub response;
+2. enable immutable default subjects for any repository that predates the GitHub cutover;
+3. make the bootstrap WIF mapping/conditions accept the exact intended immutable subjects;
+4. verify plan and apply token exchange in a non-production path;
+5. change `repository_opt_in` only after a reviewed credentialed plan proves every subject;
+6. apply this repository's subject-template change;
+7. verify every control repository can authenticate and a wrong repository ID is denied;
+8. remove obsolete compatibility conditions.
 
 Never change both sides blindly in one unrecoverable step.

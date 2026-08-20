@@ -35,7 +35,7 @@
 # It now arrives as the CI_VARIABLES repository variable, which plan.yml, apply.yml (both
 # jobs) and drift.yml pass through as TF_VAR_ci_variables. Build it rather than typing it:
 #
-#   ./scripts/export-ci-variables.sh --bootstrap ../bootstrap --set
+#   python3 scripts/export-ci-variables.py --bootstrap ../bootstrap --set
 #
 # That merges catalog/ci-variables.yaml — the half a human decides — with
 # `terraform -chdir=../bootstrap output -json` — the half bootstrap generated. It refuses to
@@ -178,13 +178,13 @@ check "artifact_signer_contract_matches_consumers" {
         try(var.ci_variables["infrastructure-live"]["WIF_PROVIDER_SIGNER"], "")
       )) &&
       can(regex(
-        "^principal://iam\\.googleapis\\.com/projects/[0-9]+/locations/global/workloadIdentityPools/github/subject/repo:mindclade/mindclade-internal-monorepo:environment:release$",
+        "^principal://iam\\.googleapis\\.com/projects/[0-9]+/locations/global/workloadIdentityPools/github/subject/repo:mindclade@[0-9]+/mindclade-internal-monorepo@[0-9]+:environment:release$",
         try(var.ci_variables["infrastructure-live"]["ARTIFACT_SIGNER_PRINCIPAL"], "")
       )) &&
       try(var.ci_variables["infrastructure-live"]["ARTIFACT_SIGNER_JOB_WORKFLOW_REF"], "") ==
       "mindclade/.github/.github/workflows/reusable-binauthz-sign.yml@refs/tags/v3.0.0"
     )
-    error_message = "Infrastructure signer IAM and the monorepo release job must consume bootstrap's exact, release-environment-scoped v3.0.0 signer trust tuple."
+    error_message = "Infrastructure signer IAM and the monorepo release job must consume bootstrap's exact, immutable-default, release-environment-scoped v3.0.0 signer trust tuple."
   }
 }
 

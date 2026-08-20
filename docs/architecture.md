@@ -41,16 +41,20 @@ The diagram separates human intent, provider-free compilation, credentialed plan
 credentialed mutation.
 
 ```mermaid
-flowchart LR
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#F2EFE8","primaryTextColor":"#201C24","primaryBorderColor":"#B5673F","secondaryColor":"#FBFAF7","tertiaryColor":"#FBFAF7","lineColor":"#5B5660","edgeLabelBackground":"#FBFAF7","clusterBkg":"#FBFAF7","clusterBorder":"#E2DED4"}}}%%
+flowchart TD
     subgraph Source["Human-authored source"]
+        direction LR
         CAT["catalog/*.yaml"]
         SCH["catalog/schema/*.json"]
     end
     subgraph Compiler["Policy compiler"]
+        direction LR
         MOD["modules/catalog<br/>normalize and validate"]
         TF["Terraform modules<br/>materialize policy"]
     end
     subgraph Trust["Separated trust domains"]
+        direction LR
         PLAN["Plan App + plan WIF identity"]
         GATE{"governance environment"}
         APPLY["Apply App + apply WIF identity"]
@@ -65,9 +69,12 @@ flowchart LR
     GATE --> APPLY
     APPLY --> GH
 
-    classDef authority fill:#0b1f33,color:#ffffff,stroke:#3aa3ff,stroke-width:2px;
-    classDef managed fill:#e8f4ff,color:#0b1f33,stroke:#1677b8,stroke-width:1.5px;
-    classDef approval fill:#fff4d6,color:#0b1f33,stroke:#b7791f,stroke-width:1.5px;
+    classDef authority fill:#201C24,color:#F2EFE8,stroke:#D68A61,stroke-width:2px;
+    classDef managed fill:#F2EFE8,color:#201C24,stroke:#B5673F,stroke-width:1.5px;
+    classDef approval fill:#FBFAF7,color:#201C24,stroke:#B5673F,stroke-width:1.5px;
+    style Source fill:#FBFAF7,stroke:#E2DED4,color:#201C24;
+    style Compiler fill:#FBFAF7,stroke:#E2DED4,color:#201C24;
+    style Trust fill:#FBFAF7,stroke:#E2DED4,color:#201C24;
     class CAT,SCH,GH authority;
     class MOD,TF,PLAN,APPLY managed;
     class GATE approval;

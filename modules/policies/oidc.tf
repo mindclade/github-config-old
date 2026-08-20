@@ -9,21 +9,22 @@ resource "github_actions_organization_oidc_subject_claim_customization_template"
   include_claim_keys = var.oidc_policy.subject_claim_keys
 }
 
-# Organization templates are not inherited automatically. Every managed
-# repository is opted into the catalog-defined template explicitly. Supplying
-# the keys here also avoids provider/API ambiguity around use_default=false with
-# an empty include_claim_keys list.
+# Organization templates are not inherited automatically. Manage every repository's opt-in
+# explicitly so an out-of-band custom subject cannot silently invalidate bootstrap's default
+# environment-shaped WIF subjects. include_claim_keys must be unset when use_default is true.
 resource "github_actions_repository_oidc_subject_claim_customization_template" "managed" {
-  for_each = var.oidc_policy.repository_opt_in ? var.managed_repository_ids : {}
+  for_each = var.managed_repository_ids
 
   repository         = each.key
-  use_default        = false
-  include_claim_keys = var.oidc_policy.subject_claim_keys
+  use_default        = !var.oidc_policy.repository_opt_in
+  include_claim_keys = var.oidc_policy.repository_opt_in ? var.oidc_policy.subject_claim_keys : null
 
   depends_on = [github_actions_organization_oidc_subject_claim_customization_template.this]
 }
 
 output "oidc_subject_format" {
-  description = "Catalog-defined GitHub Actions OIDC subject format."
-  value       = join(":", [for key in var.oidc_policy.subject_claim_keys : "${key}=<value>"])
+  description = "Effective managed-repository OIDC subject format."
+  value = var.oidc_policy.repository_opt_in ? join(
+    ":", [for key in var.oidc_policy.subject_claim_keys : "${key}=<value>"]
+  ) : "github-immutable-default"
 }

@@ -27,6 +27,7 @@ variable "oidc_policy" {
     subject_claim_keys                               = list(string)
     required_wif_attribute_claims                    = list(string)
     repository_opt_in                                = bool
+    require_immutable_default_subject                = bool
     require_trusted_owner_id                         = bool
     require_repository_id                            = bool
     require_workflow_ref                             = bool

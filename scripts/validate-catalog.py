@@ -2,15 +2,17 @@
 # Copyright © 2026 Mindclade, LLC. All Rights Reserved.
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
+
 #
 """Validate Mindclade's GitHub governance catalog without cloud credentials."""
+
 from __future__ import annotations
 
-from collections import defaultdict
 from datetime import date
 import json
 from pathlib import Path
 import re
+import subprocess
 import sys
 from typing import Any
 
@@ -43,6 +45,7 @@ EXPECTED_ENVIRONMENTS = {
     "plan",
     "governance",
     "bootstrap",
+    "bootstrap-recovery-read",
     "release",
     "break-glass",
 }
@@ -51,6 +54,8 @@ EXPECTED_RULESETS = {
     "merge-queue",
     "protected-paths",
     "push-blocklist",
+    "required-checks-bootstrap",
+    "required-checks-gitops",
     "required-checks-go",
     "required-checks-mixed",
     "required-checks-tf",
@@ -84,9 +89,15 @@ REQUIRED_CI_VARIABLES = {
         "GH_ORGANIZATION_ID": "env:GH_ORGANIZATION_ID",
         "GH_REPOSITORY_IDS_JSON": "env:GH_REPOSITORY_IDS_JSON",
     },
+    "infrastructure-live": {
+        "PRIMARY_REGION": "us-central1",
+        "GPU_ZONE": "us-central1-b",
+    },
     "gitops": {
         "BINAUTHZ_DEPLOYMENT_ATTESTOR_PROJECT": "env:BINAUTHZ_DEPLOYMENT_ATTESTOR_PROJECT",
         "BINAUTHZ_DEPLOYMENT_ATTESTOR": "env:BINAUTHZ_DEPLOYMENT_ATTESTOR",
+        "SA_GITOPS_RENDER": "env:SA_GITOPS_RENDER",
+        "SA_GITOPS_VERIFIER": "env:SA_GITOPS_VERIFIER",
     },
     "mindclade-internal-monorepo": {
         "BINAUTHZ_BUILD_ATTESTOR_PROJECT": "env:BINAUTHZ_BUILD_ATTESTOR_PROJECT",
@@ -122,7 +133,9 @@ def err(message: str) -> None:
 for stem in ("repositories", "teams", "access", "environments"):
     data = load_yaml(f"{stem}.yaml")
     try:
-        schema = json.loads((SCHEMA / f"{stem}.schema.json").read_text(encoding="utf-8"))
+        schema = json.loads(
+            (SCHEMA / f"{stem}.schema.json").read_text(encoding="utf-8")
+        )
     except Exception as exc:
         err(f"{stem}: cannot read schema: {exc}")
         continue
@@ -147,13 +160,21 @@ if set(repos) != EXPECTED_REPOS:
 if set(classes) != EXPECTED_CLASSES:
     err(f"repository classes differ: {sorted(set(classes) ^ EXPECTED_CLASSES)}")
 if set(environments) != EXPECTED_ENVIRONMENTS:
-    err(f"environment inventory differs: {sorted(set(environments) ^ EXPECTED_ENVIRONMENTS)}")
+    err(
+        f"environment inventory differs: {sorted(set(environments) ^ EXPECTED_ENVIRONMENTS)}"
+    )
 if set(access) != EXPECTED_REPOS:
-    err(f"access catalog must cover every managed repository: {sorted(set(access) ^ EXPECTED_REPOS)}")
+    err(
+        f"access catalog must cover every managed repository: {sorted(set(access) ^ EXPECTED_REPOS)}"
+    )
 if set(rulesets) != EXPECTED_RULESETS:
-    err(f"ruleset inventory differs from implementation: {sorted(set(rulesets) ^ EXPECTED_RULESETS)}")
+    err(
+        f"ruleset inventory differs from implementation: {sorted(set(rulesets) ^ EXPECTED_RULESETS)}"
+    )
 if set(properties) != set(PROPERTY_FIELDS):
-    err(f"custom-property inventory differs: {sorted(set(properties) ^ set(PROPERTY_FIELDS))}")
+    err(
+        f"custom-property inventory differs: {sorted(set(properties) ^ set(PROPERTY_FIELDS))}"
+    )
 
 # Teams and hierarchy.
 for name, cfg in teams.items():
@@ -210,7 +231,14 @@ for name, cfg in environments.items():
     for reviewer in cfg.get("reviewer_teams", []):
         if reviewer not in teams:
             err(f"environment {name}: unknown reviewer team {reviewer}")
-    if name in {"governance", "bootstrap", "production", "release", "break-glass"}:
+    if name in {
+        "governance",
+        "bootstrap",
+        "bootstrap-recovery-read",
+        "production",
+        "release",
+        "break-glass",
+    }:
         if not cfg.get("protected_branches"):
             err(f"environment {name}: protected_branches must be true")
         if not cfg.get("prevent_self_review"):
@@ -218,9 +246,13 @@ for name, cfg in environments.items():
         if not cfg.get("reviewer_teams"):
             err(f"environment {name}: at least one reviewer team is required")
     if cfg.get("protected_branches") and cfg.get("custom_branch_policies"):
-        err(f"environment {name}: protected and custom branch policies are mutually exclusive")
+        err(
+            f"environment {name}: protected and custom branch policies are mutually exclusive"
+        )
 plan_environment = environments.get("plan", {})
-if plan_environment.get("protected_branches") or plan_environment.get("custom_branch_policies"):
+if plan_environment.get("protected_branches") or plan_environment.get(
+    "custom_branch_policies"
+):
     err("environment plan: branch filters must allow pull-request merge refs")
 if "infrastructure" not in plan_environment.get("reviewer_teams", []):
     err("environment plan: infrastructure review is required")
@@ -229,6 +261,15 @@ if not plan_environment.get("prevent_self_review"):
 for repository in ("bootstrap", "github-config", "infrastructure-live"):
     if "plan" not in repos.get(repository, {}).get("environments", []):
         err(f"{repository} must declare the protected plan environment")
+recovery_environment = environments.get("bootstrap-recovery-read", {})
+if "bootstrap-recovery-read" not in repos.get("bootstrap", {}).get("environments", []):
+    err("bootstrap must declare its bootstrap-recovery-read environment")
+if not {"infrastructure", "security"}.issubset(
+    set(recovery_environment.get("reviewer_teams", []))
+):
+    err(
+        "environment bootstrap-recovery-read: infrastructure and security review are required"
+    )
 
 # GitOps promotion jobs select an environment from the promotion target. Both pre-production
 # rehearsal and production therefore need explicit protected-branch gates; otherwise a caller
@@ -239,7 +280,9 @@ for name in ("staging", "production"):
     if name not in gitops_environments:
         err(f"gitops must declare the {name} promotion environment")
     if not cfg.get("protected_branches") or cfg.get("custom_branch_policies"):
-        err(f"environment {name}: GitOps promotion must be restricted to protected branches")
+        err(
+            f"environment {name}: GitOps promotion must be restricted to protected branches"
+        )
     if not cfg.get("prevent_self_review"):
         err(f"environment {name}: GitOps promotion must prevent self-review")
 if "platform" not in environments.get("staging", {}).get("reviewer_teams", []):
@@ -247,7 +290,9 @@ if "platform" not in environments.get("staging", {}).get("reviewer_teams", []):
 if not {"platform", "security"}.issubset(
     set(environments.get("production", {}).get("reviewer_teams", []))
 ):
-    err("environment production: platform and security review are required for GitOps promotion")
+    err(
+        "environment production: platform and security review are required for GitOps promotion"
+    )
 
 # Custom properties are a compiled view of repository metadata.
 for name, definition in properties.items():
@@ -285,20 +330,30 @@ if not patterns or len(patterns) != len(set(patterns)):
 for pattern in patterns:
     if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_./*-]+@[^\s]+", str(pattern)):
         err(f"actions policy: malformed allowlist pattern {pattern!r}")
-if not any(str(item).startswith("mindclade/.github/.github/workflows/") for item in patterns):
+if not any(
+    str(item).startswith("mindclade/.github/.github/workflows/") for item in patterns
+):
     err("actions policy: Mindclade shared workflows are not allowlisted")
 
 # OIDC policy. Optional claims must not be required organization-wide.
 subject_claims = set(oidc.get("subject_claim_keys", []))
 wif_claims = set(oidc.get("required_wif_attribute_claims", []))
 if subject_claims != UNIVERSAL_OIDC_CLAIMS:
-    err(f"OIDC subject claims must be {sorted(UNIVERSAL_OIDC_CLAIMS)}, got {sorted(subject_claims)}")
+    err(
+        f"OIDC subject claims must be {sorted(UNIVERSAL_OIDC_CLAIMS)}, got {sorted(subject_claims)}"
+    )
 if wif_claims != REQUIRED_WIF_CLAIMS:
-    err(f"OIDC WIF claims must be {sorted(REQUIRED_WIF_CLAIMS)}, got {sorted(wif_claims)}")
+    err(
+        f"OIDC WIF claims must be {sorted(REQUIRED_WIF_CLAIMS)}, got {sorted(wif_claims)}"
+    )
 if subject_claims & FORBIDDEN_ORG_SUBJECT_CLAIMS:
-    err(f"OIDC subject requires optional claims: {sorted(subject_claims & FORBIDDEN_ORG_SUBJECT_CLAIMS)}")
+    err(
+        f"OIDC subject requires optional claims: {sorted(subject_claims & FORBIDDEN_ORG_SUBJECT_CLAIMS)}"
+    )
+if oidc.get("repository_opt_in") is not False:
+    err("OIDC policy: managed repositories must use GitHub immutable default subjects")
 for flag in (
-    "repository_opt_in",
+    "require_immutable_default_subject",
     "require_trusted_owner_id",
     "require_repository_id",
     "require_workflow_ref",
@@ -322,7 +377,55 @@ for name, cfg in rulesets.items():
             err(f"ruleset {name}: unknown repository {repo}")
 workflow_ref = rulesets.get("ruleset-workflows", {}).get("workflow_ref", "")
 if not re.fullmatch(r"refs/tags/v[0-9]+\.[0-9]+\.[0-9]+", workflow_ref):
-    err("ruleset-workflows.workflow_ref must be an immutable release tag such as refs/tags/v3.0.0")
+    err(
+        "ruleset-workflows.workflow_ref must be an immutable release tag such as refs/tags/v3.0.0"
+    )
+merge_queue_classes = set(rulesets.get("merge-queue", {}).get("classes", []))
+class_merge_queue = {
+    name for name, config in classes.items() if config.get("merge_queue") is True
+}
+if merge_queue_classes != class_merge_queue:
+    err(
+        "merge-queue ruleset classes must exactly match repository classes whose "
+        f"merge_queue policy is true: {sorted(class_merge_queue)}"
+    )
+if "enterprise-control" in merge_queue_classes:
+    err("enterprise-control repositories must not receive merge-queue enforcement")
+bootstrap_checks = rulesets.get("required-checks-bootstrap", {})
+if bootstrap_checks.get("enforcement") != "active":
+    err("required-checks-bootstrap must remain active")
+if bootstrap_checks.get("repositories") != ["bootstrap"]:
+    err("required-checks-bootstrap must target only bootstrap")
+bootstrap_ruleset = (
+    ROOT / "modules" / "rulesets" / "required-checks-bootstrap.tf"
+).read_text(encoding="utf-8")
+for fragment in ('include = ["bootstrap"]', 'context = "speculative"'):
+    if fragment not in bootstrap_ruleset:
+        err(f"required-checks-bootstrap implementation omits {fragment}")
+gitops_checks = rulesets.get("required-checks-gitops", {})
+if gitops_checks.get("enforcement") != "active":
+    err("required-checks-gitops must remain active")
+if gitops_checks.get("repositories") != ["gitops"]:
+    err("required-checks-gitops must target only gitops")
+gitops_ruleset = (
+    ROOT / "modules" / "rulesets" / "required-checks-gitops.tf"
+).read_text(encoding="utf-8")
+for context in (
+    "contract",
+    "lint",
+    "schema",
+    "policy",
+    "exemptions",
+    "promotion-integrity",
+    "repository-invariants",
+):
+    if f'context = "{context}"' not in gitops_ruleset:
+        err(f"required-checks-gitops implementation omits {context}")
+for forbidden_context in ("render", "provenance"):
+    if f'context = "{forbidden_context}"' in gitops_ruleset:
+        err(
+            f"required-checks-gitops cannot require unsupported {forbidden_context} context"
+        )
 
 # Time-bounded access exceptions.
 if not isinstance(exceptions, list):
@@ -333,7 +436,16 @@ else:
         if not isinstance(item, dict):
             err("access exception must be an object")
             continue
-        required = {"id", "principal", "repository", "role", "reason", "approver", "created_at", "expires_at"}
+        required = {
+            "id",
+            "principal",
+            "repository",
+            "role",
+            "reason",
+            "approver",
+            "created_at",
+            "expires_at",
+        }
         missing = required - set(item)
         if missing:
             err(f"access exception missing fields: {sorted(missing)}")
@@ -358,7 +470,9 @@ else:
 # Non-secret CI variable catalog references only managed repositories and carries valid JSON
 # where a value is represented as a serialized object/array.
 if set(ci_variables) != EXPECTED_REPOS:
-    err(f"ci-variables must cover every managed repository: {sorted(set(ci_variables) ^ EXPECTED_REPOS)}")
+    err(
+        f"ci-variables must cover every managed repository: {sorted(set(ci_variables) ^ EXPECTED_REPOS)}"
+    )
 for repo, variables in ci_variables.items():
     if repo not in repos:
         err(f"ci-variables: unknown repository {repo}")
@@ -367,14 +481,20 @@ for repo, variables in ci_variables.items():
         continue
     for name, value in variables.items():
         if not re.fullmatch(r"[A-Z][A-Z0-9_]*", str(name)):
-            err(f"ci-variables: {repo}/{name} is not an uppercase Actions variable name")
+            err(
+                f"ci-variables: {repo}/{name} is not an uppercase Actions variable name"
+            )
         if str(name).startswith("GITHUB_"):
             err(f"ci-variables: {repo}/{name} uses GitHub's reserved GITHUB_ prefix")
         text = str(value)
         if text == "":
-            err(f"ci-variables: {repo}/{name} is empty; use env:NAME for operator input")
+            err(
+                f"ci-variables: {repo}/{name} is empty; use env:NAME for operator input"
+            )
         if text.startswith("env:") and not re.fullmatch(r"env:[A-Z][A-Z0-9_]*", text):
-            err(f"ci-variables: {repo}/{name} has malformed environment indirection {text!r}")
+            err(
+                f"ci-variables: {repo}/{name} has malformed environment indirection {text!r}"
+            )
         if text.startswith(("{", "[")):
             try:
                 json.loads(text)
@@ -393,43 +513,86 @@ legacy_signing_variables = {
 }
 monorepo_variables = ci_variables.get("mindclade-internal-monorepo", {})
 if legacy_signing_variables & set(monorepo_variables):
-    err("ci-variables: builder-scoped legacy signing variables are forbidden in the monorepo")
+    err(
+        "ci-variables: builder-scoped legacy signing variables are forbidden in the monorepo"
+    )
 for repo, variables in ci_variables.items():
     if {"BINAUTHZ_ATTESTOR_PROJECT", "BINAUTHZ_ATTESTOR_KEY_VERSION"} & set(variables):
-        err(f"ci-variables: {repo} retains ambiguous legacy Binary Authorization variables")
+        err(
+            f"ci-variables: {repo} retains ambiguous legacy Binary Authorization variables"
+        )
+if "BUILDKITE_WIF_POOL_NAME" in ci_variables.get("infrastructure-live", {}):
+    err(
+        "ci-variables: Buildkite WIF pool must come from bootstrap platform_contract, not env input"
+    )
 
-ci_variable_exporter = (ROOT / "scripts" / "export-ci-variables.sh").read_text(encoding="utf-8")
+ci_variable_exporter = (ROOT / "scripts" / "export-ci-variables.py").read_text(
+    encoding="utf-8"
+)
 required_export_fragments = {
-    "infrastructure-live/WIF_POOL_GITHUB_NAME": "WIF_POOL_GITHUB_NAME: $github_wif_pool",
-    "infrastructure-live/WIF_PROVIDER_SIGNER": "WIF_PROVIDER_SIGNER: $artifact_signer_wif_provider",
-    "infrastructure-live/ARTIFACT_SIGNER_PRINCIPAL": (
-        "ARTIFACT_SIGNER_PRINCIPAL: $artifact_signer_principal"
-    ),
-    "infrastructure-live/ARTIFACT_SIGNER_JOB_WORKFLOW_REF": (
-        "ARTIFACT_SIGNER_JOB_WORKFLOW_REF: $artifact_signer_job_workflow_ref"
-    ),
-    "monorepo/WIF_PROVIDER_SIGNER": "WIF_PROVIDER_SIGNER: $artifact_signer_wif_provider",
+    "bootstrap/TFSTATE_REPLICA_BUCKET": '"TFSTATE_REPLICA_BUCKET"',
+    "infrastructure-live/WIF_POOL_GITHUB_NAME": '"WIF_POOL_GITHUB_NAME"',
+    "infrastructure-live/BUILDKITE_WIF_POOL_NAME": '"BUILDKITE_WIF_POOL_NAME"',
+    "infrastructure-live/WIF_PROVIDER_SIGNER": '"WIF_PROVIDER_SIGNER"',
+    "infrastructure-live/ARTIFACT_SIGNER_PRINCIPAL": '"ARTIFACT_SIGNER_PRINCIPAL"',
+    "infrastructure-live/ARTIFACT_SIGNER_JOB_WORKFLOW_REF": '"ARTIFACT_SIGNER_JOB_WORKFLOW_REF"',
+    "monorepo/WIF_PROVIDER_SIGNER": '"WIF_PROVIDER_SIGNER"',
 }
 for name, fragment in required_export_fragments.items():
     if fragment not in ci_variable_exporter:
         err(f"ci-variable exporter must publish {name}")
-for output_name in (
-    "artifact_signer_wif_provider",
-    "artifact_signer_principal",
-    "artifact_signer_job_workflow_ref",
+if '"platform_contract"' not in ci_variable_exporter:
+    err("ci-variable exporter must source bootstrap/platform_contract")
+for fragment in (
+    'platform.get("contract_version") != "1.2.0"',
+    '"replica_buckets"',
+    'buildkite.get("enabled") is not True',
+    '"workload_identity_pool"',
+    '"principal"',
 ):
-    if f'output("{output_name}")' not in ci_variable_exporter:
-        err(f"ci-variable exporter must source bootstrap/{output_name}")
-if re.search(r"^\s*GITHUB_WIF_POOL_NAME:", ci_variable_exporter, re.MULTILINE):
+    if fragment not in ci_variable_exporter:
+        err(f"ci-variable exporter omits bootstrap 1.2 contract fragment: {fragment}")
+if '"state_replica_buckets"' in ci_variable_exporter:
+    err(
+        "ci-variable exporter must use platform_contract, not bootstrap convenience outputs"
+    )
+if '"GITHUB_WIF_POOL_NAME"' in ci_variable_exporter:
     err("ci-variable exporter uses forbidden GITHUB_WIF_POOL_NAME")
 
+# Every managed repository must actively restore GitHub's default subject. Merely declining to
+# opt in leaves an out-of-band repository template untouched and breaks bootstrap's
+# environment-shaped subjects just as effectively as opting in here would.
+oidc_module = (ROOT / "modules" / "policies" / "oidc.tf").read_text(encoding="utf-8")
+for fragment, label in (
+    (
+        "for_each = var.managed_repository_ids",
+        "manage every repository subject template",
+    ),
+    (
+        "use_default        = !var.oidc_policy.repository_opt_in",
+        "set use_default explicitly",
+    ),
+    (
+        "include_claim_keys = var.oidc_policy.repository_opt_in ? "
+        "var.oidc_policy.subject_claim_keys : null",
+        "omit custom claims while default subjects are active",
+    ),
+    (
+        ') : "github-immutable-default"',
+        "report the effective immutable-default subject contract",
+    ),
+):
+    if fragment not in oidc_module:
+        err(f"OIDC policy module must {label}")
+
 # Bootstrap binds plan federation to the protected environment subject. Keep every
-# github-config plan-capable entrypoint on that subject, while drift uses its separately
-# allowlisted main-branch workflow identity and never waits for an interactive review.
+# github-config PR plan-capable entrypoint on that subject. Drift, scheduled IdP sync, and
+# main-branch IdP dispatch use separately allowlisted @main workflow identities and never wait
+# for an interactive review.
 workflow_dir = ROOT / ".github" / "workflows"
 workflow_docs = {
     name: yaml.safe_load((workflow_dir / f"{name}.yml").read_text(encoding="utf-8"))
-    for name in ("plan", "apply", "drift")
+    for name in ("plan", "apply", "drift", "idp-sync")
 }
 for workflow_name in ("plan", "apply"):
     plan_job = workflow_docs[workflow_name].get("jobs", {}).get("plan", {})
@@ -439,9 +602,51 @@ for workflow_name in ("plan", "apply"):
         err(f"{workflow_name}.yml plan job must reject non-main manual dispatch")
 drift_job = workflow_docs["drift"].get("jobs", {}).get("drift", {})
 if drift_job.get("environment") is not None:
-    err("drift.yml must use the exact main-workflow WIF binding, not the interactive plan environment")
+    err(
+        "drift.yml must use the exact main-workflow WIF binding, not the interactive plan environment"
+    )
 if "github.ref == 'refs/heads/main'" not in str(drift_job.get("if", "")):
     err("drift.yml must reject manual dispatch from non-main refs")
+
+idp_jobs = workflow_docs["idp-sync"].get("jobs", {})
+if "export" in idp_jobs:
+    err("idp-sync.yml must split PR and protected-main authentication paths")
+idp_pr_job = idp_jobs.get("export_pr", {})
+if idp_pr_job.get("environment") != "plan":
+    err("idp-sync.yml export_pr job must use the protected plan environment")
+idp_pr_condition = str(idp_pr_job.get("if", ""))
+for guard in (
+    "github.event_name == 'pull_request'",
+    "github.event.pull_request.head.repo.full_name == github.repository",
+):
+    if guard not in idp_pr_condition:
+        err(f"idp-sync.yml export_pr job is missing guard: {guard}")
+
+idp_main_job = idp_jobs.get("export_main", {})
+if idp_main_job.get("environment") is not None:
+    err(
+        "idp-sync.yml export_main must use exact @main workflow trust without an environment"
+    )
+idp_main_condition = str(idp_main_job.get("if", ""))
+for guard in (
+    "github.event_name == 'schedule'",
+    "github.event_name == 'workflow_dispatch'",
+    "github.ref == 'refs/heads/main'",
+):
+    if guard not in idp_main_condition:
+        err(f"idp-sync.yml export_main job is missing guard: {guard}")
+
+for job_name, job in (("export_pr", idp_pr_job), ("export_main", idp_main_job)):
+    if job.get("permissions", {}).get("id-token") != "write":
+        err(f"idp-sync.yml {job_name} must request id-token: write locally")
+    serialized_steps = json.dumps(job.get("steps", []), sort_keys=True)
+    for variable in ("WIF_PROVIDER_PLAN", "SA_GITHUB_CONFIG_PLAN"):
+        if variable not in serialized_steps:
+            err(f"idp-sync.yml {job_name} must authenticate with {variable}")
+
+report_job = idp_jobs.get("report", {})
+if report_job.get("needs") not in (["export_main"], "export_main"):
+    err("idp-sync.yml scheduled report must depend only on export_main")
 
 initial_import_path = ROOT / "docs" / "initial-import.md"
 if initial_import_path.is_file():
@@ -456,9 +661,19 @@ if (ROOT / "CODEOWNERS").exists():
     err("root CODEOWNERS is forbidden; use .github/CODEOWNERS")
 if not (ROOT / ".github" / "CODEOWNERS").is_file():
     err(".github/CODEOWNERS is missing")
-for path in ROOT.rglob("*"):
-    if ".git" in path.parts:
-        continue
+try:
+    listed = subprocess.run(
+        ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+    ).stdout
+    repository_paths = [
+        ROOT / item.decode("utf-8") for item in listed.split(b"\0") if item
+    ]
+except (FileNotFoundError, subprocess.CalledProcessError):
+    repository_paths = [path for path in ROOT.rglob("*") if ".git" not in path.parts]
+for path in repository_paths:
     if path.name in {".terraform", ".terragrunt-cache"}:
         err(f"local tool cache committed/present: {path.relative_to(ROOT)}")
     if path.name.startswith("terraform.tfstate") or path.suffix == ".tfplan":

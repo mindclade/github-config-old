@@ -164,6 +164,7 @@ run "deployment_gates_match_risk" {
     condition = (
       output.environments["governance"].prevent_self_review &&
       output.environments["bootstrap"].prevent_self_review &&
+      output.environments["bootstrap-recovery-read"].prevent_self_review &&
       output.environments["break-glass"].prevent_self_review
     )
     error_message = "Critical control-plane environments must prevent self-review."
@@ -180,6 +181,18 @@ run "deployment_gates_match_risk" {
       !output.environments["plan"].custom_branch_policies
     )
     error_message = "Infrastructure plans require a review-gated environment that permits pull-request merge refs."
+  }
+
+  assert {
+    condition = (
+      contains(output.repositories["bootstrap"].environments, "bootstrap-recovery-read") &&
+      contains(output.environments["bootstrap-recovery-read"].reviewer_teams, "infrastructure") &&
+      contains(output.environments["bootstrap-recovery-read"].reviewer_teams, "security") &&
+      output.environments["bootstrap-recovery-read"].prevent_self_review &&
+      output.environments["bootstrap-recovery-read"].protected_branches &&
+      !output.environments["bootstrap-recovery-read"].custom_branch_policies
+    )
+    error_message = "Bootstrap state inspection requires its dedicated governed recovery-read environment."
   }
 
   assert {

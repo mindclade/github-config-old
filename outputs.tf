@@ -24,9 +24,9 @@ output "environments" {
 
 output "oidc_subject_format" {
   description = <<-EOT
-    The OIDC subject format this org now issues. Paste into bootstrap/wif.tf's
-    attribute_condition, or diff against it — a mismatch here is the cause of nearly every
-    "unable to acquire impersonated credentials" failure.
+    The effective OIDC subject contract for managed repositories.
+    "github-immutable-default" means every repository is explicitly reset to GitHub's default
+    subject and must have immutable owner/repository IDs enabled for bootstrap compatibility.
   EOT
   value       = module.policies.oidc_subject_format
 }

@@ -24,6 +24,8 @@ check "catalog_matches_implemented_rulesets" {
       "merge-queue",
       "protected-paths",
       "push-blocklist",
+      "required-checks-bootstrap",
+      "required-checks-gitops",
       "required-checks-go",
       "required-checks-mixed",
       "required-checks-tf",

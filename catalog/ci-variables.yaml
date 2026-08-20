@@ -2,7 +2,7 @@
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
 
-# Non-secret Actions variables. `env:NAME` means export-ci-variables.sh must obtain the value
+# Non-secret Actions variables. `env:NAME` means export-ci-variables.py must obtain the value
 # from the operator environment; unresolved or empty values fail before GitHub is changed.
 ---
 .github:
@@ -18,6 +18,9 @@ github-config:
   TF_APPLY_APP_ID: env:TF_APPLY_APP_ID
 
 bootstrap:
+  # export-ci-variables.py augments this catalog from bootstrap platform_contract 1.2.0. In
+  # particular, state.replica_buckets.bootstrap becomes TFSTATE_REPLICA_BUCKET for the governed
+  # bootstrap-recovery-read workflow; an empty or missing value fails before GitHub changes.
   GCP_ORG_ID: env:GCP_ORG_ID
   BILLING_ACCOUNT: env:BILLING_ACCOUNT
   GH_ORGANIZATION: mindclade
@@ -40,8 +43,8 @@ infrastructure-live:
   MONOREPO_ORG: mindclade
   RESOURCE_PREFIX: mc
   PRIMARY_REGION: us-central1
+  GPU_ZONE: us-central1-b
   DOMAIN: mindclade.com
-  BUILDKITE_WIF_POOL_NAME: env:BUILDKITE_WIF_POOL_NAME
 
 gitops:
   RENDER_APP_ID: env:RENDER_APP_ID
@@ -49,8 +52,10 @@ gitops:
   SECRETS_PROJECT_ID: mc-common-security
   BINAUTHZ_DEPLOYMENT_ATTESTOR_PROJECT: env:BINAUTHZ_DEPLOYMENT_ATTESTOR_PROJECT
   BINAUTHZ_DEPLOYMENT_ATTESTOR: env:BINAUTHZ_DEPLOYMENT_ATTESTOR
-  SA_GITOPS_RENDER: sa-gitops-render@mc-common-security.iam.gserviceaccount.com
-  SA_GITOPS_VERIFIER: sa-gitops-verifier@mc-common-security.iam.gserviceaccount.com
+  # infrastructure-live owns these normal-plane identities. Re-export its applied outputs;
+  # github-config governs only the resulting non-secret GitHub variable handoff.
+  SA_GITOPS_RENDER: env:SA_GITOPS_RENDER
+  SA_GITOPS_VERIFIER: env:SA_GITOPS_VERIFIER
 
 mindclade-internal-monorepo:
   ARTIFACT_REGISTRY_HOST: us-central1-docker.pkg.dev

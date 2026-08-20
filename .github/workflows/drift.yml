@@ -1,4 +1,8 @@
 ---
+# Copyright © 2026 Mindclade, LLC. All Rights Reserved.
+# Mindclade Proprietary and Confidential.
+# SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
+
 # The reason this repository exists.
 #
 # A ruleset disabled by hand in the UI is indistinguishable, from the outside, from one that
@@ -78,11 +82,11 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${CI_VARIABLES}" ]; then
-            echo "::error::The CI_VARIABLES repository variable is unset. Generate it from bootstrap's outputs with scripts/export-ci-variables.sh, which writes it directly."
+            echo "::error::The CI_VARIABLES repository variable is unset. Generate it from bootstrap's outputs with scripts/export-ci-variables.py --set."
             exit 1
           fi
           if ! printf '%s' "${CI_VARIABLES}" | jq -e 'type == "object"' >/dev/null; then
-            echo "::error::CI_VARIABLES is not a JSON object. Expected {\"<repo>\": {\"NAME\": \"value\"}}; regenerate it with scripts/export-ci-variables.sh."
+            echo "::error::CI_VARIABLES is not a JSON object. Expected {\"<repo>\": {\"NAME\": \"value\"}}; regenerate it with scripts/export-ci-variables.py --set."
             exit 1
           fi
           echo "CI_VARIABLES declares $(printf '%s' "${CI_VARIABLES}" | jq -r '[.[] | length] | add // 0') variable(s) across $(printf '%s' "${CI_VARIABLES}" | jq -r 'length') repositor(y|ies)."
@@ -104,7 +108,7 @@ jobs:
           # The 38 Actions variables this configuration declares, as JSON. Delivered here
           # rather than left to var default {}: without it every plan saw an empty map,
           # ci-variables.tf produced no resources, and drift.yml reported all of them as
-          # undeclared on every nightly run. Set it with scripts/export-ci-variables.sh.
+          # undeclared on every nightly run. Set it with scripts/export-ci-variables.py --set.
           TF_VAR_ci_variables: ${{ vars.CI_VARIABLES }}
         run: |
           set -euo pipefail

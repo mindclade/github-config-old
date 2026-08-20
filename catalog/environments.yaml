@@ -52,6 +52,15 @@ bootstrap:
   custom_branch_policies: false
   prevent_self_review: true
   project_required: false
+bootstrap-recovery-read:
+  wait_timer: 0
+  reviewer_teams:
+    - infrastructure
+    - security
+  protected_branches: true
+  custom_branch_policies: false
+  prevent_self_review: true
+  project_required: false
 release:
   wait_timer: 5
   reviewer_teams:

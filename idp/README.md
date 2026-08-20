@@ -1,6 +1,6 @@
 # `idp/`
 
-`team-members.json` is written by [`scripts/export-idp-groups.sh`](../scripts/export-idp-groups.sh)
+`team-members.json` is written only with `python3 scripts/export-idp-groups.py --apply`.
 and read by [`modules/teams/membership.tf`](../modules/teams/membership.tf). It is the only
 source of organization and team membership.
 

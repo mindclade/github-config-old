@@ -123,6 +123,7 @@
               "plan",
               "governance",
               "bootstrap",
+              "bootstrap-recovery-read",
               "release",
               "break-glass"
             ]
@@ -260,6 +261,7 @@
               "plan",
               "governance",
               "bootstrap",
+              "bootstrap-recovery-read",
               "release",
               "break-glass"
             ]
@@ -394,6 +396,7 @@
               "plan",
               "governance",
               "bootstrap",
+              "bootstrap-recovery-read",
               "release",
               "break-glass"
             ]
@@ -528,6 +531,7 @@
               "plan",
               "governance",
               "bootstrap",
+              "bootstrap-recovery-read",
               "release",
               "break-glass"
             ]
@@ -662,6 +666,7 @@
               "plan",
               "governance",
               "bootstrap",
+              "bootstrap-recovery-read",
               "release",
               "break-glass"
             ]
@@ -796,6 +801,7 @@
               "plan",
               "governance",
               "bootstrap",
+              "bootstrap-recovery-read",
               "release",
               "break-glass"
             ]

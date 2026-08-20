@@ -113,12 +113,6 @@
             pre-commit
             (python3.withPackages (ps: with ps; [ pyyaml jsonschema ]))
 
-            # bash 5. macOS ships 3.2.57 and always will — its licence changed at bash 4 — and
-            # scripts/export-idp-groups.sh uses `declare -A`, which bash 3.2 parses as an
-            # INDEXED array assignment and dies on with "engineering: unbound variable".
-            # That script keeps its own version check for anyone running it outside this
-            # shell; this is what makes the shell itself safe.
-            bashInteractive
           ];
 
           shellHook = ''
@@ -128,8 +122,8 @@
             echo
             echo "  terraform init -backend=false && terraform validate && terraform test"
             echo "  actionlint && yamllint --strict .        # what plan.yml runs"
-            echo "  ./scripts/export-ci-variables.sh --bootstrap ../bootstrap"
-            echo "  ./scripts/export-idp-groups.sh --check"
+            echo "  python3 scripts/export-ci-variables.py --bootstrap ../bootstrap"
+            echo "  python3 scripts/export-idp-groups.py --check"
           '';
         };
       });

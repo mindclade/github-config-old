@@ -1,3 +1,7 @@
+# Copyright © 2026 Mindclade, LLC. All Rights Reserved.
+# Mindclade Proprietary and Confidential.
+# SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
+
 # Security owns anything that decides who can do what.
 #
 # The ruleset requiring code-owner review is itself in this repo, so a PR removing it needs

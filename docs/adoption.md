@@ -29,6 +29,23 @@ Adoption is a reviewed migration, not an ordinary first apply.
    `main` SHA; reviewers inspect that artifact before approving the `governance` environment.
 8. After apply, run drift detection and compare GitHub audit evidence with the plan summary.
 
+After `infrastructure-live` creates normal-plane GitOps service accounts and supply-chain
+attestors, export its applied outputs into the corresponding `env:` inputs used by
+`catalog/ci-variables.yaml`, regenerate `CI_VARIABLES`, and reapply `github-config`. This staged
+handoff avoids hardcoding cloud-owned identity values or inventing outputs before the
+credentialed infrastructure apply exists.
+
+The same export requires bootstrap `platform_contract` version `1.2.0`, reads
+`state.replica_buckets.bootstrap`, and publishes it as the managed
+`bootstrap/TFSTATE_REPLICA_BUCKET` Actions variable. The protected
+`bootstrap-recovery-read` environment is catalog-managed; never allow the recovery workflow to
+auto-create an unprotected environment with that name.
+
+`infrastructure-live/BUILDKITE_WIF_POOL_NAME` is also derived from
+`platform_contract.buildkite.workload_identity_pool`. The export fails when Buildkite federation
+is disabled, null, or not the expected pool resource; operators cannot substitute a free-form
+pool name through an environment variable.
+
 ## Import safety
 
 - Do not import a resource into two Terraform addresses.

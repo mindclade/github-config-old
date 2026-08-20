@@ -42,6 +42,6 @@ change_model: pull-request
 production_controls:
   required_reviews: true
   codeowners: true
-  merge_queue: true
+  merge_queue: false
   immutable_actions: true
   oidc_only_cloud_authentication: true

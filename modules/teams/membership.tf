@@ -8,7 +8,7 @@
 # has to remove them everywhere, and a hand-kept copy is the file people forget. Audit: "who
 # had access on this date" must be answerable from one system, not reconciled across two.
 #
-# The export is produced by scripts/export-idp-groups.sh into the path given by
+# The export is produced by scripts/export-idp-groups.py into the path given by
 # var.idp_export_path (idp/team-members.json at the repo root).
 #
 # WHO RUNS IT. .github/workflows/idp-sync.yml, nightly, in --check mode: it compares the
