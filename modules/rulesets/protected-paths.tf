@@ -1,7 +1,7 @@
 # Copyright © 2026 Mindclade, LLC. All Rights Reserved.
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
-#
+
 # Stricter merge requirements on the repositories that govern the estate, and stricter still
 # on the paths within them that are expensive to get wrong.
 #

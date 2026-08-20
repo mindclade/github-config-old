@@ -1,7 +1,7 @@
 # Copyright © 2026 Mindclade, LLC. All Rights Reserved.
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
-#
+
 # The subject template contains only claims that are present for every direct or
 # reusable workflow job. Cloud authorization still uses mapped top-level claims;
 # it must not depend solely on the human-readable subject string.

@@ -1,7 +1,7 @@
 # Copyright © 2026 Mindclade, LLC. All Rights Reserved.
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
-#
+
 # Enterprise-scoped reference configuration.
 #
 # This module is intentionally not instantiated by the organization root. See README.md and

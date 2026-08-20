@@ -1,7 +1,7 @@
 # Copyright © 2026 Mindclade, LLC. All Rights Reserved.
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
-#
+
 # Release tags are immutable.
 #
 # This exists because of one specific failure: infrastructure-live pins modules to semver

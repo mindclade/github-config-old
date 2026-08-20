@@ -1,7 +1,7 @@
 # Copyright © 2026 Mindclade, LLC. All Rights Reserved.
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
-#
+
 {
   description = "Toolchain for the mindclade github-config repository";
 
@@ -13,7 +13,70 @@
   outputs = { self, nixpkgs, flake-utils }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        pkgs = import nixpkgs { inherit system; };
+        pkgs = import nixpkgs {
+          inherit system;
+          config.allowUnfreePredicate = package:
+            nixpkgs.lib.getName package == "terraform";
+        };
+
+        # nixos-25.05's Terraform is too old for this repository's >=1.15 constraint. Keep
+        # the broader toolchain on the stable locked channel while installing the same exact
+        # HashiCorp release used by CI and .terraform-version. The hashes are from the
+        # terraform_1.15.9_SHA256SUMS file published with the release.
+        terraformVersion = "1.15.9";
+        terraformRelease = {
+          aarch64-darwin = {
+            os = "darwin";
+            arch = "arm64";
+            sha256 = "05b27586a5d7d84105690ecccc7edbbf48bc3d6d577745cb61f163ba990adf4f";
+          };
+          x86_64-darwin = {
+            os = "darwin";
+            arch = "amd64";
+            sha256 = "3e97c499fac8074adfa3760300662a0158f2fd325144965dd0028deec4086c6b";
+          };
+          aarch64-linux = {
+            os = "linux";
+            arch = "arm64";
+            sha256 = "0afa6c29f61ca5ea270e950e43e50ecf2418b598507bf580e8ae76e1e6699b19";
+          };
+          x86_64-linux = {
+            os = "linux";
+            arch = "amd64";
+            sha256 = "76edd0b22d2f27d3d2e097cd793209646f719cf60f02ff3af626b07361137da1";
+          };
+        }.${system};
+        terraformPinned = pkgs.stdenvNoCC.mkDerivation {
+          pname = "terraform";
+          version = terraformVersion;
+
+          src = pkgs.fetchurl {
+            url = "https://releases.hashicorp.com/terraform/${terraformVersion}/terraform_${terraformVersion}_${terraformRelease.os}_${terraformRelease.arch}.zip";
+            sha256 = terraformRelease.sha256;
+          };
+
+          nativeBuildInputs = [ pkgs.unzip ];
+          dontUnpack = true;
+
+          installPhase = ''
+            runHook preInstall
+            mkdir -p "$out/bin" "$out/share/licenses/terraform"
+            unzip -q "$src" -d release
+            install -m755 release/terraform "$out/bin/terraform"
+            if [ -f release/LICENSE.txt ]; then
+              install -m644 release/LICENSE.txt "$out/share/licenses/terraform/LICENSE.txt"
+            fi
+            runHook postInstall
+          '';
+
+          meta = with pkgs.lib; {
+            description = "Terraform infrastructure-as-code CLI";
+            homepage = "https://www.terraform.io/";
+            license = licenses.bsl11;
+            mainProgram = "terraform";
+            platforms = [ system ];
+          };
+        };
       in
       {
         # ---------------------------------------------------------------------------------
@@ -35,12 +98,9 @@
         };
 
         devShells.default = pkgs.mkShell {
-          # Terraform tracks build/toolchains/versions.yaml in the monorepo (1.15.9), which is
-          # also what every workflow here pins. The channel pin makes the shell reproducible;
-          # it does not by itself make this terraform equal that one, so the shellHook says
-          # what it got.
+          # Terraform exactly matches .terraform-version and the protected workflows.
           packages = with pkgs; [
-            terraform
+            terraformPinned
             tflint
             checkov
             google-cloud-sdk
@@ -64,7 +124,7 @@
           shellHook = ''
             echo "github-config — the organization as Terraform"
             echo
-            echo "  terraform version: $(terraform version -json | ${pkgs.jq}/bin/jq -r .terraform_version) (workflows pin 1.15.9)"
+            echo "  terraform version: $(terraform version -json | ${pkgs.jq}/bin/jq -r .terraform_version)"
             echo
             echo "  terraform init -backend=false && terraform validate && terraform test"
             echo "  actionlint && yamllint --strict .        # what plan.yml runs"

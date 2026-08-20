@@ -1,7 +1,7 @@
 # Copyright © 2026 Mindclade, LLC. All Rights Reserved.
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
-#
+
 locals {
   ruleset_names = sort(keys(var.rulesets))
   enforcement = {
@@ -19,7 +19,7 @@ check "overrides_name_a_real_ruleset" {
 
 check "catalog_matches_implemented_rulesets" {
   assert {
-    condition = setequals(toset(local.ruleset_names), toset([
+    condition = toset(local.ruleset_names) == toset([
       "baseline-all",
       "merge-queue",
       "protected-paths",
@@ -31,7 +31,7 @@ check "catalog_matches_implemented_rulesets" {
       "required-checks-tf-tests",
       "ruleset-workflows",
       "tag-protection",
-    ]))
+    ])
     error_message = "catalog/rulesets.yaml and modules/rulesets must be changed together."
   }
 }

@@ -1,26 +1,45 @@
 # Copyright © 2026 Mindclade, LLC. All Rights Reserved.
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
-#
+
 ---
 .github:
   default_branch: main
-  description: Organization profile, required workflows, reusable workflows, and shared templates.
+  description: Required workflows, reusable workflows, community health, and shared templates.
   visibility: internal
   repository_class: enterprise-control
   criticality: high
   data_classification: internal
-  production_authority: 'false'
+  production_authority: "false"
   owner_team: platform
   ci_profile: shared-workflows
   language_profile: none
   lifecycle: active
   environments: []
   topics:
-  - github
-  - governance
-  - reusable-workflows
+    - github
+    - governance
+    - reusable-workflows
   has_issues: true
+  has_projects: false
+.github-private:
+  default_branch: main
+  description: Member-only organization profile and internal engineering navigation.
+  visibility: private
+  repository_class: enterprise-control
+  criticality: high
+  data_classification: internal
+  production_authority: "false"
+  owner_team: platform
+  ci_profile: none
+  language_profile: none
+  lifecycle: active
+  environments: []
+  topics:
+    - github
+    - organization-profile
+    - internal-documentation
+  has_issues: false
   has_projects: false
 github-config:
   default_branch: main
@@ -29,17 +48,18 @@ github-config:
   repository_class: enterprise-control
   criticality: critical
   data_classification: restricted
-  production_authority: 'true'
+  production_authority: "true"
   owner_team: security
   ci_profile: terraform-control
   language_profile: terraform
   lifecycle: active
   environments:
-  - governance
+    - plan
+    - governance
   topics:
-  - terraform
-  - github-enterprise
-  - governance
+    - terraform
+    - github-enterprise
+    - governance
   has_issues: true
   has_projects: false
 bootstrap:
@@ -49,19 +69,20 @@ bootstrap:
   repository_class: enterprise-control
   criticality: critical
   data_classification: restricted
-  production_authority: 'true'
+  production_authority: "true"
   owner_team: infrastructure
   ci_profile: terraform-control
   language_profile: terraform
   lifecycle: active
   environments:
-  - bootstrap
-  - break-glass
+    - plan
+    - bootstrap
+    - break-glass
   topics:
-  - terraform
-  - gcp
-  - bootstrap
-  - recovery
+    - terraform
+    - gcp
+    - bootstrap
+    - recovery
   has_issues: true
   has_projects: false
 infrastructure-live:
@@ -71,20 +92,21 @@ infrastructure-live:
   repository_class: production-control
   criticality: critical
   data_classification: confidential
-  production_authority: 'true'
+  production_authority: "true"
   owner_team: infrastructure
   ci_profile: terragrunt-control
   language_profile: terraform
   lifecycle: active
   environments:
-  - development
-  - staging
-  - production
-  - break-glass
+    - plan
+    - development
+    - staging
+    - production
+    - break-glass
   topics:
-  - terragrunt
-  - gcp
-  - infrastructure
+    - terragrunt
+    - gcp
+    - infrastructure
   has_issues: true
   has_projects: false
 gitops:
@@ -94,20 +116,20 @@ gitops:
   repository_class: production-control
   criticality: critical
   data_classification: confidential
-  production_authority: 'true'
+  production_authority: "true"
   owner_team: platform
   ci_profile: gitops-control
   language_profile: none
   lifecycle: active
   environments:
-  - development
-  - staging
-  - production
-  - break-glass
+    - development
+    - staging
+    - production
+    - break-glass
   topics:
-  - argocd
-  - gitops
-  - kubernetes
+    - argocd
+    - gitops
+    - kubernetes
   has_issues: true
   has_projects: false
 mindclade-internal-monorepo:
@@ -117,19 +139,19 @@ mindclade-internal-monorepo:
   repository_class: source-monorepo
   criticality: critical
   data_classification: confidential
-  production_authority: 'false'
+  production_authority: "false"
   owner_team: engineering
   ci_profile: monorepo
   language_profile: mixed
   lifecycle: active
   environments:
-  - release
+    - release
   topics:
-  - monorepo
-  - go
-  - rust
-  - python
-  - bazel
-  - ai
+    - monorepo
+    - go
+    - rust
+    - python
+    - bazel
+    - ai
   has_issues: true
   has_projects: false

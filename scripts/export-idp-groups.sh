@@ -2,7 +2,7 @@
 # Copyright © 2026 Mindclade, LLC. All Rights Reserved.
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
-#
+
 # Export organization and team membership from the IdP into idp/team-members.json.
 #
 # modules/teams/membership.tf reads that file and creates every github_membership and

@@ -1,11 +1,11 @@
 # Copyright © 2026 Mindclade, LLC. All Rights Reserved.
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
-#
+
 variable "organization" {
-  description = "GitHub organization login."
+  description = "Canonical GitHub organization login: mindclade."
   type        = string
-  default     = "Mindclade"
+  default     = "mindclade"
 }
 
 variable "billing_email" {
@@ -62,6 +62,7 @@ variable "app_scopes" {
       for _, repositories in var.app_scopes : [
         for repository in repositories : contains([
           ".github",
+          ".github-private",
           "github-config",
           "bootstrap",
           "infrastructure-live",

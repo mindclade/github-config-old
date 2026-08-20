@@ -1,7 +1,7 @@
 # Copyright © 2026 Mindclade, LLC. All Rights Reserved.
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
-#
+
 # Required status checks for Go repositories, selected by the `language` custom property.
 #
 # Why by property rather than by name: a required check naming a job that never runs blocks

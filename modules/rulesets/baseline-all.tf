@@ -1,7 +1,7 @@
 # Copyright © 2026 Mindclade, LLC. All Rights Reserved.
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
-#
+
 # The floor. Applies to the default branch of every repository in the organization.
 #
 # Nothing here is negotiable per-repo: a repository that needs looser rules than this does

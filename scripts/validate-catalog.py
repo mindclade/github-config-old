@@ -22,6 +22,7 @@ CAT = ROOT / "catalog"
 SCHEMA = CAT / "schema"
 EXPECTED_REPOS = {
     ".github",
+    ".github-private",
     "github-config",
     "bootstrap",
     "infrastructure-live",
@@ -34,6 +35,16 @@ EXPECTED_CLASSES = {
     "source-monorepo",
     "public-sdk",
     "archive",
+}
+EXPECTED_ENVIRONMENTS = {
+    "development",
+    "staging",
+    "production",
+    "plan",
+    "governance",
+    "bootstrap",
+    "release",
+    "break-glass",
 }
 EXPECTED_RULESETS = {
     "baseline-all",
@@ -67,6 +78,29 @@ UNIVERSAL_OIDC_CLAIMS = {
 }
 REQUIRED_WIF_CLAIMS = UNIVERSAL_OIDC_CLAIMS | {"event_name"}
 FORBIDDEN_ORG_SUBJECT_CLAIMS = {"environment", "job_workflow_ref", "job_workflow_sha"}
+REQUIRED_CI_VARIABLES = {
+    "bootstrap": {
+        "GH_ORGANIZATION": "mindclade",
+        "GH_ORGANIZATION_ID": "env:GH_ORGANIZATION_ID",
+        "GH_REPOSITORY_IDS_JSON": "env:GH_REPOSITORY_IDS_JSON",
+    },
+    "gitops": {
+        "BINAUTHZ_DEPLOYMENT_ATTESTOR_PROJECT": "env:BINAUTHZ_DEPLOYMENT_ATTESTOR_PROJECT",
+        "BINAUTHZ_DEPLOYMENT_ATTESTOR": "env:BINAUTHZ_DEPLOYMENT_ATTESTOR",
+    },
+    "mindclade-internal-monorepo": {
+        "BINAUTHZ_BUILD_ATTESTOR_PROJECT": "env:BINAUTHZ_BUILD_ATTESTOR_PROJECT",
+        "BINAUTHZ_BUILD_ATTESTOR": "env:BINAUTHZ_BUILD_ATTESTOR",
+        "BINAUTHZ_QUALIFICATION_ATTESTOR_PROJECT": "env:BINAUTHZ_QUALIFICATION_ATTESTOR_PROJECT",
+        "BINAUTHZ_QUALIFICATION_ATTESTOR": "env:BINAUTHZ_QUALIFICATION_ATTESTOR",
+        "BINAUTHZ_DEPLOYMENT_ATTESTOR_PROJECT": "env:BINAUTHZ_DEPLOYMENT_ATTESTOR_PROJECT",
+        "BINAUTHZ_DEPLOYMENT_ATTESTOR": "env:BINAUTHZ_DEPLOYMENT_ATTESTOR",
+        "BINAUTHZ_DEPLOYMENT_ATTESTOR_KEY_VERSION": (
+            "env:BINAUTHZ_DEPLOYMENT_ATTESTOR_KEY_VERSION"
+        ),
+        "SA_ARTIFACT_SIGNER": "env:SA_ARTIFACT_SIGNER",
+    },
+}
 ROLE_RANK = {"pull": 0, "triage": 1, "push": 2, "maintain": 3, "admin": 4}
 errors: list[str] = []
 
@@ -112,6 +146,8 @@ if set(repos) != EXPECTED_REPOS:
     err(f"repository estate differs: {sorted(set(repos) ^ EXPECTED_REPOS)}")
 if set(classes) != EXPECTED_CLASSES:
     err(f"repository classes differ: {sorted(set(classes) ^ EXPECTED_CLASSES)}")
+if set(environments) != EXPECTED_ENVIRONMENTS:
+    err(f"environment inventory differs: {sorted(set(environments) ^ EXPECTED_ENVIRONMENTS)}")
 if set(access) != EXPECTED_REPOS:
     err(f"access catalog must cover every managed repository: {sorted(set(access) ^ EXPECTED_REPOS)}")
 if set(rulesets) != EXPECTED_RULESETS:
@@ -181,6 +217,37 @@ for name, cfg in environments.items():
             err(f"environment {name}: prevent_self_review must be true")
         if not cfg.get("reviewer_teams"):
             err(f"environment {name}: at least one reviewer team is required")
+    if cfg.get("protected_branches") and cfg.get("custom_branch_policies"):
+        err(f"environment {name}: protected and custom branch policies are mutually exclusive")
+plan_environment = environments.get("plan", {})
+if plan_environment.get("protected_branches") or plan_environment.get("custom_branch_policies"):
+    err("environment plan: branch filters must allow pull-request merge refs")
+if "infrastructure" not in plan_environment.get("reviewer_teams", []):
+    err("environment plan: infrastructure review is required")
+if not plan_environment.get("prevent_self_review"):
+    err("environment plan: self-review must be disabled")
+for repository in ("bootstrap", "github-config", "infrastructure-live"):
+    if "plan" not in repos.get(repository, {}).get("environments", []):
+        err(f"{repository} must declare the protected plan environment")
+
+# GitOps promotion jobs select an environment from the promotion target. Both pre-production
+# rehearsal and production therefore need explicit protected-branch gates; otherwise a caller
+# could name an environment that exists only as an unreviewed workflow string.
+gitops_environments = set(repos.get("gitops", {}).get("environments", []))
+for name in ("staging", "production"):
+    cfg = environments.get(name, {})
+    if name not in gitops_environments:
+        err(f"gitops must declare the {name} promotion environment")
+    if not cfg.get("protected_branches") or cfg.get("custom_branch_policies"):
+        err(f"environment {name}: GitOps promotion must be restricted to protected branches")
+    if not cfg.get("prevent_self_review"):
+        err(f"environment {name}: GitOps promotion must prevent self-review")
+if "platform" not in environments.get("staging", {}).get("reviewer_teams", []):
+    err("environment staging: platform review is required for GitOps promotion")
+if not {"platform", "security"}.issubset(
+    set(environments.get("production", {}).get("reviewer_teams", []))
+):
+    err("environment production: platform and security review are required for GitOps promotion")
 
 # Custom properties are a compiled view of repository metadata.
 for name, definition in properties.items():
@@ -218,7 +285,7 @@ if not patterns or len(patterns) != len(set(patterns)):
 for pattern in patterns:
     if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_./*-]+@[^\s]+", str(pattern)):
         err(f"actions policy: malformed allowlist pattern {pattern!r}")
-if not any(str(item).startswith("Mindclade/.github/.github/workflows/") for item in patterns):
+if not any(str(item).startswith("mindclade/.github/.github/workflows/") for item in patterns):
     err("actions policy: Mindclade shared workflows are not allowlisted")
 
 # OIDC policy. Optional claims must not be required organization-wide.
@@ -236,6 +303,7 @@ for flag in (
     "require_repository_id",
     "require_workflow_ref",
     "require_ref",
+    "require_protected_environment_for_sensitive_plan",
     "require_protected_environment_for_apply",
     "explicit_audience_required",
 ):
@@ -289,6 +357,8 @@ else:
 
 # Non-secret CI variable catalog references only managed repositories and carries valid JSON
 # where a value is represented as a serialized object/array.
+if set(ci_variables) != EXPECTED_REPOS:
+    err(f"ci-variables must cover every managed repository: {sorted(set(ci_variables) ^ EXPECTED_REPOS)}")
 for repo, variables in ci_variables.items():
     if repo not in repos:
         err(f"ci-variables: unknown repository {repo}")
@@ -298,6 +368,8 @@ for repo, variables in ci_variables.items():
     for name, value in variables.items():
         if not re.fullmatch(r"[A-Z][A-Z0-9_]*", str(name)):
             err(f"ci-variables: {repo}/{name} is not an uppercase Actions variable name")
+        if str(name).startswith("GITHUB_"):
+            err(f"ci-variables: {repo}/{name} uses GitHub's reserved GITHUB_ prefix")
         text = str(value)
         if text == "":
             err(f"ci-variables: {repo}/{name} is empty; use env:NAME for operator input")
@@ -308,6 +380,76 @@ for repo, variables in ci_variables.items():
                 json.loads(text)
             except json.JSONDecodeError as exc:
                 err(f"ci-variables: {repo}/{name} contains invalid JSON: {exc}")
+for repo, required in REQUIRED_CI_VARIABLES.items():
+    variables = ci_variables.get(repo, {})
+    for name, expected_value in required.items():
+        if variables.get(name) != expected_value:
+            err(f"ci-variables: {repo}/{name} must be {expected_value!r}")
+legacy_signing_variables = {
+    "ATTESTOR",
+    "ATTESTOR_KEY",
+    "BINAUTHZ_ATTESTOR_PROJECT",
+    "BINAUTHZ_ATTESTOR_KEY_VERSION",
+}
+monorepo_variables = ci_variables.get("mindclade-internal-monorepo", {})
+if legacy_signing_variables & set(monorepo_variables):
+    err("ci-variables: builder-scoped legacy signing variables are forbidden in the monorepo")
+for repo, variables in ci_variables.items():
+    if {"BINAUTHZ_ATTESTOR_PROJECT", "BINAUTHZ_ATTESTOR_KEY_VERSION"} & set(variables):
+        err(f"ci-variables: {repo} retains ambiguous legacy Binary Authorization variables")
+
+ci_variable_exporter = (ROOT / "scripts" / "export-ci-variables.sh").read_text(encoding="utf-8")
+required_export_fragments = {
+    "infrastructure-live/WIF_POOL_GITHUB_NAME": "WIF_POOL_GITHUB_NAME: $github_wif_pool",
+    "infrastructure-live/WIF_PROVIDER_SIGNER": "WIF_PROVIDER_SIGNER: $artifact_signer_wif_provider",
+    "infrastructure-live/ARTIFACT_SIGNER_PRINCIPAL": (
+        "ARTIFACT_SIGNER_PRINCIPAL: $artifact_signer_principal"
+    ),
+    "infrastructure-live/ARTIFACT_SIGNER_JOB_WORKFLOW_REF": (
+        "ARTIFACT_SIGNER_JOB_WORKFLOW_REF: $artifact_signer_job_workflow_ref"
+    ),
+    "monorepo/WIF_PROVIDER_SIGNER": "WIF_PROVIDER_SIGNER: $artifact_signer_wif_provider",
+}
+for name, fragment in required_export_fragments.items():
+    if fragment not in ci_variable_exporter:
+        err(f"ci-variable exporter must publish {name}")
+for output_name in (
+    "artifact_signer_wif_provider",
+    "artifact_signer_principal",
+    "artifact_signer_job_workflow_ref",
+):
+    if f'output("{output_name}")' not in ci_variable_exporter:
+        err(f"ci-variable exporter must source bootstrap/{output_name}")
+if re.search(r"^\s*GITHUB_WIF_POOL_NAME:", ci_variable_exporter, re.MULTILINE):
+    err("ci-variable exporter uses forbidden GITHUB_WIF_POOL_NAME")
+
+# Bootstrap binds plan federation to the protected environment subject. Keep every
+# github-config plan-capable entrypoint on that subject, while drift uses its separately
+# allowlisted main-branch workflow identity and never waits for an interactive review.
+workflow_dir = ROOT / ".github" / "workflows"
+workflow_docs = {
+    name: yaml.safe_load((workflow_dir / f"{name}.yml").read_text(encoding="utf-8"))
+    for name in ("plan", "apply", "drift")
+}
+for workflow_name in ("plan", "apply"):
+    plan_job = workflow_docs[workflow_name].get("jobs", {}).get("plan", {})
+    if plan_job.get("environment") != "plan":
+        err(f"{workflow_name}.yml plan job must use the protected plan environment")
+    if "github.ref == 'refs/heads/main'" not in str(plan_job.get("if", "")):
+        err(f"{workflow_name}.yml plan job must reject non-main manual dispatch")
+drift_job = workflow_docs["drift"].get("jobs", {}).get("drift", {})
+if drift_job.get("environment") is not None:
+    err("drift.yml must use the exact main-workflow WIF binding, not the interactive plan environment")
+if "github.ref == 'refs/heads/main'" not in str(drift_job.get("if", "")):
+    err("drift.yml must reject manual dispatch from non-main refs")
+
+initial_import_path = ROOT / "docs" / "initial-import.md"
+if initial_import_path.is_file():
+    initial_import = initial_import_path.read_text(encoding="utf-8")
+    if "protected `v3.0.0` workflow-contract tag" not in initial_import:
+        err("initial-import.md must use the immutable v3.0.0 workflow-contract tag")
+    if "protected `v1` workflow-contract tag" in initial_import:
+        err("initial-import.md retains the stale v1 workflow-contract tag")
 
 # Repository hygiene is part of the policy compiler contract.
 if (ROOT / "CODEOWNERS").exists():

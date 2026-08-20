@@ -1,7 +1,7 @@
 # Copyright © 2026 Mindclade, LLC. All Rights Reserved.
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
-#
+
 # Bypass actors are not a ruleset of their own — GitHub models bypass as a list inside each
 # ruleset, so there is nothing standalone to declare. This file defines the shared lists that
 # every other ruleset in this module references, which keeps "who can bypass what" answerable

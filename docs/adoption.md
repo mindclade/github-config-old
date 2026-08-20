@@ -9,7 +9,7 @@ Adoption is a reviewed migration, not an ordinary first apply.
    should remain authoritative.
 2. The plan and apply GitHub Apps are installed with their documented least-privilege permissions.
 3. `bootstrap` has created the state bucket, WIF provider, and distinct plan/apply identities.
-4. Mandatory workflows referenced by `catalog/rulesets.yaml` exist in `Mindclade/.github` at the
+4. Mandatory workflows referenced by `catalog/rulesets.yaml` exist in `mindclade/.github` at the
    pinned release tag before any ruleset is activated.
 5. A current organization and repository settings export has been retained as recovery evidence.
 

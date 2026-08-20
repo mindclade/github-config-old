@@ -1,7 +1,7 @@
 # Copyright © 2026 Mindclade, LLC. All Rights Reserved.
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
-#
+
 variable "security_team_id" {
   description = "Numeric id of the security team."
   type        = number
@@ -25,6 +25,13 @@ variable "dot_github_repo_id" {
 variable "rulesets" {
   description = "Ruleset inventory and resting enforcement from catalog/rulesets.yaml."
   type        = map(any)
+}
+
+variable "repositories" {
+  description = "Repository catalog used when a provider rule is available only per repository."
+  type = map(object({
+    repository_class = string
+  }))
 }
 
 variable "repository_classes" {

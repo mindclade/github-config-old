@@ -1,29 +1,30 @@
 # Copyright © 2026 Mindclade, LLC. All Rights Reserved.
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
-#
+
 ---
 # Every key below is present for direct and reusable GitHub Actions jobs. Optional
 # claims such as environment and job_workflow_ref are intentionally excluded:
 # requiring either organization-wide would prevent ordinary plan/validation jobs
 # from obtaining an OIDC token.
 subject_claim_keys:
-- repository_owner_id
-- repository_id
-- repository
-- workflow_ref
-- ref
+  - repository_owner_id
+  - repository_id
+  - repository
+  - workflow_ref
+  - ref
 required_wif_attribute_claims:
-- repository_owner_id
-- repository_id
-- repository
-- workflow_ref
-- ref
-- event_name
+  - repository_owner_id
+  - repository_id
+  - repository
+  - workflow_ref
+  - ref
+  - event_name
 repository_opt_in: true
 require_trusted_owner_id: true
 require_repository_id: true
 require_workflow_ref: true
 require_ref: true
+require_protected_environment_for_sensitive_plan: true
 require_protected_environment_for_apply: true
 explicit_audience_required: true

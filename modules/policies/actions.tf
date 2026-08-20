@@ -1,7 +1,7 @@
 # Copyright © 2026 Mindclade, LLC. All Rights Reserved.
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
-#
+
 # Organization-level Actions policy compiled from catalog/actions-policy.yaml. The
 # enterprise policy ceiling is reviewed separately through docs/enterprise-manual-controls.md;
 # whichever layer is narrower is the effective policy.

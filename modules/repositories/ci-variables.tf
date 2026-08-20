@@ -1,7 +1,7 @@
 # Copyright © 2026 Mindclade, LLC. All Rights Reserved.
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
-#
+
 # Repository-level Actions variables — the wiring between the repos.
 #
 # Forty-eight of these are referenced across the five pipelines: WIF provider names, service
@@ -102,7 +102,9 @@ check "ci_variables_are_not_empty" {
 locals {
   wif_provider_vars = {
     for k, v in local.ci_variable_pairs : k => v
-    if startswith(v.name, "WIF_PROVIDER")
+    if startswith(v.name, "WIF_PROVIDER") && !(
+      v.repository == "infrastructure-live" && v.name == "WIF_PROVIDER_SIGNER"
+    )
   }
 }
 
@@ -128,6 +130,61 @@ check "service_accounts_are_not_shared_across_repositories" {
       if startswith(v.name, "SA_")
     ])
     error_message = "The same SA_* value appears twice within one repository's variables. Plan and apply identities must be different service accounts — that separation is what keeps apply credentials unreachable from a pull request."
+  }
+}
+
+# GitOps validates the same deployment attestor that the protected signer writes. Allowing
+# those roots to drift creates either an outage or, worse, a verifier that trusts a different
+# attestor from the one reviewers approved.
+check "artifact_trust_roots_match_consumers" {
+  assert {
+    condition = (
+      try(var.ci_variables["gitops"]["BINAUTHZ_DEPLOYMENT_ATTESTOR_PROJECT"], "") ==
+      try(var.ci_variables["mindclade-internal-monorepo"]["BINAUTHZ_DEPLOYMENT_ATTESTOR_PROJECT"], null) &&
+      try(var.ci_variables["gitops"]["BINAUTHZ_DEPLOYMENT_ATTESTOR"], "") ==
+      try(var.ci_variables["mindclade-internal-monorepo"]["BINAUTHZ_DEPLOYMENT_ATTESTOR"], null)
+    )
+    error_message = "GitOps and the protected artifact signer must use the same Binary Authorization deployment attestor."
+  }
+}
+
+check "build_qualification_and_deployment_attestors_are_distinct" {
+  assert {
+    condition = (
+      length(toset([
+        "${try(var.ci_variables["mindclade-internal-monorepo"]["BINAUTHZ_BUILD_ATTESTOR_PROJECT"], "")}/${try(var.ci_variables["mindclade-internal-monorepo"]["BINAUTHZ_BUILD_ATTESTOR"], "")}",
+        "${try(var.ci_variables["mindclade-internal-monorepo"]["BINAUTHZ_QUALIFICATION_ATTESTOR_PROJECT"], "")}/${try(var.ci_variables["mindclade-internal-monorepo"]["BINAUTHZ_QUALIFICATION_ATTESTOR"], "")}",
+        "${try(var.ci_variables["mindclade-internal-monorepo"]["BINAUTHZ_DEPLOYMENT_ATTESTOR_PROJECT"], "")}/${try(var.ci_variables["mindclade-internal-monorepo"]["BINAUTHZ_DEPLOYMENT_ATTESTOR"], "")}",
+      ])) == 3 &&
+      try(var.ci_variables["mindclade-internal-monorepo"]["BINAUTHZ_BUILD_ATTESTOR"], "") != "" &&
+      try(var.ci_variables["mindclade-internal-monorepo"]["BINAUTHZ_QUALIFICATION_ATTESTOR"], "") != "" &&
+      try(var.ci_variables["mindclade-internal-monorepo"]["BINAUTHZ_DEPLOYMENT_ATTESTOR"], "") != ""
+    )
+    error_message = "Buildkite build/provenance, Buildkite qualification, and production deployment evidence must use three distinct, non-empty attestors."
+  }
+}
+
+# infrastructure-live provisions the signer IAM binding and therefore consumes the same
+# bootstrap trust tuple that the monorepo's protected release job uses. This is metadata, not
+# an infrastructure-live authentication path, which is why WIF_PROVIDER_SIGNER is excluded
+# from the per-repository authentication-provider check above.
+check "artifact_signer_contract_matches_consumers" {
+  assert {
+    condition = (
+      try(var.ci_variables["infrastructure-live"]["WIF_PROVIDER_SIGNER"], "") ==
+      try(var.ci_variables["mindclade-internal-monorepo"]["WIF_PROVIDER_SIGNER"], null) &&
+      can(regex(
+        "^projects/[0-9]+/locations/global/workloadIdentityPools/github/providers/gh-mindclade-internal-monorepo$",
+        try(var.ci_variables["infrastructure-live"]["WIF_PROVIDER_SIGNER"], "")
+      )) &&
+      can(regex(
+        "^principal://iam\\.googleapis\\.com/projects/[0-9]+/locations/global/workloadIdentityPools/github/subject/repo:mindclade/mindclade-internal-monorepo:environment:release$",
+        try(var.ci_variables["infrastructure-live"]["ARTIFACT_SIGNER_PRINCIPAL"], "")
+      )) &&
+      try(var.ci_variables["infrastructure-live"]["ARTIFACT_SIGNER_JOB_WORKFLOW_REF"], "") ==
+      "mindclade/.github/.github/workflows/reusable-binauthz-sign.yml@refs/tags/v3.0.0"
+    )
+    error_message = "Infrastructure signer IAM and the monorepo release job must consume bootstrap's exact, release-environment-scoped v3.0.0 signer trust tuple."
   }
 }
 

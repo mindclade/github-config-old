@@ -30,6 +30,7 @@ env:
 
 jobs:
   drift:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -87,7 +88,7 @@ jobs:
           echo "CI_VARIABLES declares $(printf '%s' "${CI_VARIABLES}" | jq -r '[.[] | length] | add // 0') variable(s) across $(printf '%s' "${CI_VARIABLES}" | jq -r 'length') repositor(y|ies)."
 
       - id: terraform-app-token
-        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349  # v2
         with:
           app-id: ${{ vars.TF_PLAN_APP_ID }}
           private-key: ${{ secrets.TF_GITHUB_PLAN_APP_PEM }}
@@ -235,14 +236,14 @@ jobs:
             # happen — a repo without its own SECURITY.md simply has no disclosure policy,
             # and nothing else surfaces that. Terraform cannot read repository contents.
             case "$repo" in
-              .github|) ;;
+              .github) ;;
               *)
                 for f in SECURITY.md CONTRIBUTING.md; do
                   if ! gh api "/repos/${ORG}/${repo}/contents/${f}" --silent 2>/dev/null; then
                     {
                       echo ""
                       echo "${repo} has no ${f}. .github is internal, so nothing is inherited —"
-                      echo "  copy it from Mindclade/.github."
+                      echo "  copy it from mindclade/.github."
                     } >> unmanaged.txt
                   fi
                 done ;;

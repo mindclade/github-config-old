@@ -1,7 +1,7 @@
 # Copyright © 2026 Mindclade, LLC. All Rights Reserved.
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
-#
+
 resource "github_repository" "this" {
   # checkov:skip=CKV_GIT_1: Repositories here are `internal`, which checkov does not model.
   #
@@ -46,9 +46,10 @@ resource "github_repository" "this" {
 
   web_commit_signoff_required = true
 
-  # Only set on repos that already have content. Setting auto_init on an import is a no-op,
-  # but leaving it true on a genuinely new repo saves a manual first commit.
-  auto_init = false
+  # Setting auto_init on an import is a no-op, while a genuinely new repository needs an
+  # initial `main` branch before github_branch_default can manage it. The provider ignores
+  # this creation-only field after adoption.
+  auto_init = true
 
   security_and_analysis {
     # Private and internal repositories, which supports GHAS. The guard remains because

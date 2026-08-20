@@ -1,7 +1,7 @@
 # Copyright © 2026 Mindclade, LLC. All Rights Reserved.
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
-#
+
 locals {
   environment_pairs = merge([
     for repository, environment_names in var.repository_environments : {
@@ -12,9 +12,9 @@ locals {
 }
 
 resource "github_repository_environment" "this" {
-  for_each = local.environment_pairs
-  repository  = github_repository.this[each.value.repository].name
-  environment = each.value.environment
+  for_each            = local.environment_pairs
+  repository          = github_repository.this[each.value.repository].name
+  environment         = each.value.environment
   wait_timer          = var.environments[each.value.environment].wait_timer
   can_admins_bypass   = false
   prevent_self_review = var.environments[each.value.environment].prevent_self_review
@@ -28,7 +28,16 @@ resource "github_repository_environment" "this" {
 
   deployment_branch_policy {
     protected_branches     = var.environments[each.value.environment].protected_branches
-    custom_branch_policies = !var.environments[each.value.environment].protected_branches
+    custom_branch_policies = var.environments[each.value.environment].custom_branch_policies
+  }
+}
+
+check "repository_environment_branch_policies_are_valid" {
+  assert {
+    condition = alltrue([for _, environment in var.environments :
+      !(environment.protected_branches && environment.custom_branch_policies)
+    ])
+    error_message = "An environment cannot select protected branches and custom branch policies simultaneously."
   }
 }
 
@@ -44,7 +53,7 @@ resource "github_actions_environment_variable" "gcp_project" {
 
 check "repository_environment_references_exist" {
   assert {
-    condition = alltrue(flatten([for _, names in var.repository_environments : [for name in names : contains(keys(var.environments), name)]]))
+    condition     = alltrue(flatten([for _, names in var.repository_environments : [for name in names : contains(keys(var.environments), name)]]))
     error_message = "A repository environment is not declared in catalog/environments.yaml."
   }
 }

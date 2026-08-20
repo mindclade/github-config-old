@@ -2,7 +2,7 @@
 # Copyright © 2026 Mindclade, LLC. All Rights Reserved.
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
-#
+
 # MINDCLADE CONFIDENTIAL - PROPRIETARY AND TRADE SECRET
 # Copyright (c) 2026 Mindclade. All rights reserved.
 """Validate the Mindclade production repository contract.
@@ -32,10 +32,25 @@ def repository_paths() -> list[Path]:
 
 TRACKED_PATHS = repository_paths()
 TRACKED_RELATIVE = {p.relative_to(ROOT).as_posix() for p in TRACKED_PATHS}
+LEGACY_GITHUB_IDENTITIES = (
+    "Mind" + "clade/",
+    "github.com/" + "Mind" + "clade",
+    "/orgs/" + "Mind" + "clade",
+)
 
 def tracked_prefix_exists(relative: str) -> bool:
     prefix = relative.rstrip("/")
     return prefix in TRACKED_RELATIVE or any(path.startswith(prefix + "/") for path in TRACKED_RELATIVE)
+
+repository_contract = (ROOT / "contracts/repository.yaml").read_text("utf-8", errors="ignore")
+for canonical_url in (
+    "https://github.com/enterprises/mindclade",
+    "https://github.com/mindclade",
+    "https://github.com/orgs/mindclade/repositories",
+    f"https://github.com/mindclade/{REPOSITORY}",
+):
+    if canonical_url not in repository_contract:
+        error(f"repository contract omits canonical GitHub URL: {canonical_url}")
 
 for rel in CONTRACT["required_paths"]:
     if not (ROOT/rel).exists(): error(f"missing required path: {rel}")
@@ -48,13 +63,17 @@ for p in TRACKED_PATHS:
     if p.name.startswith("._") or ".tfstate" in p.name or p.suffix in {".pyc",".tfplan"}:
         error(f"generated/sensitive artifact is tracked: {relative}")
     if p.is_symlink(): error(f"symlink forbidden in delivery: {relative}")
+    if p.is_file() and p.stat().st_size <= 2_000_000:
+        text = p.read_text("utf-8", errors="ignore")
+        if any(legacy in text for legacy in LEGACY_GITHUB_IDENTITIES):
+            error(f"noncanonical GitHub organization identity in {relative}")
 
 # GitHub Actions must be immutable and least privilege.
 for p in (ROOT/".github/workflows").glob("*.y*ml") if (ROOT/".github/workflows").exists() else []:
     text=p.read_text("utf-8",errors="ignore")
     for use in re.findall(r"(?m)^\s*-?\s*uses:\s*([^#\s]+)",text):
         if use.startswith("./"): continue
-        if not (re.search(r"@[0-9a-f]{40}$",use) or re.search(r"@sha256:[0-9a-f]{64}$",use) or re.fullmatch(r"Mindclade/\.github/\.github/workflows/[^@]+@v[0-9]+\.[0-9]+\.[0-9]+",use)):
+        if not (re.search(r"@[0-9a-f]{40}$",use) or re.search(r"@sha256:[0-9a-f]{64}$",use) or re.fullmatch(r"mindclade/\.github/\.github/workflows/[^@]+@v[0-9]+\.[0-9]+\.[0-9]+",use)):
             error(f"workflow action is not immutable-pinned in {p.relative_to(ROOT)}: {use}")
     if "permissions:" not in text:
         error(f"workflow lacks explicit permissions: {p.relative_to(ROOT)}")
@@ -79,7 +98,7 @@ if REPOSITORY=="bootstrap":
     if re.search(r'module\s+"(?:folders|governance)"',combined): error("Ring-0 root still instantiates folders/governance")
 elif REPOSITORY=="github-config":
     text=(ROOT/"catalog/repositories.yaml").read_text("utf-8",errors="ignore")
-    for repo in (".github","bootstrap","github-config","infrastructure-live","gitops","mindclade-internal-monorepo"):
+    for repo in (".github",".github-private","bootstrap","github-config","infrastructure-live","gitops","mindclade-internal-monorepo"):
         if repo not in text:error(f"repository catalog missing {repo}")
     if "default_branch" not in text or "main" not in text:error("catalog does not enforce main as the default branch")
 elif REPOSITORY=="gitops":

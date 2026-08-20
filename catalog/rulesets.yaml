@@ -1,54 +1,54 @@
 # Copyright © 2026 Mindclade, LLC. All Rights Reserved.
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
-#
+
 ---
 baseline-all:
   target: all
   enforcement: active
 merge-queue:
   classes:
-  - production-control
-  - source-monorepo
+    - production-control
+    - source-monorepo
   enforcement: active
 protected-paths:
   classes:
-  - enterprise-control
-  - production-control
+    - enterprise-control
+    - production-control
   enforcement: active
 push-blocklist:
   target: all-private-internal
   enforcement: active
 required-checks-go:
   language_profiles:
-  - go
-  - mixed
+    - go
+    - mixed
   # Promote to active only after the real monorepo reports these exact contexts.
   enforcement: evaluate
 required-checks-mixed:
   language_profiles:
-  - mixed
+    - mixed
   # Promote to active only after the real monorepo reports these exact contexts.
   enforcement: evaluate
 required-checks-tf:
   repositories:
-  - github-config
-  - infrastructure-live
+    - github-config
+    - infrastructure-live
   enforcement: active
 required-checks-tf-static:
   repositories:
-  - github-config
-  - infrastructure-live
+    - github-config
+    - infrastructure-live
   enforcement: active
 required-checks-tf-tests:
   repositories:
-  - github-config
+    - github-config
   enforcement: active
 ruleset-workflows:
   classes:
-  - enterprise-control
-  - production-control
-  - source-monorepo
+    - enterprise-control
+    - production-control
+    - source-monorepo
   enforcement: active
   workflow_ref: refs/tags/v3.0.0
 tag-protection:

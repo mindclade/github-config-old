@@ -1,14 +1,14 @@
 # Copyright © 2026 Mindclade, LLC. All Rights Reserved.
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
-#
+
 variable "enterprise_slug" {
-  description = "Enterprise account slug, from github.com/enterprises/<slug>."
+  description = "Enterprise account slug; Mindclade uses mindclade at https://github.com/enterprises/mindclade."
   type        = string
 }
 
 variable "organization" {
-  description = "GitHub organization login owned by this enterprise."
+  description = "GitHub organization login owned by this enterprise; Mindclade uses mindclade."
   type        = string
 }
 

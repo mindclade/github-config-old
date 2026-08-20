@@ -1,7 +1,7 @@
 # Copyright © 2026 Mindclade, LLC. All Rights Reserved.
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
-#
+
 # Definitions and values are compiled from catalog/custom-properties.yaml and
 # catalog/repositories.yaml. This module contains no repository-specific policy.
 resource "github_organization_custom_properties" "this" {

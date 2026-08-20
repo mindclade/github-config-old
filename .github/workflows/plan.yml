@@ -2,7 +2,7 @@
 # Copyright © 2026 Mindclade, LLC. All Rights Reserved.
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
-#
+
 # Five jobs, not one, for two reasons.
 #
 # Status checks. A ruleset can only require a check that GitHub reports, and GitHub reports
@@ -258,36 +258,39 @@ jobs:
     uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@06b2ab4348248b456ee06c9e953637f55e03504f
 
   plan:
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    environment: plan
     permissions:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
 
-      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093  # v3
         with:
           workload_identity_provider: ${{ vars.WIF_PROVIDER_PLAN }}
           service_account: ${{ vars.SA_GITHUB_CONFIG_PLAN }}
 
       - id: app-token
-        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349  # v2
         with:
           app-id: ${{ vars.TF_PLAN_APP_ID }}
           private-key: ${{ secrets.TF_GITHUB_PLAN_APP_PEM }}
           owner: ${{ vars.ORGANIZATION }}
 
-      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd  # v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
           terraform_wrapper: false
 
       - name: Cache Terraform providers
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
         with:
           path: /home/runner/.terraform.d/plugin-cache
           key: tf-providers-${{ runner.os }}-${{ env.TF_VERSION }}-${{ hashFiles('.terraform.lock.hcl', 'versions.tf', 'providers.tf', 'modules/**/versions.tf') }}
@@ -342,7 +345,7 @@ jobs:
             echo "::warning::Plan contains ${destroy_count} delete action(s) and ${replace_count} replacement(s)."
           fi
 
-      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5
         with:
           name: speculative-plan-${{ github.sha }}
           path: |

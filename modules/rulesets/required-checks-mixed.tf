@@ -1,7 +1,7 @@
 # Copyright © 2026 Mindclade, LLC. All Rights Reserved.
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
-#
+
 # Required status checks for polyglot repositories, selected by `mindclade_language_profile = mixed`.
 #
 # WHY THIS EXISTS. required-checks-go requires exactly two contexts — "ci / build" and

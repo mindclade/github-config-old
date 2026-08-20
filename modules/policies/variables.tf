@@ -1,7 +1,7 @@
 # Copyright © 2026 Mindclade, LLC. All Rights Reserved.
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
-#
+
 variable "organization" {
   description = "GitHub organization login."
   type        = string
@@ -24,15 +24,16 @@ variable "actions_policy" {
 variable "oidc_policy" {
   description = "OIDC policy from catalog/oidc-policy.yaml."
   type = object({
-    subject_claim_keys                    = list(string)
-    required_wif_attribute_claims         = list(string)
-    repository_opt_in                     = bool
-    require_trusted_owner_id              = bool
-    require_repository_id                 = bool
-    require_workflow_ref                  = bool
-    require_ref                           = bool
-    require_protected_environment_for_apply = bool
-    explicit_audience_required            = bool
+    subject_claim_keys                               = list(string)
+    required_wif_attribute_claims                    = list(string)
+    repository_opt_in                                = bool
+    require_trusted_owner_id                         = bool
+    require_repository_id                            = bool
+    require_workflow_ref                             = bool
+    require_ref                                      = bool
+    require_protected_environment_for_sensitive_plan = bool
+    require_protected_environment_for_apply          = bool
+    explicit_audience_required                       = bool
   })
 }
 

@@ -24,10 +24,10 @@ deprovisions the GitHub account, org membership drops, team membership drops wit
 issued.
 
 ```sh
-gh api -X GET "/orgs/Mindclade/credential-authorizations" \
+gh api -X GET "/orgs/mindclade/credential-authorizations" \
   --jq '.[] | select(.login=="LOGIN") | {id, credential_type, credential_accessed_at}'
 
-gh api -X DELETE "/orgs/Mindclade/credential-authorizations/CREDENTIAL_ID"
+gh api -X DELETE "/orgs/mindclade/credential-authorizations/CREDENTIAL_ID"
 ```
 
 That covers PATs and SSH keys authorised against the org. A PAT that was never SAML-authorised
@@ -36,7 +36,7 @@ already cannot reach org resources.
 **3. Confirm the GitHub account is gone from the org.**
 
 ```sh
-gh api "/orgs/Mindclade/members/LOGIN" --silent && echo "STILL A MEMBER" || echo "removed"
+gh api "/orgs/mindclade/members/LOGIN" --silent && echo "STILL A MEMBER" || echo "removed"
 ```
 
 ## Within the hour, if they held elevated access
@@ -77,7 +77,7 @@ routed to a departed engineer is a page nobody answers.
 before leaving is worth knowing about either way.
 
 ```sh
-gh api "/orgs/Mindclade/audit-log?phrase=actor:LOGIN&per_page=100" \
+gh api "/orgs/mindclade/audit-log?phrase=actor:LOGIN&per_page=100" \
   --jq '.[] | {action, created_at, repo}'
 ```
 
@@ -95,14 +95,14 @@ Run this after finishing. Every line should report removed or empty.
 ```sh
 LOGIN=departing-user
 
-gh api "/orgs/Mindclade/members/${LOGIN}" --silent 2>/dev/null \
+gh api "/orgs/mindclade/members/${LOGIN}" --silent 2>/dev/null \
   && echo "FAIL: still an org member" || echo "ok: not a member"
 
-gh api "/orgs/Mindclade/credential-authorizations" \
+gh api "/orgs/mindclade/credential-authorizations" \
   --jq "[.[] | select(.login==\"${LOGIN}\")] | length" \
   | xargs -I{} sh -c '[ {} -eq 0 ] && echo "ok: no authorised credentials" || echo "FAIL: {} credentials remain"'
 
-gh api "/orgs/Mindclade/outside_collaborators" --jq '.[].login' \
+gh api "/orgs/mindclade/outside_collaborators" --jq '.[].login' \
   | grep -qx "${LOGIN}" && echo "FAIL: became an outside collaborator" || echo "ok: not a collaborator"
 ```
 

@@ -1,7 +1,7 @@
 # Copyright © 2026 Mindclade, LLC. All Rights Reserved.
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
-#
+
 # Real-time governance events only.
 #
 # This is NOT the audit-log path. GitHub Enterprise Cloud streams the audit log natively to

@@ -5,6 +5,11 @@ apply through the organization GitHub App. Enterprise-account controls that lack
 provider coverage or require a human enterprise-owner credential remain explicit manual
 controls rather than being hidden behind an unaudited PAT.
 
+The canonical account surfaces are the
+[Mindclade enterprise](https://github.com/enterprises/mindclade), the
+[Mindclade organization](https://github.com/mindclade), and its
+[repository index](https://github.com/orgs/mindclade/repositories).
+
 A scheduled drift/review issue is the evidence trail for these settings. Reviewers record the
 observed value, any drift, the actor from the audit log, and the remediation.
 

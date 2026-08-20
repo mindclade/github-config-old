@@ -2,20 +2,20 @@
 # Copyright © 2026 Mindclade, LLC. All Rights Reserved.
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
-#
+
 umask 077
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BOOTSTRAP="${BOOTSTRAP_DIR:-$ROOT/../bootstrap}"
-REPO="${GH_REPO:-Mindclade/github-config}"
+REPO="${GH_REPO:-mindclade/github-config}"
 MODE=print
 
 while (($#)); do
   case "$1" in
     --bootstrap) BOOTSTRAP="$2"; shift 2 ;;
     --repo) REPO="$2"; shift 2 ;;
-    --set) MODE=set; shift ;;
-    --check) MODE=check; shift ;;
+    --set) MODE="set"; shift ;;
+    --check) MODE="check"; shift ;;
     -h|--help) echo "usage: $0 [--bootstrap DIR] [--repo OWNER/REPO] [--set|--check]"; exit 0 ;;
     *) echo "error: unknown argument: $1" >&2; exit 2 ;;
   esac
@@ -53,6 +53,9 @@ PAYLOAD="$(jq -n --argjson config "$CONFIG" --argjson outputs "$OUTPUTS" '
   | (output("seed_project_id")) as $seed_project
   | (output("cicd_project_id")) as $cicd_project
   | (output("github_wif_pool_name")) as $github_wif_pool
+  | (output("artifact_signer_wif_provider")) as $artifact_signer_wif_provider
+  | (output("artifact_signer_principal")) as $artifact_signer_principal
+  | (output("artifact_signer_job_workflow_ref")) as $artifact_signer_job_workflow_ref
   | (output("state_bucket_location")) as $state_location
   | (output("org_id")) as $org_id
   | (output("billing_account")) as $billing_account
@@ -82,7 +85,10 @@ PAYLOAD="$(jq -n --argjson config "$CONFIG" --argjson outputs "$OUTPUTS" '
         BOOTSTRAP_SEED_PROJECT_ID: $seed_project,
         BOOTSTRAP_CICD_PROJECT_ID: $cicd_project,
         BOOTSTRAP_CICD_PROJECT_NUMBER: ($cicd_number | tostring),
-        GITHUB_WIF_POOL_NAME: $github_wif_pool,
+        WIF_POOL_GITHUB_NAME: $github_wif_pool,
+        WIF_PROVIDER_SIGNER: $artifact_signer_wif_provider,
+        ARTIFACT_SIGNER_PRINCIPAL: $artifact_signer_principal,
+        ARTIFACT_SIGNER_JOB_WORKFLOW_REF: $artifact_signer_job_workflow_ref,
         STATE_LOCATION: $state_location,
         SECRETS_PROJECT_ID: $automation_secret_project,
         TFSTATE_BUCKET_DEVELOPMENT: need($state; "infrastructure-live-development"),
@@ -98,6 +104,9 @@ PAYLOAD="$(jq -n --argjson config "$CONFIG" --argjson outputs "$OUTPUTS" '
       },
       gitops: {
         WIF_PROVIDER_PLAN: need($wif; "gitops")
+      },
+      "mindclade-internal-monorepo": {
+        WIF_PROVIDER_SIGNER: $artifact_signer_wif_provider
       }
     })
 ')"
@@ -105,7 +114,9 @@ PAYLOAD="$(jq -n --argjson config "$CONFIG" --argjson outputs "$OUTPUTS" '
 EMPTY="$(jq -r 'to_entries[] | .key as $repo | .value | to_entries[] | select(.value == "" or .value == null) | "\($repo)/\(.key)"' <<<"$PAYLOAD")"
 if [[ -n "$EMPTY" ]]; then
   echo "error: required CI variable values are unset:" >&2
-  sed 's/^/  - /' <<<"$EMPTY" >&2
+  while IFS= read -r variable; do
+    printf '  - %s\n' "$variable"
+  done <<<"$EMPTY" >&2
   exit 1
 fi
 

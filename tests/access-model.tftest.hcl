@@ -1,7 +1,7 @@
 # Copyright © 2026 Mindclade, LLC. All Rights Reserved.
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
-#
+
 # Provider-free contract tests for the human-authored catalog.
 variables {
   catalog_path = "catalog"
@@ -12,10 +12,10 @@ run "estate_matches_the_blueprint" {
   module { source = "./modules/catalog" }
 
   assert {
-    condition = setequals(toset(keys(output.repositories)), toset([
-      ".github", "github-config", "bootstrap", "infrastructure-live", "gitops", "mindclade-internal-monorepo"
-    ]))
-    error_message = "The repository catalog must contain exactly the six blueprint repositories."
+    condition = toset(keys(output.repositories)) == toset([
+      ".github", ".github-private", "github-config", "bootstrap", "infrastructure-live", "gitops", "mindclade-internal-monorepo"
+    ])
+    error_message = "The repository catalog must contain exactly the seven blueprint repositories."
   }
 }
 
@@ -34,6 +34,7 @@ run "repository_classes_and_visibility_are_explicit" {
   assert {
     condition = alltrue([
       output.repositories[".github"].visibility == "internal",
+      output.repositories[".github-private"].visibility == "private",
       output.repositories["github-config"].visibility == "private",
       output.repositories["bootstrap"].visibility == "private",
       output.repositories["infrastructure-live"].visibility == "private",
@@ -98,7 +99,7 @@ run "access_is_team_based_and_non_admin" {
   }
 
   assert {
-    condition = !contains(keys(output.team_access["bootstrap"]), "engineering")
+    condition     = !contains(keys(output.team_access["bootstrap"]), "engineering")
     error_message = "The broad engineering team must not receive bootstrap access."
   }
 }
@@ -166,5 +167,35 @@ run "deployment_gates_match_risk" {
       output.environments["break-glass"].prevent_self_review
     )
     error_message = "Critical control-plane environments must prevent self-review."
+  }
+
+  assert {
+    condition = (
+      contains(output.repositories["bootstrap"].environments, "plan") &&
+      contains(output.repositories["github-config"].environments, "plan") &&
+      contains(output.repositories["infrastructure-live"].environments, "plan") &&
+      contains(output.environments["plan"].reviewer_teams, "infrastructure") &&
+      output.environments["plan"].prevent_self_review &&
+      !output.environments["plan"].protected_branches &&
+      !output.environments["plan"].custom_branch_policies
+    )
+    error_message = "Infrastructure plans require a review-gated environment that permits pull-request merge refs."
+  }
+
+  assert {
+    condition = (
+      contains(output.repositories["gitops"].environments, "staging") &&
+      contains(output.repositories["gitops"].environments, "production") &&
+      output.environments["staging"].protected_branches &&
+      !output.environments["staging"].custom_branch_policies &&
+      output.environments["staging"].prevent_self_review &&
+      contains(output.environments["staging"].reviewer_teams, "platform") &&
+      output.environments["production"].protected_branches &&
+      !output.environments["production"].custom_branch_policies &&
+      output.environments["production"].prevent_self_review &&
+      contains(output.environments["production"].reviewer_teams, "platform") &&
+      contains(output.environments["production"].reviewer_teams, "security")
+    )
+    error_message = "GitOps staging and production promotions require protected branches, independent review, and explicit production security approval."
   }
 }

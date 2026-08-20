@@ -1,9 +1,22 @@
 # Copyright © 2026 Mindclade, LLC. All Rights Reserved.
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
-#
-resource "github_organization_ruleset" "merge_queue" {
+
+locals {
+  # integrations/github 6.13 exposes merge_queue only on github_repository_ruleset, not on
+  # github_organization_ruleset. Compile the catalog's class target into one repository-level
+  # ruleset per matching repository until the organization resource gains schema parity.
+  merge_queue_repositories = {
+    for name, repository in var.repositories : name => repository
+    if contains(var.rulesets["merge-queue"].classes, repository.repository_class)
+  }
+}
+
+resource "github_repository_ruleset" "merge_queue" {
+  for_each = local.merge_queue_repositories
+
   name        = "merge-queue"
+  repository  = each.key
   target      = "branch"
   enforcement = local.enforcement["merge-queue"]
 
@@ -20,13 +33,6 @@ resource "github_organization_ruleset" "merge_queue" {
     ref_name {
       include = ["~DEFAULT_BRANCH"]
       exclude = []
-    }
-    repository_property {
-      include = [{
-        name            = "mindclade_repository_class"
-        property_values = var.rulesets["merge-queue"].classes
-        source          = "custom"
-      }]
     }
   }
 

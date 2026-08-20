@@ -3,6 +3,7 @@
   "type": "object",
   "required": [
     ".github",
+    ".github-private",
     "github-config",
     "bootstrap",
     "infrastructure-live",
@@ -119,6 +120,7 @@
               "development",
               "staging",
               "production",
+              "plan",
               "governance",
               "bootstrap",
               "release",
@@ -143,6 +145,9 @@
           "const": "main"
         }
       }
+    },
+    ".github-private": {
+      "$ref": "#/properties/.github"
     },
     "github-config": {
       "type": "object",
@@ -252,6 +257,7 @@
               "development",
               "staging",
               "production",
+              "plan",
               "governance",
               "bootstrap",
               "release",
@@ -385,6 +391,7 @@
               "development",
               "staging",
               "production",
+              "plan",
               "governance",
               "bootstrap",
               "release",
@@ -518,6 +525,7 @@
               "development",
               "staging",
               "production",
+              "plan",
               "governance",
               "bootstrap",
               "release",
@@ -651,6 +659,7 @@
               "development",
               "staging",
               "production",
+              "plan",
               "governance",
               "bootstrap",
               "release",
@@ -784,6 +793,7 @@
               "development",
               "staging",
               "production",
+              "plan",
               "governance",
               "bootstrap",
               "release",

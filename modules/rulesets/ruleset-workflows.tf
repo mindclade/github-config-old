@@ -1,7 +1,7 @@
 # Copyright © 2026 Mindclade, LLC. All Rights Reserved.
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
-#
+
 # Mandatory workflows are defined in the `.github` repository and enforced here. The workflow
 # implementation and the enforcement mechanism intentionally have different owners.
 resource "github_organization_ruleset" "ruleset_workflows" {

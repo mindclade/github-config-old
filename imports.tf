@@ -1,14 +1,14 @@
 # Copyright © 2026 Mindclade, LLC. All Rights Reserved.
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
-#
+
 # Existing organization and repositories are adopted into Terraform state. These declarative
 # imports are intentionally retained after adoption: they document resource provenance and are
 # idempotent after the first successful apply.
 
 import {
   to = module.organization.github_organization_settings.this
-  id = "Mindclade"
+  id = "mindclade"
 }
 
 import {

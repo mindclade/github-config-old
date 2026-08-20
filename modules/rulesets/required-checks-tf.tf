@@ -1,7 +1,7 @@
 # Copyright © 2026 Mindclade, LLC. All Rights Reserved.
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
-#
+
 # Required status checks for Terraform and Terragrunt repositories.
 #
 # The plan check is the important one. Everything else here catches a class of mistake; the

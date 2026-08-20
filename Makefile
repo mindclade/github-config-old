@@ -1,19 +1,35 @@
 SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := validate
-.PHONY: validate catalog fmt test security
-validate: catalog validate-production-contract
-	@python3 scripts/validate-catalog.py
-	@python3 scripts/check-access-expiry.py
-	@./scripts/license-header-check.sh --check
-catalog:
-	@python3 scripts/validate-catalog.py
-fmt:
-	@terraform fmt -recursive
-test:
-	@terraform test
-security:
-	@python3 scripts/check-access-expiry.py
+PYTHON ?= python3
+TERRAFORM ?= terraform
+ACTIONLINT ?= actionlint
+YAMLLINT ?= yamllint
 
-.PHONY: validate-production-contract
+.PHONY: validate lint catalog fmt fmt-check test security license-headers validate-production-contract
+
+validate: lint fmt-check catalog security license-headers validate-production-contract
+
+lint:
+	@$(ACTIONLINT) -config-file .github/actionlint.yaml .github/workflows/*.yml
+	@$(YAMLLINT) --strict .
+
+fmt-check:
+	@$(TERRAFORM) fmt -check -recursive -diff
+
+catalog:
+	@$(PYTHON) scripts/validate-catalog.py
+
+security:
+	@$(PYTHON) scripts/check-access-expiry.py
+
+license-headers:
+	@./scripts/license-header-check.sh --check
+
+fmt:
+	@$(TERRAFORM) fmt -recursive
+
+test:
+	@$(TERRAFORM) test -no-color
+
 validate-production-contract:
-	python3 scripts/validate-production-contract.py
+	@$(PYTHON) scripts/validate-production-contract.py

@@ -1,7 +1,7 @@
 # Copyright © 2026 Mindclade, LLC. All Rights Reserved.
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
-#
+
 output "repositories" {
   description = "Managed repositories, with the numeric ids other repos need for WIF bindings."
   value       = module.repositories.repositories

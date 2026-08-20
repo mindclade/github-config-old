@@ -1,7 +1,7 @@
 # Contributing to `github-config`
 
 Org-wide conventions are the canonical
-[`CONTRIBUTING.md`](https://github.com/Mindclade/.github/blob/main/CONTRIBUTING.md).
+[`CONTRIBUTING.md`](https://github.com/mindclade/.github/blob/main/CONTRIBUTING.md).
 This file covers what is different here.
 
 *(This exists because `.github` is internal, so nothing inherits. See `SECURITY.md`.)*

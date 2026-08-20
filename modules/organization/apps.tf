@@ -1,7 +1,7 @@
 # Copyright © 2026 Mindclade, LLC. All Rights Reserved.
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
-#
+
 # GitHub App installations and their repository scope.
 #
 # The App itself — its permissions, its private key, its webhook — is created in the GitHub
@@ -10,7 +10,7 @@
 # union of its permissions across the whole org; scoping it here is the difference between a
 # compromised App key being a bad day and being an extinction event.
 #
-# Installation ids come from: gh api /orgs/Mindclade/installations --jq '.installations[] | {id, app_slug}'
+# Installation ids come from: gh api /orgs/mindclade/installations --jq '.installations[] | {id, app_slug}'
 
 data "github_organization_app_installations" "this" {}
 
