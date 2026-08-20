@@ -101,6 +101,19 @@ and the matching catalog flag. Buildkite cannot be re-enabled through an operato
 validates all six capability-specific ARC providers, collision-resistant mapped principals,
 trusted-main caller, and immutable v4 reusable workflows before publishing any release variable.
 
+The ARC catalog is desired-state and preflight evidence, not proof of a live GitHub App
+installation. Before enabling the canary provider, create or verify both exact installations:
+
+- `mindclade-arc`: selected to `mindclade-internal-monorepo`, organization
+  self-hosted-runners write, repository Actions/metadata read;
+- `mindclade-release-promoter`: selected to `gitops`, repository contents/pull-requests write
+  and metadata read.
+
+Apply and verify runner group `mindclade-arc-artifact-authority` as private/selected, with only
+the monorepo and only its `release.yml@refs/heads/main` workflow. Record the live IDs and
+effective permissions as connected evidence. Do not infer installation from the catalog or add
+broader App scopes to make a failed canary pass.
+
 `BOOTSTRAP_FOLDER_ID` is an adopt-existing bootstrap input, not an output handoff. The exporter
 never publishes it. Keep the bootstrap repository variable absent while Terraform owns the folder;
 a non-empty value switches bootstrap into adoption mode and would plan destruction of the managed

@@ -27,9 +27,13 @@ module "organization" {
   # secret-delivery path exist. No HMAC secret is serialized into Terraform plans/state.
   webhook_url    = ""
   webhook_secret = ""
-  app_scopes = {
-    for slug, app in module.catalog.github_apps : slug => app.repositories
-  }
+  # Keep the retired root input referenced so Terraform evaluates its fail-closed
+  # compatibility validation and tflint can verify that no dead input remains. The
+  # validation requires this map to be empty; the catalog is the sole authority.
+  app_scopes = merge(
+    var.app_scopes,
+    { for slug, app in module.catalog.github_apps : slug => app.repositories },
+  )
 }
 
 module "teams" {
