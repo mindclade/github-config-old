@@ -55,9 +55,16 @@ resource "github_repository" "this" {
   auto_init = true
 
   security_and_analysis {
-    # Code Security is organization-managed. GitHub reports it on repository reads but rejects
-    # repository-level mutation after the organization policy owns the setting. Keep the
-    # repository-scoped controls that remain independently mutable here.
+    # GitHub's current repository API reports the organization-managed control as
+    # `code_security`; the legacy `advanced_security` field is rejected once the organization
+    # configuration owns the policy. Public repositories receive this control automatically,
+    # so omit the explicit block there to preserve provider/API compatibility.
+    dynamic "code_security" {
+      for_each = each.value.visibility == "public" ? [] : [1]
+      content {
+        status = "enabled"
+      }
+    }
     secret_scanning {
       status = "enabled"
     }
