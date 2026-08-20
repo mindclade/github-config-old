@@ -14,6 +14,7 @@
 | Change access safely | [Access model](access-model.md) | Understand IdP, team, repository, and environment grants |
 | Operate manual enterprise controls | [Manual controls](enterprise-manual-controls.md) | Review settings Terraform cannot own |
 | Respond to blocked emergency work | [GitHub break-glass](break-glass.md) | Use and revoke the smallest declared bypass |
+| Recover a GitHub or IdP outage | [GitHub and IdP outage](github-idp-outage.md) | Preserve evidence, contain access, and restore the authoritative identity path |
 
 ## Getting started
 
@@ -35,6 +36,8 @@
 - [Enterprise manual controls](enterprise-manual-controls.md) — monthly review and remediation
   for controls outside the Terraform provider boundary.
 - [GitHub break-glass](break-glass.md) — symptom-first emergency governance recovery.
+- [GitHub and IdP outage](github-idp-outage.md) — separate provider outage, IdP outage, and
+  compromise response while retaining independent approval.
 - [`idp/` membership export](../idp/README.md) — generated membership shape, safety checks,
   and IdP ownership.
 

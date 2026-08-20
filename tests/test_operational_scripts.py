@@ -52,20 +52,11 @@ class ExportSafetyTest(unittest.TestCase):
             self.assertEqual(CI.main(), 1)
         run.assert_not_called()
 
-    def test_disabled_buildkite_omits_deferred_inputs(self) -> None:
+    def test_disabled_buildkite_is_a_noop_without_deferred_inputs(self) -> None:
         config = {
-            "bootstrap": {
-                "ENABLE_BUILDKITE_WIF": "false",
-                "BUILDKITE_ORGANIZATION_ID": "env:BUILDKITE_ORGANIZATION_ID",
-                "BUILDKITE_PIPELINE_IDS_JSON": "env:BUILDKITE_PIPELINE_IDS_JSON",
-                "BUILDKITE_PIPELINE_STEP_CONTRACTS_JSON": (
-                    "env:BUILDKITE_PIPELINE_STEP_CONTRACTS_JSON"
-                ),
-            },
+            "bootstrap": {"ENABLE_BUILDKITE_WIF": "false"},
             "mindclade-internal-monorepo": {
-                name: f"env:{name}" for name in CI.BUILDKITE_DEFERRED_VARIABLES[
-                    "mindclade-internal-monorepo"
-                ]
+                "ARC_PROMOTER_APP_ID": "env:ARC_PROMOTER_APP_ID",
             },
         }
 
@@ -75,20 +66,23 @@ class ExportSafetyTest(unittest.TestCase):
 
         self.assertIsNone(pool)
         self.assertEqual(config["bootstrap"], {"ENABLE_BUILDKITE_WIF": "false"})
-        self.assertEqual(config["mindclade-internal-monorepo"], {})
+        self.assertEqual(
+            config["mindclade-internal-monorepo"],
+            {"ARC_PROMOTER_APP_ID": "env:ARC_PROMOTER_APP_ID"},
+        )
 
-    def test_enabled_buildkite_still_requires_valid_pool(self) -> None:
+    def test_enabled_buildkite_is_rejected_after_retirement(self) -> None:
         config = {
             "bootstrap": {"ENABLE_BUILDKITE_WIF": "true"},
             "mindclade-internal-monorepo": {},
         }
 
-        with self.assertRaisesRegex(ValueError, "is missing: workload_identity_pool"):
+        with self.assertRaisesRegex(ValueError, "retired"):
             CI.configure_buildkite_phase(
                 config, {"enabled": True, "workload_identity_pool": None}
             )
 
-        with self.assertRaisesRegex(ValueError, "invalid resource name"):
+        with self.assertRaisesRegex(ValueError, "retired"):
             CI.configure_buildkite_phase(
                 config,
                 {
@@ -96,6 +90,58 @@ class ExportSafetyTest(unittest.TestCase):
                     "workload_identity_pool": "projects/not-numeric/locations/global/workloadIdentityPools/buildkite",
                 },
             )
+
+    def test_arc_release_identities_are_provider_and_workflow_exact(self) -> None:
+        pool = "projects/123456789/locations/global/workloadIdentityPools/github"
+        workflows = {
+            "canary": "reusable-arc-wif-canary.yml",
+            "builder": "reusable-arc-oci-build.yml",
+            "qualification-reader": "reusable-arc-oci-qualify.yml",
+            "qualifier": "reusable-arc-qualification-attest.yml",
+            "signer": "reusable-binauthz-sign.yml",
+            "promoter": "reusable-gitops-promote.yml",
+        }
+        identities = {}
+        for capability, workflow in workflows.items():
+            subject = (
+                "repo:mindclade@316676129/mindclade-internal-monorepo@1333792222:"
+                + (
+                    "environment:release"
+                    if capability in {"signer", "promoter"}
+                    else "ref:refs/heads/main"
+                )
+            )
+            provider = (
+                "gh-mindclade-internal-monorepo"
+                if capability == "signer"
+                else f"gh-arc-{capability}"
+            )
+            mapped = subject if capability == "signer" else f"arc-{capability}:{subject}"
+            identities[capability] = {
+                "workload_identity_provider": f"{pool}/providers/{provider}",
+                "principal": f"principal://iam.googleapis.com/{pool}/subject/{mapped}",
+                "subject": subject,
+                "workflow_ref": "mindclade/mindclade-internal-monorepo/.github/workflows/release.yml@refs/heads/main",
+                "job_workflow_ref": f"mindclade/.github/.github/workflows/{workflow}@refs/tags/v4.0.0",
+            }
+        github = {
+            "artifact_release_identities": identities,
+            "artifact_signer": {
+                field: identities["signer"][field]
+                for field in (
+                    "workload_identity_provider",
+                    "principal",
+                    "job_workflow_ref",
+                )
+            },
+        }
+
+        self.assertEqual(
+            CI.artifact_release_contract(github, pool, "mindclade"), identities
+        )
+        identities["builder"]["principal"] = identities["qualifier"]["principal"]
+        with self.assertRaisesRegex(ValueError, "builder"):
+            CI.artifact_release_contract(github, pool, "mindclade")
 
     def test_bootstrap_stage_omits_deferred_catalog_inputs(self) -> None:
         config = {

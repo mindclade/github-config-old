@@ -17,6 +17,11 @@ variable "infrastructure_team_id" {
   type        = number
 }
 
+variable "release_team_id" {
+  description = "Numeric id of the release team."
+  type        = number
+}
+
 variable "dot_github_repo_id" {
   description = "Numeric id of the .github repository holding mandatory workflows."
   type        = number

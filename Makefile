@@ -6,10 +6,10 @@ ACTIONLINT ?= actionlint
 YAMLLINT ?= yamllint
 
 .PHONY: validate lint catalog fmt fmt-check test security license-headers doctor
-.PHONY: validate-production-contract workspace-remotes-check workspace-remotes-apply
-.PHONY: workspace-remotes-test scripts-test
+.PHONY: validate-production-contract validate-repository-home workspace-remotes-check workspace-remotes-apply
+.PHONY: workspace-remotes-test scripts-test terraform-init-test
 
-validate: lint fmt-check catalog security license-headers validate-production-contract
+validate: lint fmt-check catalog security license-headers validate-production-contract validate-repository-home
 
 lint:
 	@$(ACTIONLINT) -config-file .github/actionlint.yaml .github/workflows/*.yml
@@ -30,11 +30,17 @@ license-headers:
 fmt:
 	@$(TERRAFORM) fmt -recursive
 
-test: workspace-remotes-test scripts-test
+test: workspace-remotes-test scripts-test terraform-init-test
 	@$(TERRAFORM) test -no-color
+
+terraform-init-test:
+	@$(TERRAFORM) init -input=false -backend=false -lockfile=readonly
 
 validate-production-contract:
 	@$(PYTHON) scripts/validate-production-contract.py
+
+validate-repository-home:
+	@$(PYTHON) scripts/validate-repository-home.py --root .
 
 doctor: workspace-remotes-check
 

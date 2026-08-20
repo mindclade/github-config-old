@@ -54,6 +54,7 @@ EXPECTED_RULESETS = {
     "baseline-all",
     "merge-queue",
     "protected-paths",
+    "release-authority-paths",
     "push-blocklist",
     "required-checks-bootstrap",
     "required-checks-gitops",
@@ -91,11 +92,6 @@ REQUIRED_CI_VARIABLES = {
     },
     "bootstrap": {
         "ENABLE_BUILDKITE_WIF": "false",
-        "BUILDKITE_ORGANIZATION_ID": "env:BUILDKITE_ORGANIZATION_ID",
-        "BUILDKITE_PIPELINE_IDS_JSON": "env:BUILDKITE_PIPELINE_IDS_JSON",
-        "BUILDKITE_PIPELINE_STEP_CONTRACTS_JSON": (
-            "env:BUILDKITE_PIPELINE_STEP_CONTRACTS_JSON"
-        ),
         "SECURITY_CONTACT": "security@mindclade.com",
     },
     "infrastructure-live": {
@@ -111,23 +107,28 @@ REQUIRED_CI_VARIABLES = {
         "SA_GITOPS_VERIFIER": "env:SA_GITOPS_VERIFIER",
     },
     "mindclade-internal-monorepo": {
-        "BUILDKITE_ORGANIZATION_ID": "env:BUILDKITE_ORGANIZATION_ID",
-        "BUILDKITE_BUILD_PIPELINE_ID": "env:BUILDKITE_BUILD_PIPELINE_ID",
-        "BUILDKITE_QUALIFICATION_PIPELINE_ID": "env:BUILDKITE_QUALIFICATION_PIPELINE_ID",
-        "BUILDKITE_PROMOTION_PIPELINE_ID": "env:BUILDKITE_PROMOTION_PIPELINE_ID",
-        "BUILDKITE_BUILDER_IDENTITY": "env:BUILDKITE_BUILDER_IDENTITY",
-        "BUILDKITE_QUALIFIER_IDENTITY": "env:BUILDKITE_QUALIFIER_IDENTITY",
-        "BUILDKITE_PROMOTER_IDENTITY": "env:BUILDKITE_PROMOTER_IDENTITY",
+        "CI_PROJECT_ID": "env:CI_PROJECT_ID",
+        "SA_ARC_CANARY": "env:SA_ARC_CANARY",
+        "SA_ARTIFACT_BUILDER": "env:SA_ARTIFACT_BUILDER",
+        "SA_ARTIFACT_QUALIFICATION_READER": "env:SA_ARTIFACT_QUALIFICATION_READER",
+        "SA_ARTIFACT_QUALIFIER": "env:SA_ARTIFACT_QUALIFIER",
+        "SA_ARTIFACT_PROMOTER": "env:SA_ARTIFACT_PROMOTER",
         "BINAUTHZ_BUILD_ATTESTOR_PROJECT": "env:BINAUTHZ_BUILD_ATTESTOR_PROJECT",
         "BINAUTHZ_BUILD_ATTESTOR": "env:BINAUTHZ_BUILD_ATTESTOR",
+        "BINAUTHZ_BUILD_ATTESTOR_KEY_VERSION": "env:BINAUTHZ_BUILD_ATTESTOR_KEY_VERSION",
         "BINAUTHZ_QUALIFICATION_ATTESTOR_PROJECT": "env:BINAUTHZ_QUALIFICATION_ATTESTOR_PROJECT",
         "BINAUTHZ_QUALIFICATION_ATTESTOR": "env:BINAUTHZ_QUALIFICATION_ATTESTOR",
+        "BINAUTHZ_QUALIFICATION_ATTESTOR_KEY_VERSION": "env:BINAUTHZ_QUALIFICATION_ATTESTOR_KEY_VERSION",
         "BINAUTHZ_DEPLOYMENT_ATTESTOR_PROJECT": "env:BINAUTHZ_DEPLOYMENT_ATTESTOR_PROJECT",
         "BINAUTHZ_DEPLOYMENT_ATTESTOR": "env:BINAUTHZ_DEPLOYMENT_ATTESTOR",
         "BINAUTHZ_DEPLOYMENT_ATTESTOR_KEY_VERSION": (
             "env:BINAUTHZ_DEPLOYMENT_ATTESTOR_KEY_VERSION"
         ),
         "SA_ARTIFACT_SIGNER": "env:SA_ARTIFACT_SIGNER",
+        "ARC_PROMOTER_APP_ID": "env:ARC_PROMOTER_APP_ID",
+        "ARC_PROMOTER_SECRET_PROJECT": "env:ARC_PROMOTER_SECRET_PROJECT",
+        "ARC_PROMOTER_PRIVATE_KEY_SECRET": "env:ARC_PROMOTER_PRIVATE_KEY_SECRET",
+        "ARC_PROMOTER_PRIVATE_KEY_VERSION": "env:ARC_PROMOTER_PRIVATE_KEY_VERSION",
     },
 }
 ROLE_RANK = {"pull": 0, "triage": 1, "push": 2, "maintain": 3, "admin": 4}
@@ -170,6 +171,8 @@ actions = load_yaml("actions-policy.yaml") or {}
 oidc = load_yaml("oidc-policy.yaml") or {}
 properties = load_yaml("custom-properties.yaml") or {}
 rulesets = load_yaml("rulesets.yaml") or {}
+runner_groups = load_yaml("runner-groups.yaml") or {}
+github_apps = load_yaml("github-apps.yaml") or {}
 exceptions = load_yaml("access-exceptions.yaml") or []
 ci_variables = load_yaml("ci-variables.yaml") or {}
 
@@ -196,6 +199,37 @@ if set(rulesets) != EXPECTED_RULESETS:
     err(
         f"ruleset inventory differs from implementation: {sorted(set(rulesets) ^ EXPECTED_RULESETS)}"
     )
+expected_runner_group = {
+    "visibility": "selected",
+    "allowsPublicRepositories": False,
+    "restrictedToWorkflows": True,
+    "repositories": ["mindclade-internal-monorepo"],
+    "workflows": [
+        "mindclade/mindclade-internal-monorepo/.github/workflows/release.yml@refs/heads/main"
+    ],
+}
+if runner_groups != {"mindclade-arc-artifact-authority": expected_runner_group}:
+    err("ARC artifact-authority runner group contract is not exact")
+if set(github_apps) != {"mindclade-arc", "mindclade-release-promoter"}:
+    err("GitHub App contract inventory is not exact")
+else:
+    if github_apps["mindclade-arc"].get("repositories") != [
+        "mindclade-internal-monorepo"
+    ]:
+        err("ARC GitHub App must be selected to the monorepo only")
+    if github_apps["mindclade-arc"].get("organizationPermissions") != {
+        "selfHostedRunners": "write"
+    }:
+        err("ARC GitHub App has an unexpected organization permission contract")
+    promoter = github_apps["mindclade-release-promoter"]
+    if promoter.get("repositories") != ["gitops"]:
+        err("release promoter App must be selected to gitops only")
+    if promoter.get("repositoryPermissions") != {
+        "contents": "write",
+        "metadata": "read",
+        "pullRequests": "write",
+    }:
+        err("release promoter App has an unexpected repository permission contract")
 if set(properties) != set(PROPERTY_FIELDS):
     err(
         f"custom-property inventory differs: {sorted(set(properties) ^ set(PROPERTY_FIELDS))}"
@@ -462,7 +496,7 @@ for name, cfg in rulesets.items():
 workflow_ref = rulesets.get("ruleset-workflows", {}).get("workflow_ref", "")
 if not re.fullmatch(r"refs/tags/v[0-9]+\.[0-9]+\.[0-9]+", workflow_ref):
     err(
-        "ruleset-workflows.workflow_ref must be an immutable release tag such as refs/tags/v3.0.0"
+        "ruleset-workflows.workflow_ref must be an immutable release tag such as refs/tags/v4.0.0"
     )
 merge_queue_classes = set(rulesets.get("merge-queue", {}).get("classes", []))
 class_merge_queue = {
@@ -650,6 +684,15 @@ if "BUILDKITE_WIF_POOL_NAME" in ci_variables.get("infrastructure-live", {}):
     err(
         "ci-variables: Buildkite WIF pool must come from bootstrap platform_contract, not env input"
     )
+for repository, variables in ci_variables.items():
+    forbidden_buildkite = {
+        name for name in variables if name.startswith("BUILDKITE_")
+    } - ({"ENABLE_BUILDKITE_WIF"} if repository == "bootstrap" else set())
+    if forbidden_buildkite:
+        err(
+            f"ci-variables: {repository} retains Buildkite authority variables: "
+            f"{sorted(forbidden_buildkite)}"
+        )
 
 ci_variable_exporter = (ROOT / "scripts" / "export-ci-variables.py").read_text(
     encoding="utf-8"
@@ -657,11 +700,16 @@ ci_variable_exporter = (ROOT / "scripts" / "export-ci-variables.py").read_text(
 required_export_fragments = {
     "bootstrap/TFSTATE_REPLICA_BUCKET": '"TFSTATE_REPLICA_BUCKET"',
     "infrastructure-live/WIF_POOL_GITHUB_NAME": '"WIF_POOL_GITHUB_NAME"',
-    "infrastructure-live/BUILDKITE_WIF_POOL_NAME": '"BUILDKITE_WIF_POOL_NAME"',
     "infrastructure-live/WIF_PROVIDER_SIGNER": '"WIF_PROVIDER_SIGNER"',
+    "infrastructure-live/ARTIFACT_RELEASE_IDENTITIES_JSON": '"ARTIFACT_RELEASE_IDENTITIES_JSON"',
     "infrastructure-live/ARTIFACT_SIGNER_PRINCIPAL": '"ARTIFACT_SIGNER_PRINCIPAL"',
     "infrastructure-live/ARTIFACT_SIGNER_JOB_WORKFLOW_REF": '"ARTIFACT_SIGNER_JOB_WORKFLOW_REF"',
     "monorepo/WIF_PROVIDER_SIGNER": '"WIF_PROVIDER_SIGNER"',
+    "monorepo/WIF_PROVIDER_ARC_CANARY": '"WIF_PROVIDER_ARC_CANARY"',
+    "monorepo/WIF_PROVIDER_ARC_BUILDER": '"WIF_PROVIDER_ARC_BUILDER"',
+    "monorepo/WIF_PROVIDER_ARC_QUALIFICATION_READER": '"WIF_PROVIDER_ARC_QUALIFICATION_READER"',
+    "monorepo/WIF_PROVIDER_ARC_QUALIFIER": '"WIF_PROVIDER_ARC_QUALIFIER"',
+    "monorepo/WIF_PROVIDER_ARC_PROMOTER": '"WIF_PROVIDER_ARC_PROMOTER"',
 }
 for name, fragment in required_export_fragments.items():
     if fragment not in ci_variable_exporter:
@@ -669,18 +717,19 @@ for name, fragment in required_export_fragments.items():
 if '"platform_contract"' not in ci_variable_exporter:
     err("ci-variable exporter must source bootstrap/platform_contract")
 for fragment in (
-    'platform.get("contract_version") != "1.2.0"',
+    'platform.get("contract_version") != "1.3.0"',
     '"replica_buckets"',
-    'if not enabled:',
+    'if enabled or buildkite.get("workload_identity_pool") is not None',
     '"workload_identity_pool"',
     '"principal"',
     '"repository_identities"',
     'selected["bootstrap"]["SECURITY_CONTACT"] = "env:SECURITY_CONTACT"',
-    'if buildkite_pool is not None:',
+    '"artifact_release_identities"',
+    "artifact_release_contract(",
     'choices=("bootstrap", "full")',
 ):
     if fragment not in ci_variable_exporter:
-        err(f"ci-variable exporter omits bootstrap 1.2 contract fragment: {fragment}")
+        err(f"ci-variable exporter omits bootstrap 1.3 contract fragment: {fragment}")
 if '"state_replica_buckets"' in ci_variable_exporter:
     err(
         "ci-variable exporter must use platform_contract, not bootstrap convenience outputs"
@@ -809,8 +858,8 @@ if report_job.get("needs") not in (["export_main"], "export_main"):
 initial_import_path = ROOT / "docs" / "initial-import.md"
 if initial_import_path.is_file():
     initial_import = initial_import_path.read_text(encoding="utf-8")
-    if "protected `v3.0.0` workflow-contract tag" not in initial_import:
-        err("initial-import.md must use the immutable v3.0.0 workflow-contract tag")
+    if "protected `v4.0.0` workflow-contract tag" not in initial_import:
+        err("initial-import.md must use the immutable v4.0.0 workflow-contract tag")
     if "protected `v1` workflow-contract tag" in initial_import:
         err("initial-import.md retains the stale v1 workflow-contract tag")
 

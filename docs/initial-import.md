@@ -10,7 +10,7 @@
 ## Prerequisites
 
 - the existing `mindclade/github-config` repository and its `.git` history;
-- the `.github` repository's protected `v3.0.0` workflow-contract tag, which is the
+- the `.github` repository's protected `v4.0.0` workflow-contract tag, which is the
   full-semver baseline referenced by `catalog/rulesets.yaml`;
 - completed Ring-0 bootstrap state and GitHub-to-Google Cloud federation;
 - plan and apply GitHub Apps with distinct minimum permissions, or the approved one-time founder
@@ -46,7 +46,7 @@ negative authorization tests.
 7. Compile the initial payload with `export-ci-variables.py --stage bootstrap` as documented in
    [adoption](adoption.md). Use the current verified billing and security recipients and an empty
    environment-project map; do not invent normal-plane project IDs, App IDs, attestors, or
-   Buildkite UUIDs.
+   retired Buildkite inputs.
 8. Open a pull request and inspect the speculative plan. Unexpected deletion, replacement,
    ownership, or visibility change is a stop condition.
 
@@ -75,7 +75,7 @@ qualified.
 - managed repositories have the expected custom properties and visibility;
 - every managed repository issues an immutable default OIDC subject containing its owner and
   repository IDs, and a mismatched repository ID fails WIF token exchange;
-- required workflow rules reference the immutable `v3.0.0` release;
+- required workflow rules reference the immutable `v4.0.0` release;
 - negative tests prove the plan identity cannot mutate and the apply identity cannot skip the
   protected environment; and
 - drift detection reports no unexplained changes.
