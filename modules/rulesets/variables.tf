@@ -24,7 +24,14 @@ variable "dot_github_repo_id" {
 
 variable "rulesets" {
   description = "Ruleset inventory and resting enforcement from catalog/rulesets.yaml."
-  type        = map(any)
+  type = map(object({
+    enforcement       = string
+    target            = optional(string)
+    classes           = optional(list(string), [])
+    repositories      = optional(list(string), [])
+    language_profiles = optional(list(string), [])
+    workflow_ref      = optional(string)
+  }))
 }
 
 variable "repositories" {
