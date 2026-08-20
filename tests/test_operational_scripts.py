@@ -12,6 +12,7 @@ import json
 import subprocess
 import tempfile
 import unittest
+from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
@@ -31,6 +32,7 @@ def load(name: str, path: str):
 CI = load("export_ci_variables", "scripts/export-ci-variables.py")
 IDP = load("export_idp_groups", "scripts/export-idp-groups.py")
 OIDC = load("enforce_immutable_oidc", "scripts/enforce-immutable-oidc.py")
+EXPIRY = load("check_access_expiry", "scripts/check-access-expiry.py")
 
 
 class ExportSafetyTest(unittest.TestCase):
@@ -181,6 +183,21 @@ class ExportSafetyTest(unittest.TestCase):
             with self.assertRaises(IDP.ExportError):
                 IDP.github_login("person@example.com")
 
+    def test_idp_billing_project_is_passed_to_gcloud(self) -> None:
+        completed = SimpleNamespace(returncode=0, stdout="{}", stderr="")
+        with mock.patch.object(IDP.subprocess, "run", return_value=completed) as run:
+            IDP.gcloud_json(
+                ["identity", "users", "describe", "person@example.com"],
+                "mc-b-cicd-fb7649",
+            )
+
+        command = run.call_args.args[0]
+        self.assertIn("--billing-project=mc-b-cicd-fb7649", command)
+        self.assertEqual(
+            command[-2:],
+            ["--format=json", "--billing-project=mc-b-cicd-fb7649"],
+        )
+
     def test_empty_team_regression_is_detected(self) -> None:
         current = {"team_members": {"security": [{"username": "alice"}]}}
         generated = {"team_members": {"security": []}}
@@ -191,6 +208,7 @@ class ExportSafetyTest(unittest.TestCase):
     def test_idp_team_inventory_is_explicit(self) -> None:
         expected = {
             "biosecurity",
+            "bootstrap-reviewers",
             "data-platform",
             "engineering",
             "incident-command",
@@ -207,6 +225,24 @@ class ExportSafetyTest(unittest.TestCase):
         self.assertFalse(set(IDP.TEAM_GROUPS) & IDP.DEFERRED_TEAMS)
         self.assertEqual(set(IDP.TEAM_GROUPS) | IDP.DEFERRED_TEAMS, expected)
         self.assertNotIn("data", IDP.TEAM_GROUPS)
+
+    def test_access_expiry_warns_at_t14_and_expires_after_deadline(self) -> None:
+        items = [
+            {
+                "id": "temporary",
+                "principal": "robpearc",
+                "repository": "bootstrap",
+                "expires_at": "2026-11-18",
+            }
+        ]
+
+        expired, upcoming = EXPIRY.evaluate(items, date(2026, 11, 4), 14)
+        self.assertEqual(expired, [])
+        self.assertEqual(len(upcoming), 1)
+
+        expired, upcoming = EXPIRY.evaluate(items, date(2026, 11, 19), 14)
+        self.assertEqual(len(expired), 1)
+        self.assertEqual(upcoming, [])
 
     def test_atomic_write_replaces_complete_document(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -144,6 +144,14 @@ run "team_hierarchy_and_restricted_teams_are_safe" {
     )
     error_message = "Biosecurity and incident-command membership must remain secret."
   }
+
+  assert {
+    condition = (
+      output.teams["bootstrap-reviewers"].privacy == "closed" &&
+      try(output.teams["bootstrap-reviewers"].parent, null) == null
+    )
+    error_message = "The expiring bootstrap reviewer team must remain closed and standalone."
+  }
 }
 
 run "deployment_gates_match_risk" {
@@ -176,11 +184,27 @@ run "deployment_gates_match_risk" {
       contains(output.repositories["github-config"].environments, "plan") &&
       contains(output.repositories["infrastructure-live"].environments, "plan") &&
       contains(output.environments["plan"].reviewer_teams, "infrastructure") &&
+      contains(output.environments["plan"].reviewer_teams, "bootstrap-reviewers") &&
       output.environments["plan"].prevent_self_review &&
       !output.environments["plan"].protected_branches &&
       !output.environments["plan"].custom_branch_policies
     )
     error_message = "Infrastructure plans require a review-gated environment that permits pull-request merge refs."
+  }
+
+
+  assert {
+    condition = (
+      output.team_access["bootstrap"]["bootstrap-reviewers"] == "pull" &&
+      output.team_access["github-config"]["bootstrap-reviewers"] == "pull" &&
+      output.team_access["infrastructure-live"]["bootstrap-reviewers"] == "pull" &&
+      alltrue([
+        for repository, grants in output.team_access :
+        contains(["bootstrap", "github-config", "infrastructure-live"], repository) ||
+        !contains(keys(grants), "bootstrap-reviewers")
+      ])
+    )
+    error_message = "The solo-founder reviewer must remain read-only and limited to the shared control-plane plan surface."
   }
 
   assert {
@@ -212,11 +236,24 @@ run "deployment_gates_match_risk" {
       contains(output.repositories["bootstrap"].environments, "bootstrap-recovery-read") &&
       contains(output.environments["bootstrap-recovery-read"].reviewer_teams, "infrastructure") &&
       contains(output.environments["bootstrap-recovery-read"].reviewer_teams, "security") &&
+      contains(output.environments["bootstrap-recovery-read"].reviewer_teams, "bootstrap-reviewers") &&
       output.environments["bootstrap-recovery-read"].prevent_self_review &&
       output.environments["bootstrap-recovery-read"].protected_branches &&
       !output.environments["bootstrap-recovery-read"].custom_branch_policies
     )
     error_message = "Bootstrap state inspection requires its dedicated governed recovery-read environment."
+  }
+
+
+  assert {
+    condition = (
+      contains(output.environments["bootstrap"].reviewer_teams, "bootstrap-reviewers") &&
+      toset([
+        for name, environment in output.environments : name
+        if contains(environment.reviewer_teams, "bootstrap-reviewers")
+      ]) == toset(["plan", "bootstrap", "bootstrap-recovery-read"])
+    )
+    error_message = "The solo-founder reviewer must be limited to plan, bootstrap, and recovery-read approval."
   }
 
   assert {

@@ -254,6 +254,55 @@ if mapped_github_teams != set(teams):
         f"{sorted(mapped_github_teams ^ set(teams))}"
     )
 
+# The solo-founder reviewer is deliberately standalone and read-only. The shared `plan`
+# environment couples the three control repositories, so every grant and review surface is
+# asserted exactly to prevent this exception from expanding silently.
+bootstrap_reviewer = teams.get("bootstrap-reviewers", {})
+if bootstrap_reviewer.get("privacy") != "closed" or bootstrap_reviewer.get(
+    "parent"
+) is not None:
+    err("team bootstrap-reviewers must remain closed and standalone")
+bootstrap_reviewer_access = {
+    repository: grants["bootstrap-reviewers"]
+    for repository, grants in access.items()
+    if "bootstrap-reviewers" in grants
+}
+expected_bootstrap_reviewer_access = {
+    "bootstrap": "pull",
+    "github-config": "pull",
+    "infrastructure-live": "pull",
+}
+if bootstrap_reviewer_access != expected_bootstrap_reviewer_access:
+    err(
+        "bootstrap-reviewers access must be exactly read-only on bootstrap, "
+        "github-config, and infrastructure-live"
+    )
+bootstrap_reviewer_environments = {
+    name
+    for name, config in environments.items()
+    if "bootstrap-reviewers" in config.get("reviewer_teams", [])
+}
+if bootstrap_reviewer_environments != {
+    "plan",
+    "bootstrap",
+    "bootstrap-recovery-read",
+}:
+    err(
+        "bootstrap-reviewers must review exactly plan, bootstrap, and "
+        "bootstrap-recovery-read"
+    )
+if idp_mappings.get("groups", {}).get("bootstrap-reviewers") != {
+    "github_team": "bootstrap-reviewers"
+}:
+    err("idp/mappings.yaml must map bootstrap-reviewers exactly to its GitHub team")
+if idp_export_literals.get("TEAM_GROUPS", {}).get("bootstrap-reviewers") != (
+    "github-bootstrap-reviewers@{domain}"
+):
+    err(
+        "IdP exporter must map bootstrap-reviewers to "
+        "github-bootstrap-reviewers@{domain}"
+    )
+
 # Repository cross references, visibility and owner access.
 for repo, cfg in repos.items():
     if cfg.get("default_branch") != "main":
@@ -569,6 +618,73 @@ else:
                 err(f"access exception {item['id']}: expired on {expiry}")
         except ValueError as exc:
             err(f"access exception {item.get('id')}: invalid date: {exc}")
+
+    solo_founder_items = [
+        item
+        for item in exceptions
+        if isinstance(item, dict)
+        and str(item.get("id", "")).startswith(
+            "solo-founder-bootstrap-reviewer-"
+        )
+    ]
+    solo_founder_exceptions = {
+        item.get("repository"): item for item in solo_founder_items
+    }
+    if solo_founder_items and (
+        len(solo_founder_items) != 3
+        or set(solo_founder_exceptions)
+        != {"bootstrap", "github-config", "infrastructure-live"}
+    ):
+        err(
+            "solo-founder bootstrap reviewer exception must cover exactly bootstrap, "
+            "github-config, and infrastructure-live"
+        )
+    for repository, item in solo_founder_exceptions.items():
+        if (
+            item.get("principal") != "robpearc"
+            or item.get("role") != "pull"
+            or item.get("approver") != "mindclade-founder"
+        ):
+            err(
+                f"solo-founder bootstrap reviewer exception for {repository} differs "
+                "from the approved same-human read-only scope"
+            )
+        try:
+            created = date.fromisoformat(str(item.get("created_at")))
+            expiry = date.fromisoformat(str(item.get("expires_at")))
+            if (expiry - created).days > 90:
+                err(
+                    f"solo-founder bootstrap reviewer exception for {repository} "
+                    "may not exceed 90 days"
+                )
+        except ValueError:
+            pass  # The generic exception validation above reports the malformed date.
+        if "not independent review" not in str(item.get("reason", "")):
+            err(
+                f"solo-founder bootstrap reviewer exception for {repository} must "
+                "state that it is not independent review"
+            )
+
+expiry_workflow = (ROOT / ".github/workflows/drift.yml").read_text(encoding="utf-8")
+for fragment in (
+    "access-expiry:",
+    "scripts/check-access-expiry.py --warn-days 14",
+    "Access exception renewal or revocation required",
+    "Fail on expired access",
+):
+    if fragment not in expiry_workflow:
+        err(f"drift workflow omits access-expiry control fragment: {fragment}")
+solo_founder_runbook = (ROOT / "docs/solo-founder-reviewer.md").read_text(
+    encoding="utf-8"
+)
+for fragment in (
+    "2026-11-18 23:59 America/Detroit",
+    "At **T-3**",
+    "not independent review",
+    "--update-roles-params=MEMBER=expiration=<approved-duration>",
+):
+    if fragment not in solo_founder_runbook:
+        err(f"solo-founder reviewer runbook omits required control: {fragment}")
 
 # Non-secret CI variable catalog references only managed repositories and carries valid JSON
 # where a value is represented as a serialized object/array.

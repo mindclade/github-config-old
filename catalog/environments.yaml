@@ -31,6 +31,7 @@ plan:
   wait_timer: 0
   reviewer_teams:
     - infrastructure
+    - bootstrap-reviewers
   protected_branches: false
   custom_branch_policies: false
   prevent_self_review: true
@@ -48,6 +49,7 @@ bootstrap:
   reviewer_teams:
     - infrastructure
     - security
+    - bootstrap-reviewers
   protected_branches: true
   custom_branch_policies: false
   prevent_self_review: true
@@ -57,6 +59,7 @@ bootstrap-recovery-read:
   reviewer_teams:
     - infrastructure
     - security
+    - bootstrap-reviewers
   protected_branches: true
   custom_branch_policies: false
   prevent_self_review: true

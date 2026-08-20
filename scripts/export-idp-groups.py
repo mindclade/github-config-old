@@ -22,6 +22,7 @@ ROOT = Path(__file__).resolve().parent.parent
 OUTPUT = ROOT / "idp/team-members.json"
 TEAM_GROUPS = {
     "biosecurity": "biosecurity-review@{domain}",
+    "bootstrap-reviewers": "github-bootstrap-reviewers@{domain}",
     "data-platform": "eng-data@{domain}",
     "engineering": "eng-all@{domain}",
     "platform": "eng-platform@{domain}",
@@ -65,13 +66,21 @@ def parse_args() -> argparse.Namespace:
         "--domain", default=os.environ.get("IDP_DOMAIN", "mindclade.com")
     )
     parser.add_argument("--customer-id", default=os.environ.get("IDP_CUSTOMER_ID", ""))
+    parser.add_argument(
+        "--billing-project",
+        default=os.environ.get("IDP_BILLING_PROJECT", ""),
+        help="quota project for Cloud Identity API requests",
+    )
     return parser.parse_args()
 
 
-def gcloud_json(arguments: list[str]) -> Any:
+def gcloud_json(arguments: list[str], billing_project: str = "") -> Any:
+    command = ["gcloud", *arguments, "--format=json"]
+    if billing_project:
+        command.append(f"--billing-project={billing_project}")
     try:
         result = subprocess.run(
-            ["gcloud", *arguments, "--format=json"],
+            command,
             check=True,
             text=True,
             capture_output=True,
@@ -95,10 +104,10 @@ def gcloud_json(arguments: list[str]) -> Any:
         ) from error
 
 
-def customer_id(explicit: str) -> str:
+def customer_id(explicit: str, billing_project: str = "") -> str:
     if explicit:
         return explicit
-    organizations = gcloud_json(["organizations", "list"])
+    organizations = gcloud_json(["organizations", "list"], billing_project)
     for organization in organizations:
         value = organization.get("owner", {}).get("directoryCustomerId")
         if value:
@@ -108,9 +117,11 @@ def customer_id(explicit: str) -> str:
     )
 
 
-def group_members(group: str) -> list[dict[str, str]]:
+def group_members(group: str, billing_project: str = "") -> list[dict[str, str]]:
     try:
-        described = gcloud_json(["identity", "groups", "describe", group])
+        described = gcloud_json(
+            ["identity", "groups", "describe", group], billing_project
+        )
     except ExportError as error:
         raise ExportError(
             f"required directory group {group} could not be resolved; refusing a partial export: {error}"
@@ -119,7 +130,8 @@ def group_members(group: str) -> list[dict[str, str]]:
     if not group_name:
         raise ExportError(f"required directory group {group} has no immutable name")
     memberships = gcloud_json(
-        ["identity", "groups", "memberships", "list", f"--group-email={group}"]
+        ["identity", "groups", "memberships", "list", f"--group-email={group}"],
+        billing_project,
     )
     members: list[dict[str, str]] = []
     for membership in memberships:
@@ -140,15 +152,19 @@ def group_members(group: str) -> list[dict[str, str]]:
     return members
 
 
-def github_login(email: str) -> str | None:
-    user = gcloud_json(["identity", "users", "describe", email])
+def github_login(email: str, billing_project: str = "") -> str | None:
+    user = gcloud_json(
+        ["identity", "users", "describe", email], billing_project
+    )
     value = user.get("customSchemas", {}).get("github", {}).get("login")
     if value is None or str(value).strip() == "":
         return None
     return str(value).strip()
 
 
-def build_document(domain: str) -> tuple[dict[str, Any], list[str]]:
+def build_document(
+    domain: str, billing_project: str = ""
+) -> tuple[dict[str, Any], list[str]]:
     roles: dict[str, str] = {}
     logins: dict[str, str | None] = {}
     unmapped: set[str] = set()
@@ -163,7 +179,7 @@ def build_document(domain: str) -> tuple[dict[str, Any], list[str]]:
 
     def resolve(email: str) -> str | None:
         if email not in logins:
-            logins[email] = github_login(email)
+            logins[email] = github_login(email, billing_project)
         if logins[email] is None:
             unmapped.add(email)
         return logins[email]
@@ -172,7 +188,7 @@ def build_document(domain: str) -> tuple[dict[str, Any], list[str]]:
         group = pattern.format(domain=domain)
         print(f"  {team} ← {group}", file=sys.stderr)
         team_members: list[dict[str, str]] = []
-        for member in group_members(group):
+        for member in group_members(group, billing_project):
             login = resolve(member["email"])
             if login is None:
                 continue
@@ -182,7 +198,7 @@ def build_document(domain: str) -> tuple[dict[str, Any], list[str]]:
 
     admin_group = f"github-org-admins@{domain}"
     print(f"  org admins ← {admin_group}", file=sys.stderr)
-    for member in group_members(admin_group):
+    for member in group_members(admin_group, billing_project):
         login = resolve(member["email"])
         if login is not None:
             roles[login] = "admin"
@@ -233,12 +249,12 @@ def atomic_write(path: Path, content: str) -> None:
 def main() -> int:
     args = parse_args()
     try:
-        directory_customer = customer_id(args.customer_id)
+        directory_customer = customer_id(args.customer_id, args.billing_project)
         print(
             f"Exporting from directory {directory_customer} ({args.domain})...",
             file=sys.stderr,
         )
-        document, unmapped = build_document(args.domain)
+        document, unmapped = build_document(args.domain, args.billing_project)
         generated = render(document)
         current_document = (
             json.loads(OUTPUT.read_text(encoding="utf-8")) if OUTPUT.is_file() else None

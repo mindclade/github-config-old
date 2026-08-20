@@ -30,3 +30,16 @@ Direct user grants are prohibited except documented, time-bounded emergency or t
 ## Review gates
 
 Production, governance, bootstrap, release, and break-glass operations use protected GitHub environments. Production-control and Ring-0 changes require independent qualified reviewers; self-review is disabled. During a genuine solo-founder period, any exception must be explicit, expiring, and followed by documented post-change review.
+
+The temporary `bootstrap-reviewers` team implements that exception without placing the founder in
+the broader `infrastructure` or `security` teams. It is standalone, receives only `pull` on
+`bootstrap`, `github-config`, and `infrastructure-live`, and can review only the shared `plan`,
+`bootstrap`, and `bootstrap-recovery-read` environments. The `plan` environment is shared by those
+three repositories, so its read-only approval scope cannot be narrowed to `bootstrap` without a
+separate WIF and environment migration.
+
+`robpearc` and `mindclade-founder` represent the same human. Approval through those accounts is
+therefore explicitly **not independent review**. It is a 90-day solo-founder exception expiring at
+2026-11-18 23:59 America/Detroit, must be renewed or revoked through the protected procedure, and
+requires qualified retrospective review when a second human becomes available. See
+[`solo-founder-reviewer.md`](solo-founder-reviewer.md).

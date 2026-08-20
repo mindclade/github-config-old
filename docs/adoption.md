@@ -54,12 +54,13 @@ The token must remain process-environment input only: never write it to Terrafor
 backend configuration, a plan filename, shell tracing, CI, or Git. Stop if `gh auth status` does not
 identify the approved founder account or the plan contains an unreviewed delete/replacement.
 
-After Terraform creates the teams, add the founder manually only to the catalog-declared reviewer
-teams needed to unblock protected environments (`infrastructure`, `security`, `platform`, `release`,
-and `incident-command`). Record each membership in the same expiring solo-founder exception; do not
-grant direct repository access or team `admin`. Replace these manual memberships with verified IdP
-group projection and remove the exception before its expiry. Install and qualify the distinct Apps,
-then use App tokens exclusively for normal plan/apply operation.
+After Terraform creates the teams, use the dedicated IdP-backed `bootstrap-reviewers` team for the
+solo-founder bootstrap exception. Do not make the founder a standing member of the broader
+`infrastructure` or `security` teams, grant direct repository access, or grant team `admin`. Follow
+[`solo-founder-reviewer.md`](solo-founder-reviewer.md) to create the expiring Cloud Identity
+membership, generate the membership projection, apply the exact reviewed plan, and remove any
+temporary manual reviewer-team memberships only after cutover is verified. Install and qualify the
+distinct Apps, then use App tokens exclusively for normal plan/apply operation.
 
 For the initial governance plan, compile only values that already have an authoritative source:
 

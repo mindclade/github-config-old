@@ -7,6 +7,10 @@ engineering:
   description: All Mindclade engineers. Parent of functional engineering teams.
   privacy: closed
   parent: null
+bootstrap-reviewers:
+  description: Expiring solo-founder review authority for bootstrap and control-plane plans.
+  privacy: closed
+  parent: null
 platform:
   description: Kubernetes, GitOps, developer platform, and shared workflow ownership.
   privacy: closed
