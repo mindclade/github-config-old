@@ -24,6 +24,7 @@ allowed_action_patterns:
   - actions/setup-python@*
   - actions/upload-artifact@*
   - anchore/sbom-action@*
+  - aquasecurity/setup-trivy@*
   - aquasecurity/trivy-action@*
   - astral-sh/setup-uv@*
   - bazel-contrib/setup-bazel@*
