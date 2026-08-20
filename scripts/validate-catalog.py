@@ -267,6 +267,13 @@ for repo, cfg in repos.items():
     for environment in cfg.get("environments", []):
         if environment not in environments:
             err(f"{repo}: unknown environment {environment}")
+            continue
+        for reviewer in environments[environment].get("reviewer_teams", []):
+            if reviewer not in access.get(repo, {}):
+                err(
+                    f"{repo}/{environment}: reviewer team {reviewer} must have "
+                    "repository access"
+                )
     if cfg.get("visibility") == "public":
         err(f"{repo}: public visibility requires a separate release/security review")
     if cfg.get("production_authority") == "true" and repo_class not in {

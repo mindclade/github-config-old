@@ -17,15 +17,18 @@ github-config:
 bootstrap:
   infrastructure: maintain
   security: push
+  incident-command: pull
 infrastructure-live:
   infrastructure: maintain
   security: push
   platform: pull
+  incident-command: pull
 gitops:
   platform: maintain
   security: push
   infrastructure: pull
   engineering: pull
+  incident-command: pull
 mindclade-internal-monorepo:
   engineering: maintain
   platform: maintain
