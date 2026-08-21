@@ -145,6 +145,51 @@ class ExportSafetyTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "builder"):
             CI.artifact_release_contract(github, pool, "mindclade")
 
+    def test_dr_evidence_environment_handoff_is_exact_and_applied(self) -> None:
+        pool = "projects/123456789/locations/global/workloadIdentityPools/github"
+        principals = {}
+        for repository in (
+            "bootstrap",
+            "github-config",
+            "infrastructure-live",
+            "gitops",
+        ):
+            for environment in ("scratch", "staging"):
+                principals[f"{repository}:{environment}"] = (
+                    f"principal://iam.googleapis.com/{pool}/subject/dr-evidence:"
+                    f"repo:mindclade@316676129/{repository}@1333792222:"
+                    f"environment:{environment}"
+                )
+        github = {
+            "dr_evidence_identity": {
+                "workload_identity_provider": f"{pool}/providers/gh-dr-evidence",
+                "job_workflow_ref": (
+                    "mindclade/.github/.github/workflows/"
+                    "reusable-dr-evidence.yml@refs/tags/v4.0.0"
+                ),
+                "principals": principals,
+            }
+        }
+        applied = {
+            "SA_DR_EVIDENCE_WRITER": (
+                "sa-dr-evidence-writer@mc-common-ci.iam.gserviceaccount.com"
+            ),
+            "DR_EVIDENCE_PROJECT": "mc-common-security",
+            "DR_EVIDENCE_BUCKET": "mc-dr-evidence-123456",
+        }
+
+        with mock.patch.dict(CI.os.environ, applied, clear=False):
+            values = CI.dr_evidence_environment_contract(
+                github, pool, "mindclade"
+            )
+        self.assertEqual(values["WIF_PROVIDER_DR_EVIDENCE"], f"{pool}/providers/gh-dr-evidence")
+        self.assertEqual(values["DR_EVIDENCE_BUCKET"], applied["DR_EVIDENCE_BUCKET"])
+
+        del github["dr_evidence_identity"]["principals"]["gitops:staging"]
+        with mock.patch.dict(CI.os.environ, applied, clear=False):
+            with self.assertRaisesRegex(ValueError, "principal inventory"):
+                CI.dr_evidence_environment_contract(github, pool, "mindclade")
+
     def test_bootstrap_stage_omits_deferred_catalog_inputs(self) -> None:
         config = {
             ".github": {"PIN_AUDIT_APP_ID": "env:PIN_AUDIT_APP_ID"},

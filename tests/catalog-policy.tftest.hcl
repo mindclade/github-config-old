@@ -14,9 +14,13 @@ run "policy_catalog_is_production_grade" {
     condition = (
       output.actions_policy.default_workflow_permissions == "read" &&
       output.actions_policy.allowed_actions == "selected" &&
-      output.actions_policy.sha_pinning_required
+      output.actions_policy.sha_pinning_required &&
+      contains(
+        output.actions_policy.allowed_action_patterns,
+        "mindclade/.github/actions/validate-repository-home@*"
+      )
     )
-    error_message = "Actions must be selected-only, read-by-default, and SHA-pinned."
+    error_message = "Actions must be selected-only, read-by-default, SHA-pinned, and include the repository-home validator."
   }
 
   assert {
@@ -86,5 +90,21 @@ run "policy_catalog_is_production_grade" {
       output.rulesets["required-checks-infra-static"].repositories == ["mindclade-internal-monorepo"]
     )
     error_message = "infra-static must remain an evaluate-mode, canonical-monorepo-only source contract until observed on pull_request and merge_group."
+  }
+
+  assert {
+    condition = (
+      output.rulesets["required-checks-nix"].enforcement == "evaluate" &&
+      toset(output.rulesets["required-checks-nix"].repositories) == toset([
+        ".github",
+        ".github-private",
+        "bootstrap",
+        "github-config",
+        "gitops",
+        "infrastructure-live",
+        "mindclade-internal-monorepo",
+      ])
+    )
+    error_message = "Nix qualification must remain evaluate-mode and cover exactly the managed estate until rollout evidence is reviewed."
   }
 }

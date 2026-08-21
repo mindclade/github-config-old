@@ -319,6 +319,9 @@ jobs:
           printf '%s' "$CI_VARIABLES" | jq -e 'type == "object"' >/dev/null
           printf '%s' "$ENVIRONMENT_PROJECT_IDS" | jq -e 'type == "object"' >/dev/null
 
+      - name: Capture Terraform state addresses
+        run: terraform state list > state-list.txt
+
       - id: plan
         name: Plan
         env:
@@ -342,6 +345,9 @@ jobs:
           terraform show -json tfplan > plan.json
           rm -f tfplan
 
+      - name: Enforce known-existing adoption safety
+        run: python3 scripts/validate-adoption-plan.py --plan-json plan.json --state-list state-list.txt
+
       - name: Verify immutable OIDC subjects
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -363,6 +369,7 @@ jobs:
           path: |
             plan.txt
             plan.json
+            state-list.txt
           retention-days: 7
           if-no-files-found: error
 

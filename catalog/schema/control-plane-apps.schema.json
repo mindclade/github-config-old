@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["schema_version", "organization", "apps"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": 1},
+    "organization": {"const": "mindclade"},
+    "apps": {
+      "type": "object",
+      "required": ["mindclade-github-config-plan", "mindclade-github-config-apply"],
+      "additionalProperties": false,
+      "properties": {
+        "mindclade-github-config-plan": {"$ref": "#/$defs/app"},
+        "mindclade-github-config-apply": {"$ref": "#/$defs/app"}
+      }
+    }
+  },
+  "$defs": {
+    "permissionLevel": {"enum": ["read", "write", "admin"]},
+    "app": {
+      "type": "object",
+      "required": [
+        "purpose", "capability", "repository_selection", "repositories",
+        "webhook_active", "events", "workflow_mutation_allowed",
+        "permission_nonmutating", "permission_exception",
+        "organization_permissions", "repository_permissions", "credential"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "purpose": {"type": "string", "minLength": 1},
+        "capability": {"enum": ["plan", "apply"]},
+        "repository_selection": {"const": "selected"},
+        "repositories": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "webhook_active": {"const": false},
+        "events": {"type": "array", "maxItems": 0},
+        "workflow_mutation_allowed": {"type": "boolean"},
+        "permission_nonmutating": {"type": "boolean"},
+        "permission_exception": {"type": ["string", "null"]},
+        "organization_permissions": {
+          "type": "object",
+          "additionalProperties": {"$ref": "#/$defs/permissionLevel"}
+        },
+        "repository_permissions": {
+          "type": "object",
+          "additionalProperties": {"$ref": "#/$defs/permissionLevel"}
+        },
+        "credential": {
+          "type": "object",
+          "required": ["app_id_variable", "private_key_secret", "protected_environment"],
+          "additionalProperties": false,
+          "properties": {
+            "app_id_variable": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]+$"},
+            "private_key_secret": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]+$"},
+            "protected_environment": {"enum": ["plan", "governance"]}
+          }
+        }
+      }
+    }
+  }
+}

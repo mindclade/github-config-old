@@ -19,8 +19,8 @@ variable "review_assignment_teams" {
 
 variable "idp_export_path" {
   description = <<-EOT
-    Path to the IdP membership export. Absent is valid and yields no members — that keeps
-    `terraform validate` and a first plan working before the first sync has ever run.
+    Path to the IdP membership export. Absence is tolerated only for offline/source bootstrap;
+    every supported connected plan/apply path must pass validate-adoption-plan.py first.
   EOT
   type        = string
 }

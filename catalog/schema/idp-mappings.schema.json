@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["schema_version", "source_of_truth", "organization_admin_group", "membership_export", "groups"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": 1},
+    "source_of_truth": {"const": "corporate-idp"},
+    "organization_admin_group": {"type": "string", "pattern": "^[^@]+@\\{domain\\}$"},
+    "membership_export": {
+      "type": "object",
+      "required": ["path", "minimum_org_members", "require_all_catalog_teams_resolved_for_activation"],
+      "additionalProperties": false,
+      "properties": {
+        "path": {"const": "idp/team-members.json"},
+        "minimum_org_members": {"type": "integer", "minimum": 1},
+        "require_all_catalog_teams_resolved_for_activation": {"const": true}
+      }
+    },
+    "groups": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": ["github_team", "status", "directory_group"],
+        "additionalProperties": false,
+        "properties": {
+          "github_team": {"type": "string", "minLength": 1},
+          "status": {"enum": ["mapped", "deferred"]},
+          "directory_group": {
+            "oneOf": [
+              {"type": "null"},
+              {"type": "string", "pattern": "^[^@]+@\\{domain\\}$"}
+            ]
+          }
+        }
+      }
+    }
+  }
+}

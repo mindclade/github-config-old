@@ -59,12 +59,20 @@ disabled until an audited endpoint and non-persisted secret-delivery path exist.
 | Repository deletion/transfer | Restricted |
 | Base repository permission | Does not weaken the organization default |
 | Private/internal forking | Disabled unless explicitly approved |
-| Actions policy | No broader than `catalog/actions-policy.yaml` |
+| Actions policy | No broader than `catalog/actions-policy.yaml`, and not narrower than its required internal action paths |
 | Runner groups | Public/untrusted repositories cannot reach private runners |
 | Enterprise bypass | Minimal, named, and reviewed |
 
 Organization-level Actions permissions, rulesets, repositories, and environments are managed by
 this root. The enterprise policy is the ceiling and must not silently widen them.
+
+The connected organization audit is `scripts/audit-connected-governance.py`. It is GET-only and
+fails when any required endpoint is denied; a partial inventory is not compliance evidence. App
+installation repository selection requires an approved organization-owner read credential because
+one App installation token cannot enumerate another installation through the user-installation
+endpoint. The plan App also needs organization Administration write solely because GitHub gates the
+organization-ruleset GET endpoint at that permission level; its workflow is non-mutating, but its
+token must not be described or handled as intrinsically read-only.
 
 ### Private vulnerability reporting
 

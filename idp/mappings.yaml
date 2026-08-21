@@ -3,31 +3,63 @@
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
 
 ---
+schema_version: 1
 source_of_truth: corporate-idp
+organization_admin_group: github-org-admins@{domain}
+membership_export:
+  path: idp/team-members.json
+  minimum_org_members: 1
+  require_all_catalog_teams_resolved_for_activation: true
 groups:
-  engineering:
-    github_team: engineering
-  bootstrap-reviewers:
-    github_team: bootstrap-reviewers
-  platform:
-    github_team: platform
-  infrastructure:
-    github_team: infrastructure
-  security:
-    github_team: security
-  data-platform:
-    github_team: data-platform
-  research:
-    github_team: research
-  model-training:
-    github_team: model-training
-  model-serving:
-    github_team: model-serving
-  product:
-    github_team: product
-  release:
-    github_team: release
-  incident-command:
-    github_team: incident-command
   biosecurity:
     github_team: biosecurity
+    status: mapped
+    directory_group: biosecurity-review@{domain}
+  bootstrap-reviewers:
+    github_team: bootstrap-reviewers
+    status: mapped
+    directory_group: github-bootstrap-reviewers@{domain}
+  data-platform:
+    github_team: data-platform
+    status: mapped
+    directory_group: eng-data@{domain}
+  engineering:
+    github_team: engineering
+    status: mapped
+    directory_group: eng-all@{domain}
+  incident-command:
+    github_team: incident-command
+    status: deferred
+    directory_group: null
+  infrastructure:
+    github_team: infrastructure
+    status: deferred
+    directory_group: null
+  model-serving:
+    github_team: model-serving
+    status: deferred
+    directory_group: null
+  model-training:
+    github_team: model-training
+    status: deferred
+    directory_group: null
+  platform:
+    github_team: platform
+    status: mapped
+    directory_group: eng-platform@{domain}
+  product:
+    github_team: product
+    status: deferred
+    directory_group: null
+  release:
+    github_team: release
+    status: deferred
+    directory_group: null
+  research:
+    github_team: research
+    status: mapped
+    directory_group: eng-research@{domain}
+  security:
+    github_team: security
+    status: mapped
+    directory_group: eng-security@{domain}

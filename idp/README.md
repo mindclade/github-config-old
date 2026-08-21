@@ -21,11 +21,13 @@ someone's access being revoked for no reason. Change the group in the IdP instea
 it is omitted from the export and warned about, rather than guessed at from the local part of
 their email.
 
-## Absence is valid
+## Source qualification versus activation
 
 `membership.tf` guards the read with `fileexists()`, so a missing file yields no members and
-`terraform validate` still works. That is deliberate: requiring the export to exist before the
-repository can be initialised is a bootstrap ordering problem nobody needs.
+offline `terraform validate` still works. That supports source/bootstrap validation only. The
+production workflow runs `scripts/validate-adoption-plan.py --activation`, which fails when this
+file is absent, contains no organization members, omits a catalog team, or when any directory-group
+mapping remains deferred.
 
 It also means **an empty file is indistinguishable from an outage**, which is why the export
 script refuses to write a document with zero org members. Writing one would remove every
@@ -33,10 +35,10 @@ member on the next apply.
 
 ## Which group feeds which team
 
-`TEAM_GROUPS` in the export script contains only verified directory addresses. Every catalog
-team is either in that map or in the explicit `DEFERRED_TEAMS` set; catalog validation fails if
-a team is missing from both, appears in both, or uses the stale `data` key instead of
-`data-platform`.
+`mappings.yaml` is the only source for verified directory addresses. The export script derives its
+mapped and deferred sets from that document; catalog validation fails if a team is missing, appears
+in both states, carries an address while deferred, or uses an address different from the verified
+contract.
 
 The currently verified projections are `biosecurity`, `bootstrap-reviewers`, `data-platform`,
 `engineering`, `platform`, `research`, and `security`. The dedicated reviewer projection is
@@ -44,9 +46,9 @@ The currently verified projections are `biosecurity`, `bootstrap-reviewers`, `da
 solo-founder procedure in [`docs/solo-founder-reviewer.md`](../docs/solo-founder-reviewer.md).
 Directory addresses for `incident-command`, `infrastructure`, `model-serving`, `model-training`,
 `product`, and `release` have not been verified in source. The exporter warns and omits those teams
-rather than deriving privileged group names by convention. Add each real address to `TEAM_GROUPS`
-and remove the same key from `DEFERRED_TEAMS` in one reviewed change after a read-only directory
-inventory confirms it.
+rather than deriving privileged group names by convention. Change each entry from `deferred` to
+`mapped` and add its exact address in one reviewed change only after a read-only directory inventory
+confirms it. No human login belongs in `mappings.yaml`.
 
 Cloud Identity commands must charge quota to the bootstrap CI/CD project:
 

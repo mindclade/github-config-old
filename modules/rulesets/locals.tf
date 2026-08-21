@@ -30,6 +30,7 @@ check "catalog_matches_implemented_rulesets" {
       "required-checks-go",
       "required-checks-infra-static",
       "required-checks-mixed",
+      "required-checks-nix",
       "required-checks-tf",
       "required-checks-tf-static",
       "required-checks-tf-tests",

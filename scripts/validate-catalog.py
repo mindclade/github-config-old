@@ -8,7 +8,6 @@
 
 from __future__ import annotations
 
-import ast
 from datetime import date
 import json
 from pathlib import Path
@@ -41,6 +40,7 @@ EXPECTED_CLASSES = {
 }
 EXPECTED_ENVIRONMENTS = {
     "development",
+    "scratch",
     "staging",
     "production",
     "plan",
@@ -61,11 +61,47 @@ EXPECTED_RULESETS = {
     "required-checks-go",
     "required-checks-infra-static",
     "required-checks-mixed",
+    "required-checks-nix",
     "required-checks-tf",
     "required-checks-tf-static",
     "required-checks-tf-tests",
     "ruleset-workflows",
     "tag-protection",
+}
+EXPECTED_RULESET_ENFORCEMENT = {
+    "baseline-all": "active",
+    "merge-queue": "active",
+    "protected-paths": "active",
+    "release-authority-paths": "active",
+    "push-blocklist": "active",
+    "required-checks-bootstrap": "active",
+    "required-checks-gitops": "active",
+    "required-checks-go": "evaluate",
+    "required-checks-infra-static": "evaluate",
+    "required-checks-mixed": "evaluate",
+    "required-checks-nix": "evaluate",
+    "required-checks-tf": "active",
+    "required-checks-tf-static": "active",
+    "required-checks-tf-tests": "active",
+    "ruleset-workflows": "active",
+    "tag-protection": "active",
+}
+EXPECTED_IDP_GROUPS = {
+    "biosecurity": "biosecurity-review@{domain}",
+    "bootstrap-reviewers": "github-bootstrap-reviewers@{domain}",
+    "data-platform": "eng-data@{domain}",
+    "engineering": "eng-all@{domain}",
+    "platform": "eng-platform@{domain}",
+    "research": "eng-research@{domain}",
+    "security": "eng-security@{domain}",
+}
+EXPECTED_DEFERRED_IDP_TEAMS = {
+    "incident-command",
+    "infrastructure",
+    "model-serving",
+    "model-training",
+    "product",
+    "release",
 }
 PROPERTY_FIELDS = {
     "mindclade_repository_class": "repository_class",
@@ -149,7 +185,14 @@ def err(message: str) -> None:
 
 
 # Schema-backed core catalogs.
-for stem in ("repositories", "teams", "access", "environments"):
+for stem in (
+    "repositories",
+    "teams",
+    "access",
+    "adoption-inventory",
+    "environments",
+    "control-plane-apps",
+):
     data = load_yaml(f"{stem}.yaml")
     try:
         schema = json.loads(
@@ -173,6 +216,7 @@ properties = load_yaml("custom-properties.yaml") or {}
 rulesets = load_yaml("rulesets.yaml") or {}
 runner_groups = load_yaml("runner-groups.yaml") or {}
 github_apps = load_yaml("github-apps.yaml") or {}
+control_plane_apps = load_yaml("control-plane-apps.yaml") or {}
 exceptions = load_yaml("access-exceptions.yaml") or []
 ci_variables = load_yaml("ci-variables.yaml") or {}
 
@@ -182,6 +226,15 @@ try:
 except Exception as exc:  # pragma: no cover - diagnostic path
     err(f"idp/mappings.yaml: cannot parse YAML: {exc}")
     idp_mappings = {}
+try:
+    idp_schema = json.loads(
+        (SCHEMA / "idp-mappings.schema.json").read_text(encoding="utf-8")
+    )
+    for issue in Draft202012Validator(idp_schema).iter_errors(idp_mappings):
+        location = "/".join(map(str, issue.absolute_path)) or "<root>"
+        err(f"idp/mappings.yaml: {location}: {issue.message}")
+except Exception as exc:
+    err(f"idp/mappings.yaml: cannot read schema: {exc}")
 
 if set(repos) != EXPECTED_REPOS:
     err(f"repository estate differs: {sorted(set(repos) ^ EXPECTED_REPOS)}")
@@ -199,6 +252,12 @@ if set(rulesets) != EXPECTED_RULESETS:
     err(
         f"ruleset inventory differs from implementation: {sorted(set(rulesets) ^ EXPECTED_RULESETS)}"
     )
+for name, enforcement in EXPECTED_RULESET_ENFORCEMENT.items():
+    if rulesets.get(name, {}).get("enforcement") != enforcement:
+        err(
+            f"ruleset {name}: resting enforcement must be {enforcement}; use the "
+            "reviewed enforcement override only for a time-bounded rollout"
+        )
 expected_runner_group = {
     "visibility": "selected",
     "allowsPublicRepositories": False,
@@ -221,6 +280,11 @@ else:
         "selfHostedRunners": "write"
     }:
         err("ARC GitHub App has an unexpected organization permission contract")
+    if github_apps["mindclade-arc"].get("repositoryPermissions") != {
+        "actions": "read",
+        "metadata": "read",
+    }:
+        err("ARC GitHub App has an unexpected repository permission contract")
     promoter = github_apps["mindclade-release-promoter"]
     if promoter.get("repositories") != ["gitops"]:
         err("release promoter App must be selected to gitops only")
@@ -230,6 +294,87 @@ else:
         "pullRequests": "write",
     }:
         err("release promoter App has an unexpected repository permission contract")
+    if promoter.get("organizationPermissions") != {}:
+        err("release promoter App must not have organization permissions")
+
+expected_control_repositories = sorted(EXPECTED_REPOS)
+expected_control_permissions = {
+    "mindclade-github-config-plan": {
+        "capability": "plan",
+        "workflow_mutation_allowed": False,
+        "permission_nonmutating": False,
+        "organization_permissions": {
+            "members": "read",
+            "organization_actions_variables": "read",
+            "organization_administration": "write",
+            "organization_custom_properties": "read",
+            "organization_self_hosted_runners": "read",
+        },
+        "repository_permissions": {
+            "actions": "read",
+            "actions_variables": "read",
+            "administration": "read",
+            "environments": "read",
+            "metadata": "read",
+            "repository_custom_properties": "read",
+            "vulnerability_alerts": "read",
+        },
+        "credential": {
+            "app_id_variable": "TF_PLAN_APP_ID",
+            "private_key_secret": "TF_GITHUB_PLAN_APP_PEM",
+            "protected_environment": "plan",
+        },
+    },
+    "mindclade-github-config-apply": {
+        "capability": "apply",
+        "workflow_mutation_allowed": True,
+        "permission_nonmutating": False,
+        "organization_permissions": {
+            "members": "write",
+            "organization_actions_variables": "write",
+            "organization_administration": "write",
+            "organization_custom_properties": "admin",
+            "organization_self_hosted_runners": "write",
+        },
+        "repository_permissions": {
+            "actions": "write",
+            "actions_variables": "write",
+            "administration": "write",
+            "environments": "write",
+            "metadata": "read",
+            "repository_custom_properties": "write",
+            "vulnerability_alerts": "write",
+        },
+        "credential": {
+            "app_id_variable": "TF_APPLY_APP_ID",
+            "private_key_secret": "TF_GITHUB_APPLY_APP_PEM",
+            "protected_environment": "governance",
+        },
+    },
+}
+if control_plane_apps.get("organization") != "mindclade":
+    err("control-plane Apps must be owned by the canonical mindclade organization")
+declared_control_apps = control_plane_apps.get("apps", {})
+if set(declared_control_apps) != set(expected_control_permissions):
+    err("control-plane GitHub App inventory is not exact")
+for name, expected in expected_control_permissions.items():
+    app = declared_control_apps.get(name, {})
+    if sorted(app.get("repositories", [])) != expected_control_repositories:
+        err(f"{name}: installation selection must contain exactly the managed estate")
+    if app.get("repository_selection") != "selected":
+        err(f"{name}: repository selection must be selected, never all")
+    if app.get("webhook_active") is not False or app.get("events") != []:
+        err(f"{name}: webhooks and events must be disabled")
+    for field, value in expected.items():
+        if app.get(field) != value:
+            err(f"{name}: {field} differs from the least-privilege contract")
+plan_exception = str(
+    declared_control_apps.get("mindclade-github-config-plan", {}).get(
+        "permission_exception", ""
+    )
+)
+if "organization_administration write" not in plan_exception:
+    err("plan App must document GitHub's organization-ruleset read permission exception")
 if set(properties) != set(PROPERTY_FIELDS):
     err(
         f"custom-property inventory differs: {sorted(set(properties) ^ set(PROPERTY_FIELDS))}"
@@ -250,36 +395,39 @@ for start in teams:
         seen.add(current)
         current = teams.get(current, {}).get("parent")
 
-# The IdP export may intentionally defer teams whose real directory address has not been
-# verified, but every catalog team must be accounted for exactly once. This makes omissions
-# visible without inventing privileged group names.
-idp_exporter_path = ROOT / "scripts" / "export-idp-groups.py"
-idp_exporter_text = idp_exporter_path.read_text(encoding="utf-8")
-idp_exporter_tree = ast.parse(idp_exporter_text, filename=str(idp_exporter_path))
-idp_export_literals: dict[str, Any] = {}
-for node in idp_exporter_tree.body:
-    if isinstance(node, ast.Assign):
-        for target in node.targets:
-            if isinstance(target, ast.Name) and target.id in {
-                "TEAM_GROUPS",
-                "DEFERRED_TEAMS",
-            }:
-                idp_export_literals[target.id] = ast.literal_eval(node.value)
-idp_exported_teams = set(idp_export_literals.get("TEAM_GROUPS", {}))
-idp_deferred_teams = set(idp_export_literals.get("DEFERRED_TEAMS", set()))
-if idp_exported_teams & idp_deferred_teams:
+# The mapping document is the exporter's sole group-address authority. Deferred teams are
+# explicit activation blockers; the validator never guesses their directory addresses.
+idp_groups = idp_mappings.get("groups", {})
+idp_exported_teams = {
+    name for name, config in idp_groups.items() if config.get("status") == "mapped"
+}
+idp_deferred_teams = {
+    name for name, config in idp_groups.items() if config.get("status") == "deferred"
+}
+if idp_exported_teams != set(EXPECTED_IDP_GROUPS):
     err(
-        "IdP exporter teams cannot be both mapped and deferred: "
-        f"{sorted(idp_exported_teams & idp_deferred_teams)}"
+        "verified IdP group inventory differs: "
+        f"{sorted(idp_exported_teams ^ set(EXPECTED_IDP_GROUPS))}"
     )
+for name, address in EXPECTED_IDP_GROUPS.items():
+    if idp_groups.get(name, {}).get("directory_group") != address:
+        err(f"IdP group {name}: directory address differs from verified source")
+if idp_deferred_teams != EXPECTED_DEFERRED_IDP_TEAMS:
+    err(
+        "deferred IdP team inventory differs: "
+        f"{sorted(idp_deferred_teams ^ EXPECTED_DEFERRED_IDP_TEAMS)}"
+    )
+for name in idp_deferred_teams:
+    if idp_groups.get(name, {}).get("directory_group") is not None:
+        err(f"IdP group {name}: deferred teams must not carry a guessed address")
 if idp_exported_teams | idp_deferred_teams != set(teams):
     err(
-        "IdP exporter mapped/deferred inventory differs from catalog/teams.yaml: "
+        "IdP mapped/deferred inventory differs from catalog/teams.yaml: "
         f"{sorted((idp_exported_teams | idp_deferred_teams) ^ set(teams))}"
     )
 mapped_github_teams = {
     str(config.get("github_team", ""))
-    for config in idp_mappings.get("groups", {}).values()
+    for config in idp_groups.values()
     if isinstance(config, dict)
 }
 if mapped_github_teams != set(teams):
@@ -325,16 +473,14 @@ if bootstrap_reviewer_environments != {
         "bootstrap-reviewers must review exactly plan, bootstrap, and "
         "bootstrap-recovery-read"
     )
-if idp_mappings.get("groups", {}).get("bootstrap-reviewers") != {
-    "github_team": "bootstrap-reviewers"
+if idp_groups.get("bootstrap-reviewers") != {
+    "github_team": "bootstrap-reviewers",
+    "status": "mapped",
+    "directory_group": "github-bootstrap-reviewers@{domain}",
 }:
-    err("idp/mappings.yaml must map bootstrap-reviewers exactly to its GitHub team")
-if idp_export_literals.get("TEAM_GROUPS", {}).get("bootstrap-reviewers") != (
-    "github-bootstrap-reviewers@{domain}"
-):
     err(
-        "IdP exporter must map bootstrap-reviewers to "
-        "github-bootstrap-reviewers@{domain}"
+        "idp/mappings.yaml must map bootstrap-reviewers exactly to its verified "
+        "directory group"
     )
 
 # Repository cross references, visibility and owner access.
@@ -385,6 +531,8 @@ for name, cfg in environments.items():
         if reviewer not in teams:
             err(f"environment {name}: unknown reviewer team {reviewer}")
     if name in {
+        "scratch",
+        "staging",
         "governance",
         "bootstrap",
         "bootstrap-recovery-read",
@@ -437,6 +585,18 @@ if not {"infrastructure", "security"}.issubset(
     err(
         "environment bootstrap-recovery-read: infrastructure and security review are required"
     )
+
+dr_evidence_repositories = {"bootstrap", "github-config", "infrastructure-live", "gitops"}
+for repository in dr_evidence_repositories:
+    declared = set(repos.get(repository, {}).get("environments", []))
+    if not {"scratch", "staging"}.issubset(declared):
+        err(f"{repository}: DR evidence requires scratch and staging environments")
+for name in ("scratch", "staging"):
+    environment = environments.get(name, {})
+    if set(environment.get("reviewer_teams", [])) != {"security"}:
+        err(f"environment {name}: security must be the sole cross-repository DR reviewer")
+    if not environment.get("protected_branches") or not environment.get("prevent_self_review"):
+        err(f"environment {name}: DR evidence requires protected branches and no self-review")
 
 # GitOps promotion jobs select an environment from the promotion target. Both pre-production
 # rehearsal and production therefore need explicit protected-branch gates; otherwise a caller
@@ -501,6 +661,8 @@ if not any(
     str(item).startswith("mindclade/.github/.github/workflows/") for item in patterns
 ):
     err("actions policy: Mindclade shared workflows are not allowlisted")
+if "mindclade/.github/actions/validate-repository-home@*" not in patterns:
+    err("actions policy: the repository-home validator action is not allowlisted")
 
 # OIDC policy. Optional claims must not be required organization-wide.
 subject_claims = set(oidc.get("subject_claim_keys", []))
@@ -612,6 +774,50 @@ for fragment in (
 ):
     if fragment not in infra_static_ruleset:
         err(f"required-checks-infra-static implementation omits {fragment}")
+
+nix_checks = rulesets.get("required-checks-nix", {})
+if nix_checks.get("enforcement") != "evaluate":
+    err("required-checks-nix must remain evaluate until native rollout evidence is reviewed")
+nix_repositories = nix_checks.get("repositories", [])
+if len(nix_repositories) != len(EXPECTED_REPOS) or set(nix_repositories) != EXPECTED_REPOS:
+    err("required-checks-nix must target exactly the seven managed repositories")
+nix_ruleset = (
+    ROOT / "modules" / "rulesets" / "required-checks-nix.tf"
+).read_text(encoding="utf-8")
+for fragment in (
+    'context = "nix / verdict"',
+    "strict_required_status_checks_policy = true",
+    "do_not_enforce_on_create             = true",
+):
+    if fragment not in nix_ruleset:
+        err(f"required-checks-nix implementation omits {fragment}")
+
+nix_workflow_path = ROOT / ".github" / "workflows" / "nix-qualification.yml"
+try:
+    nix_workflow = yaml.safe_load(nix_workflow_path.read_text(encoding="utf-8"))
+except (OSError, yaml.YAMLError) as exc:
+    err(f"nix-qualification workflow cannot be parsed: {exc}")
+    nix_workflow = {}
+nix_job = nix_workflow.get("jobs", {}).get("nix", {})
+if nix_workflow.get("permissions") != {"contents": "read"}:
+    err("nix-qualification workflow must have exact contents:read top-level permission")
+if nix_job.get("permissions"):
+    err("nix-qualification caller job must not add permissions")
+if nix_job.get("secrets"):
+    err("nix-qualification caller must not inherit or pass secrets")
+if nix_job.get("uses") != (
+    "mindclade/.github/.github/workflows/"
+    "reusable-nix-qualification.yml@v4.1.0"
+):
+    err("nix-qualification must use the immutable internal v4.1.0 workflow release")
+nix_inputs = nix_job.get("with", {})
+for name in ("enable-aarch64-linux", "enable-aarch64-darwin"):
+    if nix_inputs.get(name) is not True:
+        err(f"nix-qualification must enable native {name.removeprefix('enable-')}")
+if nix_inputs.get("ci-command") != "make validate":
+    err("nix-qualification must execute the canonical make validate entrypoint")
+if nix_inputs.get("reproducibility-targets") != ".#packages.x86_64-linux.terraform":
+    err("nix-qualification must rebuild the pinned x86_64-linux Terraform package")
 
 # Time-bounded access exceptions.
 if not isinstance(exceptions, list):
@@ -820,6 +1026,7 @@ required_export_fragments = {
     "infrastructure-live/ARTIFACT_RELEASE_IDENTITIES_JSON": '"ARTIFACT_RELEASE_IDENTITIES_JSON"',
     "infrastructure-live/ARTIFACT_SIGNER_PRINCIPAL": '"ARTIFACT_SIGNER_PRINCIPAL"',
     "infrastructure-live/ARTIFACT_SIGNER_JOB_WORKFLOW_REF": '"ARTIFACT_SIGNER_JOB_WORKFLOW_REF"',
+    "github-config/DR_EVIDENCE_ENVIRONMENT_VARIABLES": '"DR_EVIDENCE_ENVIRONMENT_VARIABLES"',
     "monorepo/WIF_PROVIDER_SIGNER": '"WIF_PROVIDER_SIGNER"',
     "monorepo/WIF_PROVIDER_ARC_CANARY": '"WIF_PROVIDER_ARC_CANARY"',
     "monorepo/WIF_PROVIDER_ARC_BUILDER": '"WIF_PROVIDER_ARC_BUILDER"',
@@ -833,7 +1040,7 @@ for name, fragment in required_export_fragments.items():
 if '"platform_contract"' not in ci_variable_exporter:
     err("ci-variable exporter must source bootstrap/platform_contract")
 for fragment in (
-    'platform.get("contract_version") != "1.3.0"',
+    'platform.get("contract_version") != "1.4.0"',
     '"replica_buckets"',
     'if enabled or buildkite.get("workload_identity_pool") is not None',
     '"workload_identity_pool"',
@@ -842,10 +1049,11 @@ for fragment in (
     'selected["bootstrap"]["SECURITY_CONTACT"] = "env:SECURITY_CONTACT"',
     '"artifact_release_identities"',
     "artifact_release_contract(",
+    "dr_evidence_environment_contract(",
     'choices=("bootstrap", "full")',
 ):
     if fragment not in ci_variable_exporter:
-        err(f"ci-variable exporter omits bootstrap 1.3 contract fragment: {fragment}")
+        err(f"ci-variable exporter omits bootstrap 1.4 contract fragment: {fragment}")
 if '"state_replica_buckets"' in ci_variable_exporter:
     err(
         "ci-variable exporter must use platform_contract, not bootstrap convenience outputs"
@@ -1023,5 +1231,6 @@ if errors:
 print(
     "catalog validation passed: "
     f"{len(repos)} repositories, {len(teams)} teams, {len(environments)} environments, "
-    f"{len(rulesets)} rulesets, {len(properties)} custom properties"
+    f"{len(rulesets)} rulesets, {len(properties)} custom properties, "
+    f"{len(declared_control_apps)} control-plane Apps"
 )

@@ -234,6 +234,7 @@ check "ruleset_catalog_matches_the_implementation" {
       "required-checks-go",
       "required-checks-infra-static",
       "required-checks-mixed",
+      "required-checks-nix",
       "required-checks-tf",
       "required-checks-tf-static",
       "required-checks-tf-tests",

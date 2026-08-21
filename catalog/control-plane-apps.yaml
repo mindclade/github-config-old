@@ -1,0 +1,78 @@
+# Copyright © 2026 Mindclade, LLC. All Rights Reserved.
+# Mindclade Proprietary and Confidential.
+# SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
+
+---
+schema_version: 1
+organization: mindclade
+apps:
+  mindclade-github-config-plan:
+    purpose: Refresh Terraform state, create speculative plans, and audit connected governance.
+    capability: plan
+    repository_selection: selected
+    repositories:
+      - .github
+      - .github-private
+      - bootstrap
+      - github-config
+      - gitops
+      - infrastructure-live
+      - mindclade-internal-monorepo
+    webhook_active: false
+    events: []
+    workflow_mutation_allowed: false
+    permission_nonmutating: false
+    permission_exception: GitHub requires organization_administration write to read organization rulesets; the protected plan workflow must prove it performs no GitHub mutation.
+    organization_permissions:
+      members: read
+      organization_actions_variables: read
+      organization_administration: write
+      organization_custom_properties: read
+      organization_self_hosted_runners: read
+    repository_permissions:
+      actions: read
+      actions_variables: read
+      administration: read
+      environments: read
+      metadata: read
+      repository_custom_properties: read
+      vulnerability_alerts: read
+    credential:
+      app_id_variable: TF_PLAN_APP_ID
+      private_key_secret: TF_GITHUB_PLAN_APP_PEM
+      protected_environment: plan
+  mindclade-github-config-apply:
+    purpose: Apply one reviewed, checksummed Terraform plan through the governance environment.
+    capability: apply
+    repository_selection: selected
+    repositories:
+      - .github
+      - .github-private
+      - bootstrap
+      - github-config
+      - gitops
+      - infrastructure-live
+      - mindclade-internal-monorepo
+    webhook_active: false
+    events: []
+    workflow_mutation_allowed: true
+    permission_nonmutating: false
+    permission_exception: null
+    organization_permissions:
+      members: write
+      organization_actions_variables: write
+      organization_administration: write
+      organization_custom_properties: admin
+      organization_self_hosted_runners: write
+    repository_permissions:
+      actions: write
+      actions_variables: write
+      administration: write
+      environments: write
+      metadata: read
+      repository_custom_properties: write
+      vulnerability_alerts: write
+    credential:
+      app_id_variable: TF_APPLY_APP_ID
+      private_key_secret: TF_GITHUB_APPLY_APP_PEM
+      protected_environment: governance

@@ -92,7 +92,7 @@ flowchart LR
 
 | Path | Purpose |
 | --- | --- |
-| `catalog/` | Human-authored organization policy. |
+| `catalog/` | Human-authored organization policy, App contracts, and adoption evidence. |
 | `catalog/schema/` | Machine-readable catalog contracts. |
 | `modules/catalog/` | Provider-free normalization and cross-reference checks. |
 | `modules/repositories/` | Repositories, properties, environments, and access. |
@@ -113,6 +113,7 @@ replacements fail closed unless an authorized operator provides the documented d
 - [Architecture](docs/architecture.md)
 - [Access model](docs/access-model.md)
 - [Actions policy](docs/actions-policy.md)
+- [GitHub App authority contracts](docs/github-apps.md)
 - [Onboarding](docs/onboarding.md) and [offboarding](docs/offboarding.md)
 - [Contributing](CONTRIBUTING.md)
 

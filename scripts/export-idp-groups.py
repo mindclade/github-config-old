@@ -17,29 +17,43 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 
 ROOT = Path(__file__).resolve().parent.parent
-OUTPUT = ROOT / "idp/team-members.json"
-TEAM_GROUPS = {
-    "biosecurity": "biosecurity-review@{domain}",
-    "bootstrap-reviewers": "github-bootstrap-reviewers@{domain}",
-    "data-platform": "eng-data@{domain}",
-    "engineering": "eng-all@{domain}",
-    "platform": "eng-platform@{domain}",
-    "research": "eng-research@{domain}",
-    "security": "eng-security@{domain}",
-}
+MAPPINGS_PATH = ROOT / "idp/mappings.yaml"
 
-# These catalog teams do not yet have a verified Cloud Identity group address in source. Keep
-# the omission explicit and noisy instead of guessing a privileged group name from the team key.
-DEFERRED_TEAMS = {
-    "incident-command",
-    "infrastructure",
-    "model-serving",
-    "model-training",
-    "product",
-    "release",
+
+def load_mapping_contract(path: Path = MAPPINGS_PATH) -> dict[str, Any]:
+    """Load the sole directory-group mapping contract.
+
+    Keeping these values in YAML makes review, schema validation, the exporter, and connected
+    qualification consume one source. In particular, no script may derive a privileged group
+    address from a GitHub team key.
+    """
+
+    try:
+        document = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError) as error:
+        raise RuntimeError(f"cannot load {path}: {error}") from error
+    if not isinstance(document, dict):
+        raise RuntimeError(f"{path} must contain a mapping")
+    return document
+
+
+MAPPING_CONTRACT = load_mapping_contract()
+OUTPUT = ROOT / str(MAPPING_CONTRACT["membership_export"]["path"])
+TEAM_GROUPS = {
+    name: str(config["directory_group"])
+    for name, config in MAPPING_CONTRACT["groups"].items()
+    if config.get("status") == "mapped"
 }
+DEFERRED_TEAMS = {
+    name
+    for name, config in MAPPING_CONTRACT["groups"].items()
+    if config.get("status") == "deferred"
+}
+ORGANIZATION_ADMIN_GROUP = str(MAPPING_CONTRACT["organization_admin_group"])
 
 
 class ExportError(RuntimeError):
@@ -196,7 +210,7 @@ def build_document(
             team_members.append({"username": login, "role": member["role"]})
         teams[team] = sorted(team_members, key=lambda item: item["username"])
 
-    admin_group = f"github-org-admins@{domain}"
+    admin_group = ORGANIZATION_ADMIN_GROUP.format(domain=domain)
     print(f"  org admins ← {admin_group}", file=sys.stderr)
     for member in group_members(admin_group, billing_project):
         login = resolve(member["email"])
