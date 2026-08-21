@@ -10,7 +10,7 @@ Keep the ruleset in evaluate mode until all of the following evidence has been r
 1. An operator publishes the immutable `.github` workflow release `v5.0.0`, which includes the
    x86 baseline, native ARM qualification, and independent rebuild qualification.
 2. Until that tag exists, every consumer uses the audited immutable candidate commit
-   `db363da19deb14beb5063c25890e44effe7e6d49`; a reviewed follow-up moves consumers to
+   `0bdba2a8d06c732a6eb0a09238267dc83e1ca576`; a reviewed follow-up moves consumers to
    `@v5.0.0` only after the annotated tag resolves to that exact commit.
 3. Pull-request and merge-group runs emit `nix / verdict`, including pull requests with no
    Nix-owned changes.
