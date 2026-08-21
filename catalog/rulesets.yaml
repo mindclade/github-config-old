@@ -51,6 +51,18 @@ required-checks-mixed:
     - mixed
   # Promote to active only after the real monorepo reports these exact contexts.
   enforcement: evaluate
+required-checks-nix:
+  repositories:
+    - .github
+    - .github-private
+    - bootstrap
+    - github-config
+    - gitops
+    - infrastructure-live
+    - mindclade-internal-monorepo
+  # Observe the released reusable workflow on pull requests, merge groups, and scheduled
+  # native runners before making this context merge-blocking.
+  enforcement: evaluate
 required-checks-tf:
   repositories:
     - github-config

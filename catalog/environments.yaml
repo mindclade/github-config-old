@@ -10,10 +10,18 @@ development:
   custom_branch_policies: false
   prevent_self_review: false
   project_required: true
+scratch:
+  wait_timer: 0
+  reviewer_teams:
+    - security
+  protected_branches: true
+  custom_branch_policies: false
+  prevent_self_review: true
+  project_required: false
 staging:
   wait_timer: 0
   reviewer_teams:
-    - platform
+    - security
   protected_branches: true
   custom_branch_policies: false
   prevent_self_review: true

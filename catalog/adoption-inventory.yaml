@@ -1,0 +1,129 @@
+# Copyright © 2026 Mindclade, LLC. All Rights Reserved.
+# Mindclade Proprietary and Confidential.
+# SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
+
+---
+schema_version: 1
+organization: mindclade
+observed_at: "2026-08-20"
+qualification: blocked
+evidence_scope: Read-only GitHub API inventory; Terraform state was not accessible in this review.
+known_existing:
+  - kind: organization
+    name: mindclade
+    terraform_address: module.organization.github_organization_settings.this
+    import_id: mindclade
+    connected_id: "316676129"
+  - kind: repository
+    name: .github
+    terraform_address: module.repositories.github_repository.this[".github"]
+    import_id: .github
+    connected_id: "1340400485"
+  - kind: repository
+    name: .github-private
+    terraform_address: module.repositories.github_repository.this[".github-private"]
+    import_id: .github-private
+    connected_id: "1340400917"
+  - kind: repository
+    name: bootstrap
+    terraform_address: module.repositories.github_repository.this["bootstrap"]
+    import_id: bootstrap
+    connected_id: "1340467619"
+  - kind: repository
+    name: github-config
+    terraform_address: module.repositories.github_repository.this["github-config"]
+    import_id: github-config
+    connected_id: "1340402056"
+  - kind: repository
+    name: gitops
+    terraform_address: module.repositories.github_repository.this["gitops"]
+    import_id: gitops
+    connected_id: "1340401353"
+  - kind: repository
+    name: infrastructure-live
+    terraform_address: module.repositories.github_repository.this["infrastructure-live"]
+    import_id: infrastructure-live
+    connected_id: "1340401824"
+  - kind: repository
+    name: mindclade-internal-monorepo
+    terraform_address: module.repositories.github_repository.this["mindclade-internal-monorepo"]
+    import_id: mindclade-internal-monorepo
+    connected_id: "1333792222"
+  - kind: team
+    name: biosecurity
+    terraform_address: module.teams.github_team.parent["biosecurity"]
+    import_id: "19072991"
+  - kind: team
+    name: data-platform
+    terraform_address: module.teams.github_team.child["data-platform"]
+    import_id: "19073005"
+  - kind: team
+    name: engineering
+    terraform_address: module.teams.github_team.parent["engineering"]
+    import_id: "19072990"
+  - kind: team
+    name: incident-command
+    terraform_address: module.teams.github_team.parent["incident-command"]
+    import_id: "19072982"
+  - kind: team
+    name: infrastructure
+    terraform_address: module.teams.github_team.child["infrastructure"]
+    import_id: "19073003"
+  - kind: team
+    name: model-serving
+    terraform_address: module.teams.github_team.child["model-serving"]
+    import_id: "19073000"
+  - kind: team
+    name: model-training
+    terraform_address: module.teams.github_team.child["model-training"]
+    import_id: "19073004"
+  - kind: team
+    name: platform
+    terraform_address: module.teams.github_team.child["platform"]
+    import_id: "19073002"
+  - kind: team
+    name: product
+    terraform_address: module.teams.github_team.child["product"]
+    import_id: "19072996"
+  - kind: team
+    name: release
+    terraform_address: module.teams.github_team.parent["release"]
+    import_id: "19072993"
+  - kind: team
+    name: research
+    terraform_address: module.teams.github_team.child["research"]
+    import_id: "19072997"
+  - kind: team
+    name: security
+    terraform_address: module.teams.github_team.parent["security"]
+    import_id: "19072983"
+  - kind: organization_ruleset
+    name: push-blocklist
+    terraform_address: module.rulesets.github_organization_ruleset.push_blocklist
+    import_id: "21096509"
+  - kind: organization_ruleset
+    name: tag-protection
+    terraform_address: module.rulesets.github_organization_ruleset.tag_protection
+    import_id: "21096168"
+  - kind: repository_ruleset
+    name: mindclade-internal-monorepo/merge-queue
+    terraform_address: module.rulesets.github_repository_ruleset.merge_queue["mindclade-internal-monorepo"]
+    import_id: mindclade-internal-monorepo:21096177
+    state_id: "21096177"
+unresolved_discovery:
+  - resource_class: terraform_state
+    reason: The remote state address inventory was not readable; every known-existing address must be proven imported before activation.
+  - resource_class: organization_rulesets
+    reason: The connected credential could not enumerate organization rulesets; absence of the other twelve desired rulesets is not proven.
+  - resource_class: github_app_installations
+    reason: The read-only inventory found zero installations; all four App contracts require creation and connected permission/selection qualification.
+  - resource_class: runner_groups
+    reason: Runner-group enumeration was inaccessible with the connected credential.
+  - resource_class: idp_membership
+    reason: Six catalog teams remain deferred and idp/team-members.json is intentionally absent from source.
+  - resource_class: custom_properties
+    reason: Eight definitions and their repository values exist live but their Terraform import/state adoption is not proven.
+  - resource_class: team_access_and_membership
+    reason: Team repository grants and IdP-projected memberships have not been reconciled against Terraform state.
+  - resource_class: actions_and_oidc
+    reason: Organization Actions settings, variables, environments, and immutable repository OIDC subjects need complete import/state evidence.

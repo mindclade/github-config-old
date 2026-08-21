@@ -18,10 +18,10 @@
 # membership change is exactly the diff a human should approve. So the commit is manual and
 # the detection is not.
 #
-# That distinction used to be missing in the worse direction: this comment said a scheduled
-# job committed the file, no such job existed, and the fileexists() guard below meant a plan
-# succeeded and created zero memberships. A fully governed organization with nobody in it,
-# and nothing anywhere saying so.
+# The fileexists() guard below is source-bootstrap behavior only. Every governed plan/apply
+# entrypoint must run scripts/validate-adoption-plan.py; production activation additionally uses
+# --activation, which refuses an absent/empty/partial export and any deferred team mapping. Direct
+# Terraform apply without that gate is outside the supported authority path.
 #
 # A human editing that file will have it overwritten by the next export, which is the
 # intended behaviour.
@@ -33,9 +33,8 @@
 #   }
 
 locals {
-  # fileexists() keeps `terraform validate` and a first plan working before the first sync
-  # has ever run. Without it this repo cannot be initialised until the IdP export exists,
-  # which is a bootstrap ordering problem nobody needs.
+  # fileexists() keeps `terraform validate` and pre-activation planning available before the first
+  # sync. It is not an authorization decision; the workflow adoption gate supplies that boundary.
   idp_export = fileexists(var.idp_export_path) ? jsondecode(file(var.idp_export_path)) : {
     org_members  = []
     team_members = {}

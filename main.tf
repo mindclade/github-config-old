@@ -16,6 +16,13 @@ locals {
   team_access             = module.catalog.team_access
   environments            = module.catalog.environments
   repository_environments = { for name, cfg in module.catalog.repositories : name => cfg.environments }
+  dr_evidence_environment_variables_raw = try(
+    var.ci_variables["github-config"]["DR_EVIDENCE_ENVIRONMENT_VARIABLES"],
+    "",
+  )
+  dr_evidence_environment_variables = local.dr_evidence_environment_variables_raw == "" ? tomap({}) : tomap(
+    jsondecode(local.dr_evidence_environment_variables_raw)
+  )
 }
 
 module "organization" {
@@ -47,14 +54,15 @@ module "teams" {
 module "repositories" {
   source = "./modules/repositories"
 
-  repositories            = local.repositories
-  custom_properties       = module.catalog.custom_properties
-  team_access             = local.team_access
-  team_ids                = module.teams.team_ids
-  environments            = local.environments
-  repository_environments = local.repository_environments
-  environment_project_ids = var.environment_project_ids
-  ci_variables            = var.ci_variables
+  repositories                      = local.repositories
+  custom_properties                 = module.catalog.custom_properties
+  team_access                       = local.team_access
+  team_ids                          = module.teams.team_ids
+  environments                      = local.environments
+  repository_environments           = local.repository_environments
+  environment_project_ids           = var.environment_project_ids
+  dr_evidence_environment_variables = local.dr_evidence_environment_variables
+  ci_variables                      = var.ci_variables
 }
 
 module "runner_groups" {

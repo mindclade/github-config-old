@@ -56,6 +56,8 @@ github-config:
   environments:
     - plan
     - governance
+    - scratch
+    - staging
   topics:
     - terraform
     - github-enterprise
@@ -79,6 +81,8 @@ bootstrap:
     - bootstrap
     - bootstrap-recovery-read
     - break-glass
+    - scratch
+    - staging
   topics:
     - terraform
     - gcp
@@ -101,6 +105,7 @@ infrastructure-live:
   environments:
     - plan
     - development
+    - scratch
     - staging
     - production
     - break-glass
@@ -124,6 +129,7 @@ gitops:
   lifecycle: active
   environments:
     - development
+    - scratch
     - staging
     - production
     - break-glass

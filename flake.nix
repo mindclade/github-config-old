@@ -14,7 +14,6 @@
         "x86_64-linux"
         "aarch64-linux"
         "aarch64-darwin"
-        "x86_64-darwin"
       ];
       forAllSystems = nixpkgs.lib.genAttrs systems;
       perSystem =
@@ -34,11 +33,6 @@
                 os = "darwin";
                 arch = "arm64";
                 hash = "sha256-BbJ1hqXX2EEFaQ7MzH7bv0i8PW1Xd0XLYfFjupkK308=";
-              };
-              x86_64-darwin = {
-                os = "darwin";
-                arch = "amd64";
-                hash = "sha256-PpfEmfrIB0rfo3YDAGYqAVjy/TJRRJZd0AKN7sQIbGs=";
               };
               aarch64-linux = {
                 os = "linux";

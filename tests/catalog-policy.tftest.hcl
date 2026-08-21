@@ -91,4 +91,20 @@ run "policy_catalog_is_production_grade" {
     )
     error_message = "infra-static must remain an evaluate-mode, canonical-monorepo-only source contract until observed on pull_request and merge_group."
   }
+
+  assert {
+    condition = (
+      output.rulesets["required-checks-nix"].enforcement == "evaluate" &&
+      toset(output.rulesets["required-checks-nix"].repositories) == toset([
+        ".github",
+        ".github-private",
+        "bootstrap",
+        "github-config",
+        "gitops",
+        "infrastructure-live",
+        "mindclade-internal-monorepo",
+      ])
+    )
+    error_message = "Nix qualification must remain evaluate-mode and cover exactly the managed estate until rollout evidence is reviewed."
+  }
 }

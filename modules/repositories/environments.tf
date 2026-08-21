@@ -12,6 +12,24 @@ locals {
   project_required_environments = toset([
     for name, environment in var.environments : name if environment.project_required
   ])
+  dr_evidence_repositories = toset([
+    "bootstrap",
+    "github-config",
+    "infrastructure-live",
+    "gitops",
+  ])
+  dr_evidence_environments = toset(["scratch", "staging"])
+  dr_evidence_environment_pairs = {
+    for key, pair in local.environment_pairs : key => pair
+    if contains(local.dr_evidence_repositories, pair.repository) &&
+    contains(local.dr_evidence_environments, pair.environment)
+  }
+  dr_evidence_variable_pairs = merge([
+    for pair_key, pair in local.dr_evidence_environment_pairs : {
+      for name, value in var.dr_evidence_environment_variables :
+      "${pair_key}:${name}" => merge(pair, { name = name, value = value, pair_key = pair_key })
+    }
+  ]...)
 }
 
 resource "github_repository_environment" "this" {
@@ -60,6 +78,34 @@ resource "github_actions_environment_variable" "gcp_project" {
   environment   = github_repository_environment.this[each.key].environment
   variable_name = "GCP_PROJECT_ID"
   value         = var.environment_project_ids[each.value.environment]
+}
+
+resource "github_actions_environment_variable" "dr_evidence" {
+  for_each = local.dr_evidence_variable_pairs
+
+  repository    = github_repository.this[each.value.repository].name
+  environment   = github_repository_environment.this[each.value.pair_key].environment
+  variable_name = each.value.name
+  value         = each.value.value
+}
+
+check "dr_evidence_environment_contract_is_exact" {
+  assert {
+    condition = (
+      toset(keys(local.dr_evidence_environment_pairs)) == toset(flatten([
+        for repository in local.dr_evidence_repositories : [
+          for environment in local.dr_evidence_environments : "${repository}:${environment}"
+        ]
+      ])) &&
+      alltrue([
+        for environment in local.dr_evidence_environments :
+        var.environments[environment].protected_branches &&
+        var.environments[environment].prevent_self_review &&
+        length(var.environments[environment].reviewer_teams) > 0
+      ])
+    )
+    error_message = "DR evidence requires exactly scratch and staging on bootstrap, github-config, infrastructure-live, and gitops, with protected branches, independent review, and self-review prevention."
+  }
 }
 
 check "repository_environment_references_exist" {

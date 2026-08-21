@@ -30,6 +30,8 @@
 - [Architecture](architecture.md) — catalog compilation, trust separation, and failure domains.
 - [Access model](access-model.md) — repository classes, grants, owners, and review gates.
 - [OIDC governance](oidc.md) — GitHub claim policy and the cloud-trust change sequence.
+- [GitHub App authority contracts](github-apps.md) — exact plan/apply/runtime permissions,
+  installation selection, qualification, rotation, and revocation.
 
 ## Operations
 

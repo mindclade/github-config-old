@@ -92,6 +92,9 @@ jobs:
           printf '%s' "$CI_VARIABLES" | jq -e 'type == "object"' >/dev/null
           printf '%s' "$ENVIRONMENT_PROJECT_IDS" | jq -e 'type == "object"' >/dev/null
 
+      - name: Capture Terraform state addresses
+        run: terraform state list > state-list.txt
+
       - id: metadata
         name: Create exact merged-SHA plan
         env:
@@ -106,6 +109,13 @@ jobs:
           terraform plan -input=false -no-color -lock-timeout=5m -out=tfplan
           terraform show -no-color tfplan > plan.txt
           terraform show -json tfplan > plan.json
+
+          # This is the production activation boundary. It remains closed until every
+          # connected resource is inventoried/imported and the complete IdP projection exists.
+          python3 scripts/validate-adoption-plan.py \
+            --plan-json plan.json \
+            --state-list state-list.txt \
+            --activation
 
           destroy_count="$(jq '[.resource_changes[]? | select(.change.actions | index("delete"))] | length' plan.json)"
           replace_count="$(jq '[.resource_changes[]? | select(.change.actions == ["delete","create"] or .change.actions == ["create","delete"])] | length' plan.json)"
@@ -147,6 +157,7 @@ jobs:
             tfplan.sha256
             plan.txt
             plan.json
+            state-list.txt
             plan-metadata.json
           if-no-files-found: error
           retention-days: 1

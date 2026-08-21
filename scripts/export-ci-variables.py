@@ -273,6 +273,76 @@ def artifact_release_contract(
     return identities
 
 
+def dr_evidence_environment_contract(
+    github_contract: dict[str, Any], github_pool: str, organization: str
+) -> dict[str, str]:
+    """Compile the protected-environment handoff from Ring 0 and applied live outputs."""
+    identity = require(
+        github_contract, "dr_evidence_identity", "platform_contract.github"
+    )
+    if not isinstance(identity, dict) or set(identity) != {
+        "workload_identity_provider",
+        "job_workflow_ref",
+        "principals",
+    }:
+        raise ValueError("platform_contract DR evidence identity is not exact")
+
+    provider = identity.get("workload_identity_provider")
+    if provider != f"{github_pool}/providers/gh-dr-evidence":
+        raise ValueError("platform_contract DR evidence provider differs")
+    if identity.get("job_workflow_ref") != (
+        f"{organization}/.github/.github/workflows/"
+        "reusable-dr-evidence.yml@refs/tags/v4.0.0"
+    ):
+        raise ValueError("platform_contract DR evidence reusable workflow differs")
+
+    repositories = ("bootstrap", "github-config", "infrastructure-live", "gitops")
+    environments = ("scratch", "staging")
+    expected_principals = {
+        f"{repository}:{environment}"
+        for repository in repositories
+        for environment in environments
+    }
+    principals = identity.get("principals")
+    if not isinstance(principals, dict) or set(principals) != expected_principals:
+        raise ValueError("platform_contract DR evidence principal inventory is not exact")
+    for key, principal in principals.items():
+        repository, environment = key.split(":", 1)
+        if not isinstance(principal, str) or re.fullmatch(
+            rf"principal://iam\.googleapis\.com/{re.escape(github_pool)}/subject/"
+            rf"dr-evidence:repo:{re.escape(organization)}@[0-9]+/"
+            rf"{re.escape(repository)}@[0-9]+:environment:{re.escape(environment)}",
+            principal,
+        ) is None:
+            raise ValueError(f"platform_contract DR evidence principal differs: {key}")
+
+    values = {
+        "WIF_PROVIDER_DR_EVIDENCE": str(provider),
+        "SA_DR_EVIDENCE_WRITER": os.environ.get("SA_DR_EVIDENCE_WRITER", ""),
+        "DR_EVIDENCE_PROJECT": os.environ.get("DR_EVIDENCE_PROJECT", ""),
+        "DR_EVIDENCE_BUCKET": os.environ.get("DR_EVIDENCE_BUCKET", ""),
+    }
+    empty = [name for name, value in values.items() if not value]
+    if empty:
+        raise ValueError(
+            "required applied DR evidence outputs are unset: " + ", ".join(empty)
+        )
+    if re.fullmatch(
+        r"[a-z][a-z0-9-]{4,28}[a-z0-9]@[a-z][a-z0-9-]{4,28}[a-z0-9]\.iam\.gserviceaccount\.com",
+        values["SA_DR_EVIDENCE_WRITER"],
+    ) is None:
+        raise ValueError("SA_DR_EVIDENCE_WRITER is not a service-account email")
+    if re.fullmatch(
+        r"[a-z][a-z0-9-]{4,28}[a-z0-9]", values["DR_EVIDENCE_PROJECT"]
+    ) is None:
+        raise ValueError("DR_EVIDENCE_PROJECT is not a Google Cloud project ID")
+    if re.fullmatch(
+        r"[a-z0-9][a-z0-9._-]{1,220}[a-z0-9]", values["DR_EVIDENCE_BUCKET"]
+    ) is None:
+        raise ValueError("DR_EVIDENCE_BUCKET is not a Cloud Storage bucket name")
+    return values
+
+
 def compile_payload(
     bootstrap: Path, *, stage: str = "full"
 ) -> dict[str, dict[str, Any]]:
@@ -287,7 +357,7 @@ def compile_payload(
     platform = require(outputs, "platform_contract", "bootstrap output").get("value")
     if not isinstance(platform, dict):
         raise ValueError("bootstrap output platform_contract is not an object")
-    if platform.get("contract_version") != "1.3.0":
+    if platform.get("contract_version") != "1.4.0":
         raise ValueError(
             f"unsupported bootstrap platform_contract version: {platform.get('contract_version', 'missing')}"
         )
@@ -326,6 +396,14 @@ def compile_payload(
         github_contract, str(github_pool), github_organization
     )
     signer = release_identities["signer"]
+    if stage == "full":
+        config["github-config"]["DR_EVIDENCE_ENVIRONMENT_VARIABLES"] = json.dumps(
+            dr_evidence_environment_contract(
+                github_contract, str(github_pool), github_organization
+            ),
+            sort_keys=True,
+            separators=(",", ":"),
+        )
 
     def need(mapping: dict[str, Any], key: str, label: str) -> Any:
         return require(mapping, key, label)

@@ -14,7 +14,8 @@
   full-semver baseline referenced by `catalog/rulesets.yaml`;
 - completed Ring-0 bootstrap state and GitHub-to-Google Cloud federation;
 - plan and apply GitHub Apps with distinct minimum permissions, or the approved one-time founder
-  OAuth adoption exception documented in [adoption](adoption.md);
+  OAuth adoption exception documented in [adoption](adoption.md), with exact permissions from
+  [GitHub App authority contracts](github-apps.md);
 - `plan` and `governance` protected environments; and
 - approved non-secret variables and protected secrets required by the workflows.
 
@@ -49,6 +50,8 @@ negative authorization tests.
    retired Buildkite inputs.
 8. Open a pull request and inspect the speculative plan. Unexpected deletion, replacement,
    ownership, or visibility change is a stop condition.
+9. Run `scripts/validate-adoption-plan.py` with the plan JSON and state list. Production activation
+   additionally requires `--activation`; do not bypass its connected-state or IdP blockers.
 
 If the Apps do not exist yet, follow the one-time local founder OAuth procedure in
 [adoption](adoption.md). Keep the token only in `GITHUB_TOKEN`, apply only the saved reviewed plan,
@@ -58,8 +61,9 @@ qualified.
 
 ## Activate
 
-1. Qualify the plan identity: it can read governed state and create plans but cannot mutate
-   GitHub resources.
+1. Qualify the plan path: its workflow performs no GitHub mutation, and a negative test proves
+   that boundary. The App token itself is not read-only because GitHub requires organization
+   Administration write even for organization-ruleset reads; see `catalog/control-plane-apps.yaml`.
 2. Qualify the apply identity: it is available only after the protected `governance`
    environment and cannot use the plan App's secret.
 3. Merge the reviewed pull request.
@@ -76,9 +80,11 @@ qualified.
 - every managed repository issues an immutable default OIDC subject containing its owner and
   repository IDs, and a mismatched repository ID fails WIF token exchange;
 - required workflow rules reference the immutable `v4.0.0` release;
-- negative tests prove the plan identity cannot mutate and the apply identity cannot skip the
-  protected environment; and
-- drift detection reports no unexplained changes.
+- negative tests prove the plan workflow does not invoke mutation and the apply identity cannot
+  skip the protected environment; and
+- drift detection reports no unexplained changes; and
+- `scripts/audit-connected-governance.py` can read every required endpoint and reports exact App,
+  ruleset, runner-group, environment, Actions, repository, team, and custom-property parity.
 
 The platform import order is `.github`, `bootstrap`, `github-config`,
 `infrastructure-live`, then `gitops`.

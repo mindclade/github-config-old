@@ -223,6 +223,9 @@ jobs:
                terraform show -no-color tfplan > drift.txt ;;
             *) echo "::error::terraform plan failed"; exit 1 ;;
           esac
+          terraform show -json tfplan > plan.json
+          terraform state list > state-list.txt
+          python3 scripts/validate-adoption-plan.py --plan-json plan.json --state-list state-list.txt
 
       # The default GITHUB_TOKEN cannot read organization governance. Create a short-lived
       # GitHub App token from the protected governance environment credential.
@@ -379,6 +382,19 @@ jobs:
             fi
           done < <(gh api "/orgs/${ORG}/repos?per_page=100&type=all" --jq '.[] | [.name, .visibility] | @tsv')
 
+          # Compare every source-declared App, ruleset, runner group, environment, Actions
+          # setting, repository, team, and custom-property definition. Any denied endpoint is
+          # evidence failure, not a clean result.
+          if ! python3 scripts/audit-connected-governance.py \
+            --organization "$ORG" \
+            --output connected-governance.json; then
+            {
+              echo ""
+              echo "Connected governance audit did not qualify:"
+              jq -r '.errors[] | "  - " + .' connected-governance.json
+            } >> unmanaged.txt
+          fi
+
           if [ -s unmanaged.txt ]; then
             echo "found=true" >> "$GITHUB_OUTPUT"
           else
@@ -393,6 +409,7 @@ jobs:
           path: |
             drift.txt
             unmanaged.txt
+            connected-governance.json
           retention-days: 14
 
       - name: Open or update the drift issue
