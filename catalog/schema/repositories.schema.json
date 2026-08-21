@@ -118,6 +118,7 @@
           "items": {
             "enum": [
               "development",
+              "scratch",
               "staging",
               "production",
               "plan",
@@ -256,6 +257,7 @@
           "items": {
             "enum": [
               "development",
+              "scratch",
               "staging",
               "production",
               "plan",
@@ -391,6 +393,7 @@
           "items": {
             "enum": [
               "development",
+              "scratch",
               "staging",
               "production",
               "plan",
@@ -526,6 +529,7 @@
           "items": {
             "enum": [
               "development",
+              "scratch",
               "staging",
               "production",
               "plan",
@@ -661,6 +665,7 @@
           "items": {
             "enum": [
               "development",
+              "scratch",
               "staging",
               "production",
               "plan",
@@ -796,6 +801,7 @@
           "items": {
             "enum": [
               "development",
+              "scratch",
               "staging",
               "production",
               "plan",

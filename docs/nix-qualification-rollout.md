@@ -9,7 +9,9 @@ Keep the ruleset in evaluate mode until all of the following evidence has been r
 
 1. An operator publishes immutable `.github` workflow releases in order: the x86 baseline as
    `v4.0.0`, then native ARM and independent rebuild qualification as `v4.1.0`.
-2. Every consumer is updated to `@v4.1.0` only after that tag exists.
+2. Until that tag exists, every consumer uses the audited immutable candidate commit
+   `ccae13968c4112aaa918accd08a5de0214cf58b1`; a reviewed follow-up moves consumers to
+   `@v4.1.0` only after the annotated tag resolves to that exact commit.
 3. Pull-request and merge-group runs emit `nix / verdict`, including pull requests with no
    Nix-owned changes.
 4. Weekly runs complete on every declared native platform. Linux arm64 is required only for

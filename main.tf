@@ -72,13 +72,6 @@ module "runner_groups" {
   repository_ids = module.repositories.repository_ids
 }
 
-module "runner_groups" {
-  source = "./modules/runner-groups"
-
-  runner_groups  = module.catalog.runner_groups
-  repository_ids = module.repositories.repository_ids
-}
-
 module "rulesets" {
   source = "./modules/rulesets"
 

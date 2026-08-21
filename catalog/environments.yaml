@@ -21,6 +21,7 @@ scratch:
 staging:
   wait_timer: 0
   reviewer_teams:
+    - platform
     - security
   protected_branches: true
   custom_branch_policies: false
