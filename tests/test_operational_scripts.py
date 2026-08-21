@@ -147,7 +147,7 @@ class ExportSafetyTest(unittest.TestCase):
         platform = self.deployed_v12_contract()
         platform["github"]["artifact_signer"]["job_workflow_ref"] = (
             "mindclade/.github/.github/workflows/"
-            "reusable-binauthz-sign.yml@refs/tags/v4.0.0"
+            "reusable-binauthz-sign.yml@refs/tags/v5.0.0"
         )
         catalog = {
             name: {}
@@ -258,7 +258,7 @@ class ExportSafetyTest(unittest.TestCase):
                 "principal": f"principal://iam.googleapis.com/{pool}/subject/{mapped}",
                 "subject": subject,
                 "workflow_ref": "mindclade/mindclade-internal-monorepo/.github/workflows/release.yml@refs/heads/main",
-                "job_workflow_ref": f"mindclade/.github/.github/workflows/{workflow}@refs/tags/v4.0.0",
+                "job_workflow_ref": f"mindclade/.github/.github/workflows/{workflow}@refs/tags/v5.0.0",
             }
         github = {
             "artifact_release_identities": identities,
@@ -299,7 +299,7 @@ class ExportSafetyTest(unittest.TestCase):
                 "workload_identity_provider": f"{pool}/providers/gh-dr-evidence",
                 "job_workflow_ref": (
                     "mindclade/.github/.github/workflows/"
-                    "reusable-dr-evidence.yml@refs/tags/v4.0.0"
+                    "reusable-dr-evidence.yml@refs/tags/v5.0.0"
                 ),
                 "principals": principals,
             }

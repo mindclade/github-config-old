@@ -743,7 +743,7 @@ for name, cfg in rulesets.items():
 workflow_ref = rulesets.get("ruleset-workflows", {}).get("workflow_ref", "")
 if not re.fullmatch(r"refs/tags/v[0-9]+\.[0-9]+\.[0-9]+", workflow_ref):
     err(
-        "ruleset-workflows.workflow_ref must be an immutable release tag such as refs/tags/v4.0.0"
+        "ruleset-workflows.workflow_ref must be an immutable release tag such as refs/tags/v5.0.0"
     )
 merge_queue_classes = set(rulesets.get("merge-queue", {}).get("classes", []))
 class_merge_queue = {
@@ -843,9 +843,9 @@ if nix_job.get("secrets"):
     err("nix-qualification caller must not inherit or pass secrets")
 if nix_job.get("uses") != (
     "mindclade/.github/.github/workflows/"
-    "reusable-nix-qualification.yml@ccae13968c4112aaa918accd08a5de0214cf58b1"
+    "reusable-nix-qualification.yml@db363da19deb14beb5063c25890e44effe7e6d49"
 ):
-    err("nix-qualification must use the audited immutable v4.1.0 candidate commit")
+    err("nix-qualification must use the audited immutable v5.0.0 candidate commit")
 nix_inputs = nix_job.get("with", {})
 for name in ("enable-aarch64-linux", "enable-aarch64-darwin"):
     if nix_inputs.get(name) is not True:
@@ -1242,8 +1242,8 @@ if report_job.get("needs") not in (["export_main"], "export_main"):
 initial_import_path = ROOT / "docs" / "initial-import.md"
 if initial_import_path.is_file():
     initial_import = initial_import_path.read_text(encoding="utf-8")
-    if "protected `v4.0.0` workflow-contract tag" not in initial_import:
-        err("initial-import.md must use the immutable v4.0.0 workflow-contract tag")
+    if "protected `v5.0.0` workflow-contract tag" not in initial_import:
+        err("initial-import.md must use the immutable v5.0.0 workflow-contract tag")
     if "protected `v1` workflow-contract tag" in initial_import:
         err("initial-import.md retains the stale v1 workflow-contract tag")
 

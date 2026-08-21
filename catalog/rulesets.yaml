@@ -83,7 +83,7 @@ ruleset-workflows:
     - production-control
     - source-monorepo
   enforcement: active
-  workflow_ref: refs/tags/v4.0.0
+  workflow_ref: refs/tags/v5.0.0
 tag-protection:
   target: all
   enforcement: active

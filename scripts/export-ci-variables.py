@@ -268,7 +268,7 @@ def artifact_release_contract(
         ):
             raise ValueError(f"ARC release caller differs: {capability}")
         if identity.get("job_workflow_ref") != (
-            f"{organization}/.github/.github/workflows/{workflow}@refs/tags/v4.0.0"
+            f"{organization}/.github/.github/workflows/{workflow}@refs/tags/v5.0.0"
         ):
             raise ValueError(f"ARC reusable workflow differs: {capability}")
     signer = require(github_contract, "artifact_signer", "platform_contract.github")
@@ -299,7 +299,7 @@ def dr_evidence_environment_contract(
         raise ValueError("platform_contract DR evidence provider differs")
     if identity.get("job_workflow_ref") != (
         f"{organization}/.github/.github/workflows/"
-        "reusable-dr-evidence.yml@refs/tags/v4.0.0"
+        "reusable-dr-evidence.yml@refs/tags/v5.0.0"
     ):
         raise ValueError("platform_contract DR evidence reusable workflow differs")
 

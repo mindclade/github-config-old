@@ -93,7 +93,7 @@ locals {
       account_id        = "sa-artifact-promoter"
     }
   }
-  arc_v4_active = anytrue([
+  arc_active = anytrue([
     for capability, identity in local.arc_artifact_authority :
     try(var.ci_variables["mindclade-internal-monorepo"][identity.provider_variable], "") != ""
     if capability != "signer"
@@ -247,15 +247,15 @@ check "artifact_signer_contract_matches_consumers" {
         try(var.ci_variables["infrastructure-live"]["ARTIFACT_SIGNER_PRINCIPAL"], "")
       )) &&
       try(var.ci_variables["infrastructure-live"]["ARTIFACT_SIGNER_JOB_WORKFLOW_REF"], "") ==
-      "mindclade/.github/.github/workflows/reusable-binauthz-sign.yml@refs/tags/${local.arc_v4_active ? "v4.0.0" : "v3.0.0"}"
+      "mindclade/.github/.github/workflows/reusable-binauthz-sign.yml@refs/tags/${local.arc_active ? "v5.0.0" : "v3.0.0"}"
     )
-    error_message = "Infrastructure signer IAM and the monorepo release job must consume bootstrap's exact staged signer trust tuple (v3 before ARC activation, v4 after)."
+    error_message = "Infrastructure signer IAM and the monorepo release job must consume bootstrap's exact staged signer trust tuple (v3 before ARC activation, v5 after)."
   }
 }
 
 check "arc_artifact_authority_contract_is_capability_exact" {
   assert {
-    condition = !local.arc_v4_active || (
+    condition = !local.arc_active || (
       alltrue([
         for _, identity in local.arc_artifact_authority : can(regex(
           "^projects/[0-9]+/locations/global/workloadIdentityPools/github/providers/${identity.provider_id}$",
