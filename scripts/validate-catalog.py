@@ -591,10 +591,19 @@ for repository in dr_evidence_repositories:
     declared = set(repos.get(repository, {}).get("environments", []))
     if not {"scratch", "staging"}.issubset(declared):
         err(f"{repository}: DR evidence requires scratch and staging environments")
-for name in ("scratch", "staging"):
+expected_dr_reviewers = {
+    "scratch": {"security"},
+    # Staging is also the GitOps production rehearsal gate, so its effective reviewer set is
+    # the union of DR security authority and platform promotion authority.
+    "staging": {"platform", "security"},
+}
+for name, expected_reviewers in expected_dr_reviewers.items():
     environment = environments.get(name, {})
-    if set(environment.get("reviewer_teams", [])) != {"security"}:
-        err(f"environment {name}: security must be the sole cross-repository DR reviewer")
+    if set(environment.get("reviewer_teams", [])) != expected_reviewers:
+        err(
+            f"environment {name}: reviewers must be exactly "
+            f"{sorted(expected_reviewers)} for DR and promotion authority"
+        )
     if not environment.get("protected_branches") or not environment.get("prevent_self_review"):
         err(f"environment {name}: DR evidence requires protected branches and no self-review")
 
@@ -807,9 +816,9 @@ if nix_job.get("secrets"):
     err("nix-qualification caller must not inherit or pass secrets")
 if nix_job.get("uses") != (
     "mindclade/.github/.github/workflows/"
-    "reusable-nix-qualification.yml@v4.1.0"
+    "reusable-nix-qualification.yml@ccae13968c4112aaa918accd08a5de0214cf58b1"
 ):
-    err("nix-qualification must use the immutable internal v4.1.0 workflow release")
+    err("nix-qualification must use the audited immutable v4.1.0 candidate commit")
 nix_inputs = nix_job.get("with", {})
 for name in ("enable-aarch64-linux", "enable-aarch64-darwin"):
     if nix_inputs.get(name) is not True:

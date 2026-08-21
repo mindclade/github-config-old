@@ -14,10 +14,12 @@
 github-config:
   security: maintain
   infrastructure: push
+  platform: pull
   bootstrap-reviewers: pull
 bootstrap:
   infrastructure: maintain
   security: push
+  platform: pull
   incident-command: pull
   bootstrap-reviewers: pull
 infrastructure-live:
