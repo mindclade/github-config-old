@@ -21,3 +21,18 @@ mindclade-release-promoter:
     contents: write
     metadata: read
     pullRequests: write
+mindclade-production-qualification-reader:
+  purpose: Read exact source and protected workflow evidence for final production qualification.
+  repositories:
+    - .github
+    - .github-private
+    - bootstrap
+    - github-config
+    - infrastructure-live
+    - gitops
+    - mindclade-internal-monorepo
+  organizationPermissions: {}
+  repositoryPermissions:
+    actions: read
+    contents: read
+    metadata: read

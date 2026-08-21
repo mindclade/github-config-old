@@ -32,6 +32,7 @@ BOOTSTRAP_STAGE_CATALOG_KEYS = {
     "bootstrap": {
         "RESOURCE_PREFIX",
         "GCP_REGION",
+        "RESIDENCY_PROFILE",
         "STATE_BUCKET_LOCATION",
         "STATE_KMS_LOCATION",
         "STATE_REPLICA_LOCATION",
@@ -44,12 +45,18 @@ BOOTSTRAP_STAGE_CATALOG_KEYS = {
         "ORG_POLICY_ACTIVATION_PHASE",
         "MONOREPO_ORG",
         "RESOURCE_PREFIX",
+        "RESIDENCY_PROFILE",
         "PRIMARY_REGION",
         "GPU_ZONE",
+        "DR_REGION",
+        "DR_GPU_ZONE",
         "DOMAIN",
     },
     "gitops": {"MONOREPO_ORG"},
-    "mindclade-internal-monorepo": {"ARTIFACT_REGISTRY_HOST"},
+    "mindclade-internal-monorepo": {
+        "ARTIFACT_REGISTRY_HOST",
+        "ARTIFACT_REGISTRY_DR_HOST",
+    },
 }
 
 

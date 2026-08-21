@@ -129,13 +129,22 @@ REQUIRED_CI_VARIABLES = {
     },
     "bootstrap": {
         "ENABLE_BUILDKITE_WIF": "false",
+        "GCP_REGION": "us-central1",
+        "RESIDENCY_PROFILE": "us-only-v1",
         "SECURITY_CONTACT": "security@mindclade.com",
+        "STATE_BUCKET_LOCATION": "US",
+        "STATE_KMS_LOCATION": "us",
+        "STATE_REPLICA_LOCATION": "us-east4",
+        "STATE_REPLICA_KMS_LOCATION": "us-east4",
     },
     "infrastructure-live": {
         "CLOUD_IDENTITY_CUSTOMER_ID": "env:CLOUD_IDENTITY_CUSTOMER_ID",
+        "DR_GPU_ZONE": "us-east4-b",
+        "DR_REGION": "us-east4",
         "ORG_POLICY_ACTIVATION_PHASE": "baseline",
         "PRIMARY_REGION": "us-central1",
         "GPU_ZONE": "us-central1-b",
+        "RESIDENCY_PROFILE": "us-only-v1",
     },
     "gitops": {
         "BINAUTHZ_DEPLOYMENT_ATTESTOR_PROJECT": "env:BINAUTHZ_DEPLOYMENT_ATTESTOR_PROJECT",
@@ -144,6 +153,8 @@ REQUIRED_CI_VARIABLES = {
         "SA_GITOPS_VERIFIER": "env:SA_GITOPS_VERIFIER",
     },
     "mindclade-internal-monorepo": {
+        "ARTIFACT_REGISTRY_DR_HOST": "us-east4-docker.pkg.dev",
+        "ARTIFACT_REGISTRY_HOST": "us-central1-docker.pkg.dev",
         "CI_PROJECT_ID": "env:CI_PROJECT_ID",
         "SA_ARC_CANARY": "env:SA_ARC_CANARY",
         "SA_ARTIFACT_BUILDER": "env:SA_ARTIFACT_BUILDER",
@@ -270,7 +281,11 @@ expected_runner_group = {
 }
 if runner_groups != {"mindclade-arc-artifact-authority": expected_runner_group}:
     err("ARC artifact-authority runner group contract is not exact")
-if set(github_apps) != {"mindclade-arc", "mindclade-release-promoter"}:
+if set(github_apps) != {
+    "mindclade-arc",
+    "mindclade-release-promoter",
+    "mindclade-production-qualification-reader",
+}:
     err("GitHub App contract inventory is not exact")
 else:
     if github_apps["mindclade-arc"].get("repositories") != [
@@ -297,6 +312,17 @@ else:
         err("release promoter App has an unexpected repository permission contract")
     if promoter.get("organizationPermissions") != {}:
         err("release promoter App must not have organization permissions")
+    qualification = github_apps["mindclade-production-qualification-reader"]
+    if set(qualification.get("repositories", [])) != EXPECTED_REPOS:
+        err("production qualification App must select exactly the seven managed repositories")
+    if qualification.get("repositoryPermissions") != {
+        "actions": "read",
+        "contents": "read",
+        "metadata": "read",
+    }:
+        err("production qualification App has an unexpected repository permission contract")
+    if qualification.get("organizationPermissions") != {}:
+        err("production qualification App must not have organization permissions")
 
 expected_control_repositories = sorted(EXPECTED_REPOS)
 expected_control_permissions = {
