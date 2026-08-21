@@ -23,7 +23,6 @@ check "catalog_matches_implemented_rulesets" {
       "baseline-all",
       "merge-queue",
       "protected-paths",
-      "release-authority-paths",
       "push-blocklist",
       "required-checks-bootstrap",
       "required-checks-gitops",

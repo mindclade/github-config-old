@@ -54,24 +54,3 @@ variable "environment_project_ids" {
   type    = map(string)
   default = {}
 }
-variable "dr_evidence_environment_variables" {
-  description = "Exact non-secret values published only to protected DR evidence environments after bootstrap and infrastructure apply."
-  type        = map(string)
-  default     = {}
-
-  validation {
-    condition = length(var.dr_evidence_environment_variables) == 0 || (
-      toset(keys(var.dr_evidence_environment_variables)) == toset([
-        "WIF_PROVIDER_DR_EVIDENCE",
-        "SA_DR_EVIDENCE_WRITER",
-        "DR_EVIDENCE_PROJECT",
-        "DR_EVIDENCE_BUCKET",
-      ]) &&
-      can(regex("^projects/[0-9]+/locations/global/workloadIdentityPools/github/providers/gh-dr-evidence$", try(var.dr_evidence_environment_variables["WIF_PROVIDER_DR_EVIDENCE"], ""))) &&
-      can(regex("^[a-z][a-z0-9-]{4,28}[a-z0-9]@[a-z][a-z0-9-]{4,28}[a-z0-9]\\.iam\\.gserviceaccount\\.com$", try(var.dr_evidence_environment_variables["SA_DR_EVIDENCE_WRITER"], ""))) &&
-      can(regex("^[a-z][a-z0-9-]{4,28}[a-z0-9]$", try(var.dr_evidence_environment_variables["DR_EVIDENCE_PROJECT"], ""))) &&
-      can(regex("^[a-z0-9][a-z0-9._-]{1,220}[a-z0-9]$", try(var.dr_evidence_environment_variables["DR_EVIDENCE_BUCKET"], "")))
-    )
-    error_message = "DR evidence environment variables must be wholly absent during initial governance or contain the exact provider, writer, project, and bucket contract."
-  }
-}

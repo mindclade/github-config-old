@@ -16,13 +16,6 @@ locals {
   team_access             = module.catalog.team_access
   environments            = module.catalog.environments
   repository_environments = { for name, cfg in module.catalog.repositories : name => cfg.environments }
-  dr_evidence_environment_variables_raw = try(
-    var.ci_variables["github-config"]["DR_EVIDENCE_ENVIRONMENT_VARIABLES"],
-    "",
-  )
-  dr_evidence_environment_variables = local.dr_evidence_environment_variables_raw == "" ? tomap({}) : tomap(
-    jsondecode(local.dr_evidence_environment_variables_raw)
-  )
 }
 
 module "organization" {
@@ -34,13 +27,7 @@ module "organization" {
   # secret-delivery path exist. No HMAC secret is serialized into Terraform plans/state.
   webhook_url    = ""
   webhook_secret = ""
-  # Keep the retired root input referenced so Terraform evaluates its fail-closed
-  # compatibility validation and tflint can verify that no dead input remains. The
-  # validation requires this map to be empty; the catalog is the sole authority.
-  app_scopes = merge(
-    var.app_scopes,
-    { for slug, app in module.catalog.github_apps : slug => app.repositories },
-  )
+  app_scopes     = var.app_scopes
 }
 
 module "teams" {
@@ -54,22 +41,14 @@ module "teams" {
 module "repositories" {
   source = "./modules/repositories"
 
-  repositories                      = local.repositories
-  custom_properties                 = module.catalog.custom_properties
-  team_access                       = local.team_access
-  team_ids                          = module.teams.team_ids
-  environments                      = local.environments
-  repository_environments           = local.repository_environments
-  environment_project_ids           = var.environment_project_ids
-  dr_evidence_environment_variables = local.dr_evidence_environment_variables
-  ci_variables                      = var.ci_variables
-}
-
-module "runner_groups" {
-  source = "./modules/runner-groups"
-
-  runner_groups  = module.catalog.runner_groups
-  repository_ids = module.repositories.repository_ids
+  repositories            = local.repositories
+  custom_properties       = module.catalog.custom_properties
+  team_access             = local.team_access
+  team_ids                = module.teams.team_ids
+  environments            = local.environments
+  repository_environments = local.repository_environments
+  environment_project_ids = var.environment_project_ids
+  ci_variables            = var.ci_variables
 }
 
 module "rulesets" {
@@ -78,7 +57,6 @@ module "rulesets" {
   security_team_id       = tonumber(module.teams.team_ids["security"])
   platform_team_id       = tonumber(module.teams.team_ids["platform"])
   infrastructure_team_id = tonumber(module.teams.team_ids["infrastructure"])
-  release_team_id        = tonumber(module.teams.team_ids["release"])
   dot_github_repo_id     = module.repositories.repository_ids[".github"]
 
   rulesets              = module.catalog.rulesets

@@ -53,12 +53,24 @@ variable "artifact_registry_host" {
 }
 
 variable "app_scopes" {
-  description = "Deprecated compatibility input. GitHub App scopes are authoritative in catalog/github-apps.yaml."
+  description = "Approved GitHub App slug to the repositories its installation may reach."
   type        = map(list(string))
   default     = {}
 
   validation {
-    condition     = length(var.app_scopes) == 0
-    error_message = "app_scopes is no longer caller-controlled; edit catalog/github-apps.yaml."
+    condition = alltrue(flatten([
+      for _, repositories in var.app_scopes : [
+        for repository in repositories : contains([
+          ".github",
+          ".github-private",
+          "github-config",
+          "bootstrap",
+          "infrastructure-live",
+          "gitops",
+          "mindclade-internal-monorepo",
+        ], repository)
+      ]
+    ]))
+    error_message = "app_scopes may reference only repositories in the managed estate."
   }
 }
