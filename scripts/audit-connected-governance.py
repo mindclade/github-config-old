@@ -520,13 +520,15 @@ def main() -> int:
         environments = load_yaml(ROOT / "catalog/environments.yaml")
         actions = load_yaml(ROOT / "catalog/actions-policy.yaml")
         rulesets = load_yaml(ROOT / "catalog/rulesets.yaml")
+        runner_groups = load_yaml(ROOT / "catalog/runner-groups.yaml")
         properties = load_yaml(ROOT / "catalog/custom-properties.yaml")
         oidc = load_yaml(ROOT / "catalog/oidc-policy.yaml")
         adoption = load_yaml(ROOT / "catalog/adoption-inventory.yaml")
-        apps = control_app_contracts(load_yaml(ROOT / "catalog/control-plane-apps.yaml"))
+        apps = runtime_app_contracts(load_yaml(ROOT / "catalog/github-apps.yaml"))
+        apps.update(control_app_contracts(load_yaml(ROOT / "catalog/control-plane-apps.yaml")))
     except AuditError as error:
         errors.append(str(error))
-        repositories = teams = environments = actions = rulesets = properties = oidc = adoption = apps = {}
+        repositories = teams = environments = actions = rulesets = runner_groups = properties = oidc = adoption = apps = {}
 
     known = adoption.get("known_existing", [])
     repository_ids = {
@@ -548,6 +550,7 @@ def main() -> int:
         run_check("Apps", lambda: audit_apps(api, args.organization, apps, errors), errors)
         run_check("Actions", lambda: audit_actions(api, args.organization, actions, errors), errors)
         run_check("rulesets", lambda: audit_rulesets(api, args.organization, rulesets, repositories, errors), errors)
+        run_check("runner groups", lambda: audit_runner_groups(api, args.organization, runner_groups, errors), errors)
         run_check(
             "environments",
             lambda: audit_environments(api, args.organization, repositories, environments, team_ids, errors),

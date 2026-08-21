@@ -53,8 +53,8 @@ run "policy_catalog_is_production_grade" {
   }
 
   assert {
-    condition     = output.rulesets["ruleset-workflows"].workflow_ref == "refs/tags/v3.0.0"
-    error_message = "Mandatory workflow enforcement must use the controlled v3.0.0 release tag."
+    condition     = output.rulesets["ruleset-workflows"].workflow_ref == "refs/tags/v5.0.0"
+    error_message = "Mandatory workflow enforcement must use the controlled v5.0.0 release tag."
   }
 
   assert {
@@ -90,5 +90,21 @@ run "policy_catalog_is_production_grade" {
       output.rulesets["required-checks-infra-static"].repositories == ["mindclade-internal-monorepo"]
     )
     error_message = "infra-static must remain an evaluate-mode, canonical-monorepo-only source contract until observed on pull_request and merge_group."
+  }
+
+  assert {
+    condition = (
+      output.rulesets["required-checks-nix"].enforcement == "evaluate" &&
+      toset(output.rulesets["required-checks-nix"].repositories) == toset([
+        ".github",
+        ".github-private",
+        "bootstrap",
+        "github-config",
+        "gitops",
+        "infrastructure-live",
+        "mindclade-internal-monorepo",
+      ])
+    )
+    error_message = "Nix qualification must remain evaluate-mode and cover exactly the managed estate until rollout evidence is reviewed."
   }
 }

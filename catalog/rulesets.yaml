@@ -16,6 +16,10 @@ protected-paths:
     - enterprise-control
     - production-control
   enforcement: active
+release-authority-paths:
+  repositories:
+    - mindclade-internal-monorepo
+  enforcement: active
 push-blocklist:
   target: all-private-internal
   enforcement: active
@@ -79,7 +83,7 @@ ruleset-workflows:
     - production-control
     - source-monorepo
   enforcement: active
-  workflow_ref: refs/tags/v3.0.0
+  workflow_ref: refs/tags/v5.0.0
 tag-protection:
   target: all
   enforcement: active

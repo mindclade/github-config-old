@@ -4,7 +4,7 @@
 
 # The shared workflow always emits this verdict, including when an internal pull-request path
 # check determines that no Nix-owned files changed. Resting enforcement remains evaluate until
-# the immutable v4.1.0 release has produced native and rebuild evidence in every repository.
+# the immutable v5.0.0 release has produced native and rebuild evidence in every repository.
 resource "github_organization_ruleset" "required_checks_nix" {
   name        = "required-checks-nix"
   target      = "branch"

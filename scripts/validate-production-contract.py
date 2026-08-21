@@ -20,7 +20,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY = "github-config"
 CONTRACT = json.loads(
-    '{"authority": ["github-enterprise-governance", "repositories", "teams", "access", "rulesets", "environments", "actions-policy", "oidc-policy"], "forbidden_authority": ["google-cloud-resources", "kubernetes-desired-state", "shared-workflow-implementation", "application-source"], "forbidden_paths": [".terraform", ".terragrunt-cache"], "repository_class": "enterprise-control", "required_paths": ["catalog/repositories.yaml", "catalog/teams.yaml", "catalog/access.yaml", "catalog/environments.yaml", "modules/rulesets", "modules/repositories", "modules/teams"], "visibility": "private"}'
+    '{"authority": ["github-enterprise-governance", "repositories", "teams", "access", "rulesets", "environments", "actions-policy", "oidc-policy"], "forbidden_authority": ["google-cloud-resources", "kubernetes-desired-state", "shared-workflow-implementation", "application-source"], "forbidden_paths": [".terraform", ".terragrunt-cache"], "repository_class": "enterprise-control", "required_paths": ["AGENTS.md", "catalog/repositories.yaml", "catalog/teams.yaml", "catalog/access.yaml", "catalog/environments.yaml", "modules/rulesets", "modules/repositories", "modules/teams"], "visibility": "private"}'
 )
 ERRORS = []
 
@@ -179,6 +179,9 @@ elif REPOSITORY == "github-config":
     ):
         if repo not in text:
             error(f"repository catalog missing {repo}")
+    for required_catalog in ("runner-groups.yaml", "github-apps.yaml"):
+        if not (ROOT / "catalog" / required_catalog).is_file():
+            error(f"GitHub governance catalog is missing {required_catalog}")
     if "default_branch" not in text or "main" not in text:
         error("catalog does not enforce main as the default branch")
     oidc_policy = (ROOT / "catalog/oidc-policy.yaml").read_text(
@@ -217,6 +220,30 @@ elif REPOSITORY == "github-config":
         error(
             "artifact signer contract does not require immutable owner/repository IDs"
         )
+    residency_catalog = (ROOT / "catalog/ci-variables.yaml").read_text(
+        "utf-8", errors="ignore"
+    )
+    for required_location in (
+        "RESIDENCY_PROFILE: us-only-v1",
+        "GCP_REGION: us-central1",
+        "STATE_BUCKET_LOCATION: US",
+        "STATE_KMS_LOCATION: us",
+        "STATE_REPLICA_LOCATION: us-east4",
+        "STATE_REPLICA_KMS_LOCATION: us-east4",
+        "PRIMARY_REGION: us-central1",
+        "GPU_ZONE: us-central1-b",
+        "DR_REGION: us-east4",
+        "DR_GPU_ZONE: us-east4-b",
+        "ARTIFACT_REGISTRY_HOST: us-central1-docker.pkg.dev",
+        "ARTIFACT_REGISTRY_DR_HOST: us-east4-docker.pkg.dev",
+    ):
+        if required_location not in residency_catalog:
+            error(f"U.S. residency CI-variable contract omits: {required_location}")
+    if re.search(
+        r"(?m)^\s+[A-Z0-9_]+:\s+(?:europe|asia|australia|northamerica|southamerica|me|africa)-",
+        residency_catalog,
+    ):
+        error("CI-variable contract contains a non-U.S. deployable location")
 elif REPOSITORY == "gitops":
     for p in list((ROOT / "applications").glob("*.yaml")) + list(
         (ROOT / "projects").glob("*.yaml")

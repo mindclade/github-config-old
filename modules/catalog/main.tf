@@ -17,6 +17,52 @@ locals {
   actions_policy     = yamldecode(file("${var.catalog_path}/actions-policy.yaml"))
   oidc_policy        = yamldecode(file("${var.catalog_path}/oidc-policy.yaml"))
   custom_properties  = yamldecode(file("${var.catalog_path}/custom-properties.yaml"))
+  runner_groups      = yamldecode(file("${var.catalog_path}/runner-groups.yaml"))
+  github_apps        = yamldecode(file("${var.catalog_path}/github-apps.yaml"))
+}
+
+check "artifact_authority_runner_group_is_exact" {
+  assert {
+    condition = (
+      toset(keys(local.runner_groups)) == toset(["mindclade-arc-artifact-authority"]) &&
+      local.runner_groups["mindclade-arc-artifact-authority"].visibility == "selected" &&
+      local.runner_groups["mindclade-arc-artifact-authority"].allowsPublicRepositories == false &&
+      local.runner_groups["mindclade-arc-artifact-authority"].restrictedToWorkflows == true &&
+      toset(local.runner_groups["mindclade-arc-artifact-authority"].repositories) == toset(["mindclade-internal-monorepo"]) &&
+      toset(local.runner_groups["mindclade-arc-artifact-authority"].workflows) == toset([
+        "mindclade/mindclade-internal-monorepo/.github/workflows/release.yml@refs/heads/main"
+      ])
+    )
+    error_message = "ARC artifact authority must be private, selected to the monorepo, and restricted to the exact trusted-main release workflow."
+  }
+}
+
+check "github_app_installation_contracts_are_exact" {
+  assert {
+    condition = (
+      toset(keys(local.github_apps)) == toset([
+        "mindclade-arc",
+        "mindclade-release-promoter",
+        "mindclade-production-qualification-reader",
+      ]) &&
+      toset(local.github_apps["mindclade-arc"].repositories) == toset(["mindclade-internal-monorepo"]) &&
+      toset(local.github_apps["mindclade-release-promoter"].repositories) == toset(["gitops"]) &&
+      local.github_apps["mindclade-arc"].organizationPermissions.selfHostedRunners == "write" &&
+      local.github_apps["mindclade-release-promoter"].repositoryPermissions.contents == "write" &&
+      local.github_apps["mindclade-release-promoter"].repositoryPermissions.pullRequests == "write" &&
+      toset(local.github_apps["mindclade-production-qualification-reader"].repositories) == toset([
+        ".github", ".github-private", "bootstrap", "github-config",
+        "infrastructure-live", "gitops", "mindclade-internal-monorepo"
+      ]) &&
+      local.github_apps["mindclade-production-qualification-reader"].organizationPermissions == {} &&
+      local.github_apps["mindclade-production-qualification-reader"].repositoryPermissions == {
+        actions  = "read"
+        contents = "read"
+        metadata = "read"
+      }
+    )
+    error_message = "GitHub App installation or permission contract exceeds the ARC, promoter, or qualification least-privilege boundary."
+  }
 }
 
 check "estate_is_complete" {
@@ -195,6 +241,7 @@ check "ruleset_catalog_matches_the_implementation" {
       "baseline-all",
       "merge-queue",
       "protected-paths",
+      "release-authority-paths",
       "push-blocklist",
       "required-checks-bootstrap",
       "required-checks-gitops",
@@ -228,3 +275,5 @@ output "rulesets" { value = local.rulesets }
 output "actions_policy" { value = local.actions_policy }
 output "oidc_policy" { value = local.oidc_policy }
 output "custom_properties" { value = local.custom_properties }
+output "runner_groups" { value = local.runner_groups }
+output "github_apps" { value = local.github_apps }
