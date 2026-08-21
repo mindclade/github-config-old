@@ -843,7 +843,7 @@ if nix_job.get("secrets"):
     err("nix-qualification caller must not inherit or pass secrets")
 if nix_job.get("uses") != (
     "mindclade/.github/.github/workflows/"
-    "reusable-nix-qualification.yml@db363da19deb14beb5063c25890e44effe7e6d49"
+    "reusable-nix-qualification.yml@0bdba2a8d06c732a6eb0a09238267dc83e1ca576"
 ):
     err("nix-qualification must use the audited immutable v5.0.0 candidate commit")
 nix_inputs = nix_job.get("with", {})
