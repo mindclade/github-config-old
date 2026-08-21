@@ -36,6 +36,140 @@ EXPIRY = load("check_access_expiry", "scripts/check-access-expiry.py")
 
 
 class ExportSafetyTest(unittest.TestCase):
+    @staticmethod
+    def deployed_v12_contract() -> dict[str, object]:
+        repositories = (
+            "bootstrap",
+            "github-config",
+            "infrastructure-live",
+            "gitops",
+            "mindclade-internal-monorepo",
+        )
+        pool = "projects/123456789/locations/global/workloadIdentityPools/github"
+        return {
+            "contract_version": "1.2.0",
+            "organization_id": "960418882450",
+            "billing_account": "01262F-73BD24-9AE6B7",
+            "state_project_id": "mc-b-seed-fb7649",
+            "federation_project_id": "mc-b-cicd-fb7649",
+            "state": {
+                "primary_location": "US",
+                "primary_buckets": {
+                    "bootstrap": "mc-bootstrap-state",
+                    "github-config": "mc-github-config-state",
+                    "infrastructure-live-development": "mc-live-development",
+                    "infrastructure-live-staging": "mc-live-staging",
+                    "infrastructure-live-production": "mc-live-production",
+                },
+                "replica_buckets": {"bootstrap": "mc-bootstrap-replica"},
+            },
+            "github": {
+                "organization": "mindclade",
+                "workload_identity_pool": pool,
+                "workload_identity_providers": {
+                    name: f"{pool}/providers/gh-{name}" for name in repositories
+                },
+                "repository_identities": {
+                    name: {
+                        "repository": f"mindclade/{name}",
+                        "repository_owner_id": "316676129",
+                        "repository_id": str(1000 + index),
+                    }
+                    for index, name in enumerate(repositories)
+                },
+                "artifact_signer": {
+                    "workload_identity_provider": (
+                        f"{pool}/providers/gh-mindclade-internal-monorepo"
+                    ),
+                    "principal": (
+                        f"principal://iam.googleapis.com/{pool}/subject/"
+                        "repo:mindclade@316676129/"
+                        "mindclade-internal-monorepo@1004:environment:release"
+                    ),
+                    "job_workflow_ref": (
+                        "mindclade/.github/.github/workflows/"
+                        "reusable-binauthz-sign.yml@refs/tags/v3.0.0"
+                    ),
+                },
+            },
+            "buildkite": {
+                "enabled": False,
+                "workload_identity_pool": None,
+                "workload_identity_provider": None,
+            },
+            "automation_identities": {
+                "bootstrap-plan": "bootstrap-plan@example.iam.gserviceaccount.com",
+                "bootstrap-drift": "bootstrap-drift@example.iam.gserviceaccount.com",
+                "bootstrap-apply": "bootstrap-apply@example.iam.gserviceaccount.com",
+                "github-config-plan": "github-config-plan@example.iam.gserviceaccount.com",
+                "github-config-apply": "github-config-apply@example.iam.gserviceaccount.com",
+                "infrastructure-live-plan": "live-plan@example.iam.gserviceaccount.com",
+                "infrastructure-live-apply-foundation": "live-foundation@example.iam.gserviceaccount.com",
+                "infrastructure-live-apply-development": "live-development@example.iam.gserviceaccount.com",
+                "infrastructure-live-apply-staging": "live-staging@example.iam.gserviceaccount.com",
+                "infrastructure-live-apply-production": "live-production@example.iam.gserviceaccount.com",
+            },
+            "automation_secret": {"project_id": "mc-b-seed-fb7649"},
+        }
+
+    def test_deployed_v12_contract_keeps_arc_authority_inactive(self) -> None:
+        catalog = {
+            ".github": {},
+            ".github-private": {},
+            "github-config": {"ENVIRONMENT_PROJECT_IDS": "{}"},
+            "bootstrap": {
+                "ENABLE_BUILDKITE_WIF": "false",
+                "SECURITY_CONTACT": "security@mindclade.com",
+            },
+            "infrastructure-live": {},
+            "gitops": {},
+            "mindclade-internal-monorepo": {},
+        }
+        outputs = {"platform_contract": {"value": self.deployed_v12_contract()}}
+        with (
+            mock.patch.object(CI, "run_json", side_effect=[catalog, outputs]),
+            mock.patch.object(CI, "resolve_environment", side_effect=lambda value: value),
+        ):
+            payload = CI.compile_payload(ROOT, stage="bootstrap")
+
+        self.assertNotIn(
+            "ARTIFACT_RELEASE_IDENTITIES_JSON", payload["infrastructure-live"]
+        )
+        self.assertEqual(
+            payload["mindclade-internal-monorepo"]["WIF_PROVIDER_SIGNER"],
+            payload["infrastructure-live"]["WIF_PROVIDER_SIGNER"],
+        )
+        self.assertNotIn(
+            "WIF_PROVIDER_ARC_BUILDER", payload["mindclade-internal-monorepo"]
+        )
+
+    def test_deployed_v12_rejects_a_future_signer_workflow(self) -> None:
+        platform = self.deployed_v12_contract()
+        platform["github"]["artifact_signer"]["job_workflow_ref"] = (
+            "mindclade/.github/.github/workflows/"
+            "reusable-binauthz-sign.yml@refs/tags/v4.0.0"
+        )
+        catalog = {
+            name: {}
+            for name in (
+                ".github",
+                ".github-private",
+                "github-config",
+                "bootstrap",
+                "infrastructure-live",
+                "gitops",
+                "mindclade-internal-monorepo",
+            )
+        }
+        catalog["bootstrap"]["ENABLE_BUILDKITE_WIF"] = "false"
+        outputs = {"platform_contract": {"value": platform}}
+        with (
+            mock.patch.object(CI, "run_json", side_effect=[catalog, outputs]),
+            mock.patch.object(CI, "resolve_environment", side_effect=lambda value: value),
+        ):
+            with self.assertRaisesRegex(ValueError, "legacy artifact signer"):
+                CI.compile_payload(ROOT, stage="bootstrap")
+
     def test_ci_generation_failure_never_calls_gh(self) -> None:
         arguments = SimpleNamespace(
             bootstrap=ROOT,
