@@ -33,6 +33,39 @@ env:
   TF_PLUGIN_CACHE_DIR: /home/runner/.terraform.d/plugin-cache
 
 jobs:
+  readiness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      enabled: ${{ steps.activation.outputs.enabled }}
+    steps:
+      - id: activation
+        name: Check connected-governance activation
+        env:
+          CONNECTED_DRIFT_ENABLED: ${{ vars.GOVERNANCE_CONNECTED_DRIFT }}
+          TF_PLAN_APP_ID: ${{ vars.TF_PLAN_APP_ID }}
+          TF_GITHUB_PLAN_APP_PEM: ${{ secrets.TF_GITHUB_PLAN_APP_PEM }}
+        run: |
+          set -euo pipefail
+          if [[ "$CONNECTED_DRIFT_ENABLED" != true ]]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Connected governance drift is staged until the plan App and protected credential are qualified."
+            exit 0
+          fi
+          missing=0
+          if [[ -z "$TF_PLAN_APP_ID" ]]; then
+            echo "::error::GOVERNANCE_CONNECTED_DRIFT is true but TF_PLAN_APP_ID is unset."
+            missing=1
+          fi
+          if [[ -z "$TF_GITHUB_PLAN_APP_PEM" ]]; then
+            echo "::error::GOVERNANCE_CONNECTED_DRIFT is true but TF_GITHUB_PLAN_APP_PEM is unset."
+            missing=1
+          fi
+          if [[ "$missing" -ne 0 ]]; then
+            exit 1
+          fi
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
+
   access-expiry:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
@@ -134,7 +167,8 @@ jobs:
           exit 1
 
   drift:
-    if: github.ref == 'refs/heads/main'
+    needs: [readiness]
+    if: github.ref == 'refs/heads/main' && needs.readiness.outputs.enabled == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -544,8 +578,8 @@ jobs:
   drift-artifact-verify:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    needs: [drift]
-    if: always()
+    needs: [readiness, drift]
+    if: always() && needs.readiness.outputs.enabled == 'true'
     steps:
       - name: Download drift artifacts for audit
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0  # v5

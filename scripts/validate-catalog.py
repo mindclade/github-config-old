@@ -125,6 +125,7 @@ FORBIDDEN_ORG_SUBJECT_CLAIMS = {"environment", "job_workflow_ref", "job_workflow
 REQUIRED_CI_VARIABLES = {
     "github-config": {
         "BILLING_EMAIL": "env:BILLING_EMAIL",
+        "GOVERNANCE_CONNECTED_DRIFT": "false",
     },
     "bootstrap": {
         "ENABLE_BUILDKITE_WIF": "false",
@@ -1147,6 +1148,30 @@ if drift_job.get("environment") is not None:
     )
 if "github.ref == 'refs/heads/main'" not in str(drift_job.get("if", "")):
     err("drift.yml must reject manual dispatch from non-main refs")
+readiness_job = workflow_docs["drift"].get("jobs", {}).get("readiness", {})
+readiness_text = yaml.safe_dump(readiness_job, sort_keys=True)
+for fragment in (
+    "GOVERNANCE_CONNECTED_DRIFT",
+    "TF_PLAN_APP_ID",
+    "TF_GITHUB_PLAN_APP_PEM",
+    "enabled=true",
+    "enabled=false",
+):
+    if fragment not in readiness_text:
+        err(f"drift.yml readiness gate omits required fragment: {fragment}")
+drift_needs = drift_job.get("needs", [])
+if "readiness" not in ([drift_needs] if isinstance(drift_needs, str) else drift_needs):
+    err("drift.yml connected drift must depend on the readiness gate")
+if "needs.readiness.outputs.enabled == 'true'" not in str(drift_job.get("if", "")):
+    err("drift.yml connected drift must require explicit readiness activation")
+artifact_job = workflow_docs["drift"].get("jobs", {}).get("drift-artifact-verify", {})
+artifact_needs = artifact_job.get("needs", [])
+if "readiness" not in (
+    [artifact_needs] if isinstance(artifact_needs, str) else artifact_needs
+):
+    err("drift artifact verification must depend on the readiness gate")
+if "needs.readiness.outputs.enabled == 'true'" not in str(artifact_job.get("if", "")):
+    err("drift artifact verification must remain staged with connected drift")
 
 idp_jobs = workflow_docs["idp-sync"].get("jobs", {})
 if "export" in idp_jobs:

@@ -42,7 +42,10 @@ repository files, plan artifacts, command lines, or logs.
    failure is a failed audit, not permission to skip the check.
 4. Run the plan App's positive read/plan test and negative mutation test. Exercise a harmless
    rejected mutation against a disposable qualification repository, never a production setting.
-5. Run the apply App only through a reviewed, checksummed saved plan waiting at `governance`.
+5. Change the catalog-managed `GOVERNANCE_CONNECTED_DRIFT` variable from `false` to `true` only
+   after the plan App ID and protected PEM are present. The scheduled workflow fails closed if
+   activation is requested with either credential missing.
+6. Run the apply App only through a reviewed, checksummed saved plan waiting at `governance`.
 
 ## Rotation and rollback
 

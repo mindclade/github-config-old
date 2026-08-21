@@ -12,6 +12,9 @@
 
 github-config:
   ORGANIZATION: mindclade
+  # Connected drift remains staged until the read/plan App installation, exact permissions,
+  # selected repositories, and protected private key have passed the connected audit.
+  GOVERNANCE_CONNECTED_DRIFT: "false"
   # Keep operator-derived until the billing group mailbox is actually provisioned.
   BILLING_EMAIL: env:BILLING_EMAIL
   # Initial governance creates and protects environments before infrastructure-live exists.
