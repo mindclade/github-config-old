@@ -20,7 +20,22 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 
-BUILDKITE_DEFERRED_VARIABLES: dict[str, set[str]] = {}
+BUILDKITE_DEFERRED_VARIABLES = {
+    "bootstrap": {
+        "BUILDKITE_ORGANIZATION_ID",
+        "BUILDKITE_PIPELINE_IDS_JSON",
+        "BUILDKITE_PIPELINE_STEP_CONTRACTS_JSON",
+    },
+    "mindclade-internal-monorepo": {
+        "BUILDKITE_ORGANIZATION_ID",
+        "BUILDKITE_BUILD_PIPELINE_ID",
+        "BUILDKITE_QUALIFICATION_PIPELINE_ID",
+        "BUILDKITE_PROMOTION_PIPELINE_ID",
+        "BUILDKITE_BUILDER_IDENTITY",
+        "BUILDKITE_QUALIFIER_IDENTITY",
+        "BUILDKITE_PROMOTER_IDENTITY",
+    },
+}
 
 # Initial governance runs before GitHub Apps, normal-plane identities, attestors, and
 # environment projects exist. Keep this allowlist deliberately small: platform-contract values
@@ -110,18 +125,29 @@ def configure_buildkite_phase(
     enabled = buildkite.get("enabled")
     if not isinstance(enabled, bool):
         raise ValueError("platform_contract.buildkite.enabled is not boolean")
+    expected_flag = "true" if enabled else "false"
     catalog_flag = config.get("bootstrap", {}).get("ENABLE_BUILDKITE_WIF")
-    if catalog_flag != "false":
+    if catalog_flag != expected_flag:
         raise ValueError(
-            "catalog must permanently disable retired Buildkite federation"
+            "catalog ENABLE_BUILDKITE_WIF does not match platform_contract.buildkite.enabled"
         )
-    if enabled or buildkite.get("workload_identity_pool") is not None or (
-        buildkite.get("workload_identity_provider") is not None
+    if not enabled:
+        for repository, names in BUILDKITE_DEFERRED_VARIABLES.items():
+            for name in names:
+                config.get(repository, {}).pop(name, None)
+        return None
+
+    buildkite_pool = require(
+        buildkite, "workload_identity_pool", "platform_contract.buildkite"
+    )
+    if not re.fullmatch(
+        r"projects/[0-9]+/locations/global/workloadIdentityPools/buildkite",
+        str(buildkite_pool),
     ):
         raise ValueError(
-            "Buildkite is retired and must publish disabled with null pool and provider"
+            "platform_contract Buildkite WIF pool has an invalid resource name"
         )
-    return None
+    return str(buildkite_pool)
 
 
 def select_bootstrap_stage(
@@ -200,149 +226,6 @@ def github_repository_contract(
     )
 
 
-def artifact_release_contract(
-    github_contract: dict[str, Any], github_pool: str, organization: str
-) -> dict[str, dict[str, str]]:
-    identities = require(
-        github_contract,
-        "artifact_release_identities",
-        "platform_contract.github",
-    )
-    workflows = {
-        "canary": "reusable-arc-wif-canary.yml",
-        "builder": "reusable-arc-oci-build.yml",
-        "qualification-reader": "reusable-arc-oci-qualify.yml",
-        "qualifier": "reusable-arc-qualification-attest.yml",
-        "signer": "reusable-binauthz-sign.yml",
-        "promoter": "reusable-gitops-promote.yml",
-    }
-    fields = {
-        "workload_identity_provider",
-        "principal",
-        "subject",
-        "workflow_ref",
-        "job_workflow_ref",
-    }
-    if not isinstance(identities, dict) or set(identities) != set(workflows):
-        raise ValueError("platform_contract ARC release identity inventory is not exact")
-    for capability, workflow in workflows.items():
-        identity = identities[capability]
-        if not isinstance(identity, dict) or set(identity) != fields:
-            raise ValueError(f"ARC release identity is not exact: {capability}")
-        provider_id = (
-            "gh-mindclade-internal-monorepo"
-            if capability == "signer"
-            else f"gh-arc-{capability}"
-        )
-        if identity.get("workload_identity_provider") != (
-            f"{github_pool}/providers/{provider_id}"
-        ):
-            raise ValueError(f"ARC release provider differs: {capability}")
-        suffix = (
-            "environment:release"
-            if capability in {"signer", "promoter"}
-            else "ref:refs/heads/main"
-        )
-        subject = identity.get("subject")
-        if not isinstance(subject, str) or re.fullmatch(
-            rf"repo:{re.escape(organization)}@[0-9]+/"
-            rf"mindclade-internal-monorepo@[0-9]+:{re.escape(suffix)}",
-            subject,
-        ) is None:
-            raise ValueError(f"ARC release subject differs: {capability}")
-        mapped_subject = subject if capability == "signer" else f"arc-{capability}:{subject}"
-        if identity.get("principal") != (
-            f"principal://iam.googleapis.com/{github_pool}/subject/{mapped_subject}"
-        ):
-            raise ValueError(f"ARC release principal differs: {capability}")
-        if identity.get("workflow_ref") != (
-            f"{organization}/mindclade-internal-monorepo/.github/workflows/"
-            "release.yml@refs/heads/main"
-        ):
-            raise ValueError(f"ARC release caller differs: {capability}")
-        if identity.get("job_workflow_ref") != (
-            f"{organization}/.github/.github/workflows/{workflow}@refs/tags/v4.0.0"
-        ):
-            raise ValueError(f"ARC reusable workflow differs: {capability}")
-    signer = require(github_contract, "artifact_signer", "platform_contract.github")
-    if not isinstance(signer, dict) or signer != {
-        field: identities["signer"][field]
-        for field in ("workload_identity_provider", "principal", "job_workflow_ref")
-    }:
-        raise ValueError("legacy artifact_signer projection differs from signer capability")
-    return identities
-
-
-def dr_evidence_environment_contract(
-    github_contract: dict[str, Any], github_pool: str, organization: str
-) -> dict[str, str]:
-    """Compile the protected-environment handoff from Ring 0 and applied live outputs."""
-    identity = require(
-        github_contract, "dr_evidence_identity", "platform_contract.github"
-    )
-    if not isinstance(identity, dict) or set(identity) != {
-        "workload_identity_provider",
-        "job_workflow_ref",
-        "principals",
-    }:
-        raise ValueError("platform_contract DR evidence identity is not exact")
-
-    provider = identity.get("workload_identity_provider")
-    if provider != f"{github_pool}/providers/gh-dr-evidence":
-        raise ValueError("platform_contract DR evidence provider differs")
-    if identity.get("job_workflow_ref") != (
-        f"{organization}/.github/.github/workflows/"
-        "reusable-dr-evidence.yml@refs/tags/v4.0.0"
-    ):
-        raise ValueError("platform_contract DR evidence reusable workflow differs")
-
-    repositories = ("bootstrap", "github-config", "infrastructure-live", "gitops")
-    environments = ("scratch", "staging")
-    expected_principals = {
-        f"{repository}:{environment}"
-        for repository in repositories
-        for environment in environments
-    }
-    principals = identity.get("principals")
-    if not isinstance(principals, dict) or set(principals) != expected_principals:
-        raise ValueError("platform_contract DR evidence principal inventory is not exact")
-    for key, principal in principals.items():
-        repository, environment = key.split(":", 1)
-        if not isinstance(principal, str) or re.fullmatch(
-            rf"principal://iam\.googleapis\.com/{re.escape(github_pool)}/subject/"
-            rf"dr-evidence:repo:{re.escape(organization)}@[0-9]+/"
-            rf"{re.escape(repository)}@[0-9]+:environment:{re.escape(environment)}",
-            principal,
-        ) is None:
-            raise ValueError(f"platform_contract DR evidence principal differs: {key}")
-
-    values = {
-        "WIF_PROVIDER_DR_EVIDENCE": str(provider),
-        "SA_DR_EVIDENCE_WRITER": os.environ.get("SA_DR_EVIDENCE_WRITER", ""),
-        "DR_EVIDENCE_PROJECT": os.environ.get("DR_EVIDENCE_PROJECT", ""),
-        "DR_EVIDENCE_BUCKET": os.environ.get("DR_EVIDENCE_BUCKET", ""),
-    }
-    empty = [name for name, value in values.items() if not value]
-    if empty:
-        raise ValueError(
-            "required applied DR evidence outputs are unset: " + ", ".join(empty)
-        )
-    if re.fullmatch(
-        r"[a-z][a-z0-9-]{4,28}[a-z0-9]@[a-z][a-z0-9-]{4,28}[a-z0-9]\.iam\.gserviceaccount\.com",
-        values["SA_DR_EVIDENCE_WRITER"],
-    ) is None:
-        raise ValueError("SA_DR_EVIDENCE_WRITER is not a service-account email")
-    if re.fullmatch(
-        r"[a-z][a-z0-9-]{4,28}[a-z0-9]", values["DR_EVIDENCE_PROJECT"]
-    ) is None:
-        raise ValueError("DR_EVIDENCE_PROJECT is not a Google Cloud project ID")
-    if re.fullmatch(
-        r"[a-z0-9][a-z0-9._-]{1,220}[a-z0-9]", values["DR_EVIDENCE_BUCKET"]
-    ) is None:
-        raise ValueError("DR_EVIDENCE_BUCKET is not a Cloud Storage bucket name")
-    return values
-
-
 def compile_payload(
     bootstrap: Path, *, stage: str = "full"
 ) -> dict[str, dict[str, Any]]:
@@ -357,7 +240,7 @@ def compile_payload(
     platform = require(outputs, "platform_contract", "bootstrap output").get("value")
     if not isinstance(platform, dict):
         raise ValueError("bootstrap output platform_contract is not an object")
-    if platform.get("contract_version") != "1.4.0":
+    if platform.get("contract_version") != "1.2.0":
         raise ValueError(
             f"unsupported bootstrap platform_contract version: {platform.get('contract_version', 'missing')}"
         )
@@ -392,18 +275,7 @@ def compile_payload(
         raise ValueError(
             "platform_contract GitHub WIF pool has an invalid resource name"
         )
-    release_identities = artifact_release_contract(
-        github_contract, str(github_pool), github_organization
-    )
-    signer = release_identities["signer"]
-    if stage == "full":
-        config["github-config"]["DR_EVIDENCE_ENVIRONMENT_VARIABLES"] = json.dumps(
-            dr_evidence_environment_contract(
-                github_contract, str(github_pool), github_organization
-            ),
-            sort_keys=True,
-            separators=(",", ":"),
-        )
+    signer = require(github_contract, "artifact_signer", "platform_contract.github")
 
     def need(mapping: dict[str, Any], key: str, label: str) -> Any:
         return require(mapping, key, label)
@@ -473,9 +345,6 @@ def compile_payload(
         "ARTIFACT_SIGNER_JOB_WORKFLOW_REF": need(
             signer, "job_workflow_ref", "artifact signer"
         ),
-        "ARTIFACT_RELEASE_IDENTITIES_JSON": json.dumps(
-            release_identities, sort_keys=True, separators=(",", ":")
-        ),
         "STATE_LOCATION": need(
             state_contract, "primary_location", "platform_contract.state"
         ),
@@ -527,27 +396,9 @@ def compile_payload(
     config["gitops"]["WIF_PROVIDER_PLAN"] = need(
         providers, "gitops", "GitHub WIF providers"
     )
-    monorepo_provider_names = {
-        "canary": "WIF_PROVIDER_ARC_CANARY",
-        "builder": "WIF_PROVIDER_ARC_BUILDER",
-        "qualification-reader": "WIF_PROVIDER_ARC_QUALIFICATION_READER",
-        "qualifier": "WIF_PROVIDER_ARC_QUALIFIER",
-        "signer": "WIF_PROVIDER_SIGNER",
-        "promoter": "WIF_PROVIDER_ARC_PROMOTER",
-    }
-    for capability, variable_name in monorepo_provider_names.items():
-        identity = require(
-            release_identities,
-            capability,
-            "platform_contract.github.artifact_release_identities",
-        )
-        if not isinstance(identity, dict):
-            raise ValueError(f"ARC release identity is not an object: {capability}")
-        config["mindclade-internal-monorepo"][variable_name] = need(
-            identity,
-            "workload_identity_provider",
-            f"ARC release identity {capability}",
-        )
+    config["mindclade-internal-monorepo"]["WIF_PROVIDER_SIGNER"] = need(
+        signer, "workload_identity_provider", "artifact signer"
+    )
     empty = [
         f"{repo}/{name}"
         for repo, values in config.items()

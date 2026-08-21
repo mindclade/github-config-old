@@ -3,10 +3,10 @@
 # GitHub App authority contracts
 
 `catalog/control-plane-apps.yaml` is the machine-readable registration and installation
-contract for Terraform plan and apply identities. `catalog/github-apps.yaml` is the equivalent
-contract for ARC runner registration and GitOps promotion. Neither catalog proves an App exists:
-`scripts/audit-connected-governance.py` must observe the exact installation, permission map, and
-selected repositories before production activation.
+contract for Terraform plan and apply identities. ARC runner registration and GitOps promotion
+Apps remain deferred with the unpublished v4 contract and are not active governance inputs.
+The catalog does not prove an App exists: `scripts/audit-connected-governance.py` must observe
+the exact installation, permission map, and selected repositories before production activation.
 
 ## Control-plane Apps
 

@@ -17,15 +17,11 @@ github-config:
   # Initial governance creates and protects environments before infrastructure-live exists.
   # Promote this to env:ENVIRONMENT_PROJECT_IDS only with exact applied infrastructure outputs.
   ENVIRONMENT_PROJECT_IDS: '{}'
-  # Full export supplies this exact JSON object from bootstrap contract 1.4.0 and the applied
-  # infrastructure-live DR evidence outputs. Terraform expands it only into protected
-  # scratch/staging environments for the four DR caller repositories.
-  DR_EVIDENCE_ENVIRONMENT_VARIABLES: '{}'
   TF_PLAN_APP_ID: env:TF_PLAN_APP_ID
   TF_APPLY_APP_ID: env:TF_APPLY_APP_ID
 
 bootstrap:
-  # export-ci-variables.py augments this catalog from bootstrap platform_contract 1.4.0. In
+  # export-ci-variables.py augments this catalog from bootstrap platform_contract 1.2.0. In
   # particular, organization/billing/GitHub immutable IDs and state buckets come directly from
   # that machine contract; operators cannot substitute free-form copies of those identifiers.
   RESOURCE_PREFIX: mc
@@ -38,8 +34,12 @@ bootstrap:
   # Full activation targets the provisioned security group. Bootstrap-stage export instead
   # requires SECURITY_CONTACT from the operator so it preserves the current live recipient.
   SECURITY_CONTACT: security@mindclade.com
-  # The ARC amendment permanently disables the retained Buildkite transition guard.
+  # The current Ring-0 contract deliberately disables Buildkite. The exporter omits all
+  # UUID-derived Buildkite inputs until both this flag and platform_contract agree on enabled.
   ENABLE_BUILDKITE_WIF: "false"
+  BUILDKITE_ORGANIZATION_ID: env:BUILDKITE_ORGANIZATION_ID
+  BUILDKITE_PIPELINE_IDS_JSON: env:BUILDKITE_PIPELINE_IDS_JSON
+  BUILDKITE_PIPELINE_STEP_CONTRACTS_JSON: env:BUILDKITE_PIPELINE_STEP_CONTRACTS_JSON
 
 infrastructure-live:
   TF_APP_ID: env:TF_APP_ID
@@ -64,23 +64,21 @@ gitops:
 
 mindclade-internal-monorepo:
   ARTIFACT_REGISTRY_HOST: us-central1-docker.pkg.dev
-  CI_PROJECT_ID: env:CI_PROJECT_ID
-  SA_ARC_CANARY: env:SA_ARC_CANARY
-  SA_ARTIFACT_BUILDER: env:SA_ARTIFACT_BUILDER
-  SA_ARTIFACT_QUALIFICATION_READER: env:SA_ARTIFACT_QUALIFICATION_READER
-  SA_ARTIFACT_QUALIFIER: env:SA_ARTIFACT_QUALIFIER
-  SA_ARTIFACT_PROMOTER: env:SA_ARTIFACT_PROMOTER
+  BUILDKITE_ORGANIZATION_ID: env:BUILDKITE_ORGANIZATION_ID
+  BUILDKITE_BUILD_PIPELINE_ID: env:BUILDKITE_BUILD_PIPELINE_ID
+  BUILDKITE_QUALIFICATION_PIPELINE_ID: env:BUILDKITE_QUALIFICATION_PIPELINE_ID
+  BUILDKITE_PROMOTION_PIPELINE_ID: env:BUILDKITE_PROMOTION_PIPELINE_ID
+  BUILDKITE_BUILDER_IDENTITY: env:BUILDKITE_BUILDER_IDENTITY
+  BUILDKITE_QUALIFIER_IDENTITY: env:BUILDKITE_QUALIFIER_IDENTITY
+  BUILDKITE_PROMOTER_IDENTITY: env:BUILDKITE_PROMOTER_IDENTITY
+  DEV_PLATFORM_PROJECT_ID: mc-development-platform
+  STAGING_PLATFORM_PROJECT_ID: mc-staging-platform
+  PRODUCTION_PLATFORM_PROJECT_ID: mc-production-platform
   BINAUTHZ_BUILD_ATTESTOR_PROJECT: env:BINAUTHZ_BUILD_ATTESTOR_PROJECT
   BINAUTHZ_BUILD_ATTESTOR: env:BINAUTHZ_BUILD_ATTESTOR
-  BINAUTHZ_BUILD_ATTESTOR_KEY_VERSION: env:BINAUTHZ_BUILD_ATTESTOR_KEY_VERSION
   BINAUTHZ_QUALIFICATION_ATTESTOR_PROJECT: env:BINAUTHZ_QUALIFICATION_ATTESTOR_PROJECT
   BINAUTHZ_QUALIFICATION_ATTESTOR: env:BINAUTHZ_QUALIFICATION_ATTESTOR
-  BINAUTHZ_QUALIFICATION_ATTESTOR_KEY_VERSION: env:BINAUTHZ_QUALIFICATION_ATTESTOR_KEY_VERSION
   BINAUTHZ_DEPLOYMENT_ATTESTOR_PROJECT: env:BINAUTHZ_DEPLOYMENT_ATTESTOR_PROJECT
   BINAUTHZ_DEPLOYMENT_ATTESTOR: env:BINAUTHZ_DEPLOYMENT_ATTESTOR
   BINAUTHZ_DEPLOYMENT_ATTESTOR_KEY_VERSION: env:BINAUTHZ_DEPLOYMENT_ATTESTOR_KEY_VERSION
   SA_ARTIFACT_SIGNER: env:SA_ARTIFACT_SIGNER
-  ARC_PROMOTER_APP_ID: env:ARC_PROMOTER_APP_ID
-  ARC_PROMOTER_SECRET_PROJECT: env:ARC_PROMOTER_SECRET_PROJECT
-  ARC_PROMOTER_PRIVATE_KEY_SECRET: env:ARC_PROMOTER_PRIVATE_KEY_SECRET
-  ARC_PROMOTER_PRIVATE_KEY_VERSION: env:ARC_PROMOTER_PRIVATE_KEY_VERSION

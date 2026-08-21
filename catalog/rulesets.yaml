@@ -16,10 +16,6 @@ protected-paths:
     - enterprise-control
     - production-control
   enforcement: active
-release-authority-paths:
-  repositories:
-    - mindclade-internal-monorepo
-  enforcement: active
 push-blocklist:
   target: all-private-internal
   enforcement: active
@@ -51,18 +47,6 @@ required-checks-mixed:
     - mixed
   # Promote to active only after the real monorepo reports these exact contexts.
   enforcement: evaluate
-required-checks-nix:
-  repositories:
-    - .github
-    - .github-private
-    - bootstrap
-    - github-config
-    - gitops
-    - infrastructure-live
-    - mindclade-internal-monorepo
-  # Observe the released reusable workflow on pull requests, merge groups, and scheduled
-  # native runners before making this context merge-blocking.
-  enforcement: evaluate
 required-checks-tf:
   repositories:
     - github-config
@@ -83,7 +67,7 @@ ruleset-workflows:
     - production-control
     - source-monorepo
   enforcement: active
-  workflow_ref: refs/tags/v4.0.0
+  workflow_ref: refs/tags/v3.0.0
 tag-protection:
   target: all
   enforcement: active
