@@ -1049,7 +1049,7 @@ for name, fragment in required_export_fragments.items():
 if '"platform_contract"' not in ci_variable_exporter:
     err("ci-variable exporter must source bootstrap/platform_contract")
 for fragment in (
-    'platform.get("contract_version") != "1.4.0"',
+    'contract_version not in {"1.2.0", "1.4.0"}',
     '"replica_buckets"',
     'if enabled or buildkite.get("workload_identity_pool") is not None',
     '"workload_identity_pool"',
@@ -1062,7 +1062,7 @@ for fragment in (
     'choices=("bootstrap", "full")',
 ):
     if fragment not in ci_variable_exporter:
-        err(f"ci-variable exporter omits bootstrap 1.4 contract fragment: {fragment}")
+        err(f"ci-variable exporter omits staged bootstrap contract fragment: {fragment}")
 if '"state_replica_buckets"' in ci_variable_exporter:
     err(
         "ci-variable exporter must use platform_contract, not bootstrap convenience outputs"

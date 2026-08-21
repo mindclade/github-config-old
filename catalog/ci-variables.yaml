@@ -17,15 +17,16 @@ github-config:
   # Initial governance creates and protects environments before infrastructure-live exists.
   # Promote this to env:ENVIRONMENT_PROJECT_IDS only with exact applied infrastructure outputs.
   ENVIRONMENT_PROJECT_IDS: '{}'
-  # Full export supplies this exact JSON object from bootstrap contract 1.4.0 and the applied
-  # infrastructure-live DR evidence outputs. Terraform expands it only into protected
-  # scratch/staging environments for the four DR caller repositories.
+  # A v1.4 full export supplies this exact JSON object from bootstrap and the applied
+  # infrastructure-live DR evidence outputs. Under the deployed v1.2 contract it remains
+  # empty, so no future DR authority is activated early.
   DR_EVIDENCE_ENVIRONMENT_VARIABLES: '{}'
   TF_PLAN_APP_ID: env:TF_PLAN_APP_ID
   TF_APPLY_APP_ID: env:TF_APPLY_APP_ID
 
 bootstrap:
-  # export-ci-variables.py augments this catalog from bootstrap platform_contract 1.4.0. In
+  # export-ci-variables.py augments this catalog from the deployed bootstrap contract (v1.2)
+  # and also accepts the reviewed v1.4 successor after its Ring-0 activation. In
   # particular, organization/billing/GitHub immutable IDs and state buckets come directly from
   # that machine contract; operators cannot substitute free-form copies of those identifiers.
   RESOURCE_PREFIX: mc
