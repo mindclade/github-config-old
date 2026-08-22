@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "contexts": {
+      "additionalProperties": false,
+      "properties": {
+        "infrastructure-cost": {
+          "additionalProperties": false,
+          "properties": {
+            "activation_gate": {"const": "infrastructure_cost_verdict_ready"},
+            "blocker": {"minLength": 1, "type": "string"},
+            "candidate_context": {"const": "infracost / verdict"},
+            "intentional_negative_observed": {"type": "boolean"},
+            "observed_events": {
+              "items": {"enum": ["pull_request", "merge_group"]},
+              "maxItems": 2,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "producer_workflow": {"const": ".github/workflows/cost.yml"},
+            "repository": {"const": "infrastructure-live"},
+            "required_events": {
+              "items": {"enum": ["pull_request", "merge_group"]},
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "qualified_context": {"type": ["string", "null"]},
+            "status": {"enum": ["blocked", "qualified"]},
+            "target_ruleset": {"const": "required-checks-tf"}
+          },
+          "required": [
+            "repository",
+            "producer_workflow",
+            "candidate_context",
+            "required_events",
+            "observed_events",
+            "intentional_negative_observed",
+            "target_ruleset",
+            "activation_gate",
+            "status",
+            "qualified_context",
+            "blocker"
+          ],
+          "type": "object",
+          "allOf": [
+            {
+              "if": {"properties": {"status": {"const": "blocked"}}},
+              "then": {"properties": {"qualified_context": {"type": "null"}}}
+            },
+            {
+              "if": {"properties": {"status": {"const": "qualified"}}},
+              "then": {
+                "properties": {"qualified_context": {"minLength": 1, "type": "string"}}
+              }
+            }
+          ]
+        }
+      },
+      "required": ["infrastructure-cost"],
+      "type": "object"
+    },
+    "schema_version": {"const": 1}
+  },
+  "required": ["schema_version", "contexts"],
+  "type": "object"
+}

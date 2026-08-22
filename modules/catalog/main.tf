@@ -22,6 +22,9 @@ locals {
   governance_activation = yamldecode(
     file("${var.catalog_path}/governance-activation.yaml")
   )
+  required_check_readiness = yamldecode(
+    file("${var.catalog_path}/required-check-readiness.yaml")
+  )
 }
 
 check "artifact_authority_runner_group_is_exact" {
@@ -319,3 +322,4 @@ output "custom_properties" { value = local.custom_properties }
 output "runner_groups" { value = local.runner_groups }
 output "github_apps" { value = local.github_apps }
 output "governance_activation" { value = local.governance_activation }
+output "required_check_readiness" { value = local.required_check_readiness }

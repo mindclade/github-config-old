@@ -89,6 +89,7 @@
                 ps: with ps; [
                   pyyaml
                   jsonschema
+                  python-hcl2
                 ]
               ))
             ];
@@ -122,6 +123,7 @@
                 ps: with ps; [
                   pyyaml
                   jsonschema
+                  python-hcl2
                 ]
               ))
 

@@ -16,6 +16,7 @@ gates:
   bootstrap_verdict_observed: blocked
   github_config_verdict_observed: blocked
   nix_estate_qualified: blocked
+  infrastructure_cost_verdict_ready: blocked
   exact_import_plan_reviewed: blocked
   rulesets_connected_audit: blocked
   monorepo_bazel_verdict_observed: blocked

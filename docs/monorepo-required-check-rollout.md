@@ -43,7 +43,9 @@ The same pull-request and merge-group audit must confirm `ci / build`,
    required.
 3. In a separate PR, change only `required-checks-go`,
    `required-checks-mixed`, and `required-checks-infra-static` to `active` and
-   update validator/test expectations.
+   update the matching activation evidence. The semantic validator already permits qualified
+   mixed and infra-static promotion and rejects active enforcement while any required gate is
+   blocked.
 4. Review a protected plan for the exact merged SHA. Stop on deletion,
    replacement, unexpected repository scope, or a context not present in both
    pull-request and merge-group evidence.

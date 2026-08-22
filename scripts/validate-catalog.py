@@ -19,6 +19,26 @@ from typing import Any
 import yaml
 from jsonschema import Draft202012Validator
 
+from governance_contracts import (
+    promotable_ruleset_errors,
+    required_check_readiness_errors,
+)
+from terraform_contracts import (
+    RequiredStatusRulesetContract,
+    TerraformContractError,
+    literal_toset_strings,
+    local_value,
+    load_terraform,
+    validate_drift_access_expiry,
+    validate_drift_readiness,
+    validate_bazel_cache_ci_variable_contract,
+    validate_environment_handoff,
+    validate_import_contract,
+    validate_oidc_module,
+    validate_release_tag_contracts,
+    validate_required_status_ruleset,
+)
+
 ROOT = Path(__file__).resolve().parents[1]
 CAT = ROOT / "catalog"
 SCHEMA = CAT / "schema"
@@ -87,8 +107,6 @@ EXPECTED_RULESET_ENFORCEMENT = {
     "required-checks-gitops": "active",
     "required-checks-go": "evaluate",
     "required-checks-github-config": "evaluate",
-    "required-checks-infra-static": "evaluate",
-    "required-checks-mixed": "evaluate",
     "required-checks-nix": "evaluate",
     "required-checks-tf": "active",
     "required-checks-tf-static": "active",
@@ -96,6 +114,104 @@ EXPECTED_RULESET_ENFORCEMENT = {
     "ruleset-workflows": "evaluate",
     "tag-protection": "active",
 }
+REQUIRED_STATUS_RULESET_CONTRACTS = (
+    RequiredStatusRulesetContract(
+        path="modules/rulesets/required-checks-bootstrap.tf",
+        resource_name="required_checks_bootstrap",
+        ruleset_name="required-checks-bootstrap",
+        repositories=("bootstrap",),
+        contexts=("plan / verdict",),
+    ),
+    RequiredStatusRulesetContract(
+        path="modules/rulesets/required-checks-github-config.tf",
+        resource_name="required_checks_github_config",
+        ruleset_name="required-checks-github-config",
+        repositories=("github-config",),
+        contexts=("fmt", "validate", "plan / verdict"),
+        lifecycle_condition=(
+            'local.enforcement["required-checks-github-config"] != "active" || '
+            "var.github_config_verdict_observed"
+        ),
+    ),
+    RequiredStatusRulesetContract(
+        path="modules/rulesets/required-checks-gitops.tf",
+        resource_name="required_checks_gitops",
+        ruleset_name="required-checks-gitops",
+        repositories=("gitops",),
+        contexts=(
+            "contract",
+            "lint",
+            "schema",
+            "policy",
+            "exemptions",
+            "promotion-integrity",
+            "repository-invariants",
+        ),
+    ),
+    RequiredStatusRulesetContract(
+        path="modules/rulesets/required-checks-go.tf",
+        resource_name="required_checks_go",
+        ruleset_name="required-checks-go",
+        language_profiles=("go", "mixed"),
+        contexts=("ci / build", "codeql / analyze (go)"),
+    ),
+    RequiredStatusRulesetContract(
+        path="modules/rulesets/required-checks-infra-static.tf",
+        resource_name="required_checks_infra_static",
+        ruleset_name="required-checks-infra-static",
+        repositories=("mindclade-internal-monorepo",),
+        contexts=("infra-static",),
+    ),
+    RequiredStatusRulesetContract(
+        path="modules/rulesets/required-checks-mixed.tf",
+        resource_name="required_checks_mixed",
+        ruleset_name="required-checks-mixed",
+        language_profiles=("mixed",),
+        contexts=(
+            "python / build",
+            "rust / build",
+            "architecture",
+            "Go registry + admission / live PostgreSQL and failure injection",
+            "bazel / verdict",
+        ),
+    ),
+    RequiredStatusRulesetContract(
+        path="modules/rulesets/required-checks-nix.tf",
+        resource_name="required_checks_nix",
+        ruleset_name="required-checks-nix",
+        repositories=(
+            ".github",
+            ".github-private",
+            "bootstrap",
+            "github-config",
+            "gitops",
+            "infrastructure-live",
+            "mindclade-internal-monorepo",
+        ),
+        contexts=("nix / verdict",),
+    ),
+    RequiredStatusRulesetContract(
+        path="modules/rulesets/required-checks-tf.tf",
+        resource_name="required_checks_tf",
+        ruleset_name="required-checks-tf",
+        repositories=("infrastructure-live",),
+        contexts=("fmt", "validate", "plan"),
+    ),
+    RequiredStatusRulesetContract(
+        path="modules/rulesets/required-checks-tf.tf",
+        resource_name="required_checks_tf_static",
+        ruleset_name="required-checks-tf-static",
+        repositories=("github-config", "infrastructure-live"),
+        contexts=("tflint", "checkov"),
+    ),
+    RequiredStatusRulesetContract(
+        path="modules/rulesets/required-checks-tf.tf",
+        resource_name="required_checks_tf_tests",
+        ruleset_name="required-checks-tf-tests",
+        repositories=("github-config",),
+        contexts=("test",),
+    ),
+)
 EXPECTED_IDP_GROUPS = {
     "biosecurity": "biosecurity-review@{domain}",
     "bootstrap-reviewers": "github-bootstrap-reviewers@{domain}",
@@ -229,6 +345,7 @@ for stem in (
     "control-plane-apps",
     "connected-resource-exceptions",
     "governance-activation",
+    "required-check-readiness",
 ):
     data = load_yaml(f"{stem}.yaml")
     try:
@@ -257,6 +374,7 @@ control_plane_apps = load_yaml("control-plane-apps.yaml") or {}
 exceptions = load_yaml("access-exceptions.yaml") or []
 ci_variables = load_yaml("ci-variables.yaml") or {}
 governance_activation = load_yaml("governance-activation.yaml") or {}
+required_check_readiness = load_yaml("required-check-readiness.yaml") or {}
 adoption_inventory = load_yaml("adoption-inventory.yaml") or {}
 connected_exceptions = load_yaml("connected-resource-exceptions.yaml") or {}
 try:
@@ -377,21 +495,22 @@ if rulesets.get("required-checks-bootstrap", {}).get("enforcement") == "active" 
     activation_gates.get("bootstrap_verdict_observed") != "qualified"
 ):
     err("bootstrap plan / verdict cannot be active before connected observation")
-github_config_ruleset = (
-    ROOT / "modules" / "rulesets" / "required-checks-github-config.tf"
-).read_text(encoding="utf-8")
-for fragment in (
-    'include = ["github-config"]',
-    'context = "plan / verdict"',
-    'local.enforcement["required-checks-github-config"] != "active"',
-    "var.github_config_verdict_observed",
-):
-    if fragment not in github_config_ruleset:
-        err(f"required-checks-github-config implementation omits {fragment}")
 if rulesets.get("required-checks-nix", {}).get("enforcement") == "active" and (
     activation_gates.get("nix_estate_qualified") != "qualified"
 ):
     err("Nix verdict cannot be active before estate qualification")
+for message in promotable_ruleset_errors(rulesets, activation_gates):
+    err(message)
+ruleset_contexts = {
+    contract.ruleset_name: contract.contexts
+    for contract in REQUIRED_STATUS_RULESET_CONTRACTS
+}
+for message in required_check_readiness_errors(
+    required_check_readiness,
+    activation_gates,
+    ruleset_contexts,
+):
+    err(message)
 expected_runner_group = {
     "visibility": "selected",
     "allowsPublicRepositories": False,
@@ -977,132 +1096,25 @@ if release_tag_creation.get("enforcement") != "evaluate":
     err("release-tag-creation must remain evaluate until connected qualification")
 if release_tag_creation.get("target") != "all":
     err("release-tag-creation must target the complete managed estate")
-release_tag_creation_ruleset = (
-    ROOT / "modules" / "rulesets" / "release-tag-creation.tf"
-).read_text(encoding="utf-8")
-for fragment in (
-    'name        = "release-tag-creation"',
-    'target      = "tag"',
-    'for_each = local.bypass_release_tag_creation',
-    'include = ["refs/tags/v*"]',
-    "creation = true",
-    'local.enforcement["release-tag-creation"] != "active"',
-    "var.release_tag_creation_control_qualified",
-    "var.release_signer_identity_qualified",
-    'local.enforcement["tag-protection"] == "active"',
-):
-    if fragment not in release_tag_creation_ruleset:
-        err(f"release-tag-creation implementation omits {fragment}")
-release_tag_bypass = (ROOT / "modules" / "rulesets" / "bypass.tf").read_text(
-    encoding="utf-8"
-)
-release_tag_bypass_match = re.search(
-    r"bypass_release_tag_creation\s*=\s*\[(?P<body>.*?)\n\s*\]",
-    release_tag_bypass,
-    re.DOTALL,
-)
-release_tag_bypass_body = (
-    release_tag_bypass_match.group("body") if release_tag_bypass_match else ""
-)
-if not release_tag_bypass_match or release_tag_bypass_body.count("actor_id") != 1:
-    err("release-tag creation bypass must contain exactly one actor")
-for fragment in (
-    "actor_id    = var.release_team_id",
-    'actor_type  = "Team"',
-    'bypass_mode = "always"',
-):
-    if fragment not in release_tag_bypass_body:
-        err(f"release-tag creation bypass implementation omits {fragment}")
-tag_protection_ruleset = (
-    ROOT / "modules" / "rulesets" / "tag-protection.tf"
-).read_text(encoding="utf-8")
-for fragment in (
-    'name        = "tag-protection"',
-    'target      = "tag"',
-    "for_each = local.bypass_none",
-    'include = ["refs/tags/v*"]',
-    "update           = true",
-    "deletion         = true",
-    "non_fast_forward = true",
-):
-    if fragment not in tag_protection_ruleset:
-        err(f"tag-protection implementation omits {fragment}")
-if "creation = true" in tag_protection_ruleset:
-    err("tag-protection must not give any creation actor an immutability bypass")
 bootstrap_checks = rulesets.get("required-checks-bootstrap", {})
 if bootstrap_checks.get("enforcement") != "evaluate":
     err("required-checks-bootstrap must remain evaluate until plan / verdict is observed")
 if bootstrap_checks.get("repositories") != ["bootstrap"]:
     err("required-checks-bootstrap must target only bootstrap")
-bootstrap_ruleset = (
-    ROOT / "modules" / "rulesets" / "required-checks-bootstrap.tf"
-).read_text(encoding="utf-8")
-for fragment in ('include = ["bootstrap"]', 'context = "plan / verdict"'):
-    if fragment not in bootstrap_ruleset:
-        err(f"required-checks-bootstrap implementation omits {fragment}")
 gitops_checks = rulesets.get("required-checks-gitops", {})
 if gitops_checks.get("enforcement") != "active":
     err("required-checks-gitops must remain active")
 if gitops_checks.get("repositories") != ["gitops"]:
     err("required-checks-gitops must target only gitops")
-gitops_ruleset = (
-    ROOT / "modules" / "rulesets" / "required-checks-gitops.tf"
-).read_text(encoding="utf-8")
-for context in (
-    "contract",
-    "lint",
-    "schema",
-    "policy",
-    "exemptions",
-    "promotion-integrity",
-    "repository-invariants",
-):
-    if f'context = "{context}"' not in gitops_ruleset:
-        err(f"required-checks-gitops implementation omits {context}")
-for forbidden_context in ("render", "provenance"):
-    if f'context = "{forbidden_context}"' in gitops_ruleset:
-        err(
-            f"required-checks-gitops cannot require unsupported {forbidden_context} context"
-        )
 mixed_checks = rulesets.get("required-checks-mixed", {})
-if mixed_checks.get("enforcement") != "evaluate":
-    err(
-        "required-checks-mixed must remain evaluate until every exact context has "
-        "positive and intentional-negative pull-request and merge-group evidence"
-    )
 if mixed_checks.get("language_profiles") != ["mixed"]:
     err("required-checks-mixed must target only the mixed language profile")
-mixed_ruleset = (
-    ROOT / "modules" / "rulesets" / "required-checks-mixed.tf"
-).read_text(encoding="utf-8")
-for context in (
-    "python / build",
-    "rust / build",
-    "architecture",
-    "Go registry + admission / live PostgreSQL and failure injection",
-    "bazel / verdict",
-):
-    if f'context = "{context}"' not in mixed_ruleset:
-        err(f"required-checks-mixed implementation omits {context}")
 infra_static_checks = rulesets.get("required-checks-infra-static", {})
-if infra_static_checks.get("enforcement") != "evaluate":
-    err("required-checks-infra-static must remain evaluate until rollout evidence is reviewed")
 if infra_static_checks.get("repositories") != ["mindclade-internal-monorepo"]:
     err(
         "required-checks-infra-static must target only the canonical "
         "mindclade-internal-monorepo repository"
     )
-infra_static_ruleset = (
-    ROOT / "modules" / "rulesets" / "required-checks-infra-static.tf"
-).read_text(encoding="utf-8")
-for fragment in (
-    'include = ["mindclade-internal-monorepo"]',
-    'context = "infra-static"',
-    "strict_required_status_checks_policy = true",
-    "do_not_enforce_on_create             = true",
-):
-    if fragment not in infra_static_ruleset:
-        err(f"required-checks-infra-static implementation omits {fragment}")
 
 nix_checks = rulesets.get("required-checks-nix", {})
 if nix_checks.get("enforcement") != "evaluate":
@@ -1110,16 +1122,20 @@ if nix_checks.get("enforcement") != "evaluate":
 nix_repositories = nix_checks.get("repositories", [])
 if len(nix_repositories) != len(EXPECTED_REPOS) or set(nix_repositories) != EXPECTED_REPOS:
     err("required-checks-nix must target exactly the seven managed repositories")
-nix_ruleset = (
-    ROOT / "modules" / "rulesets" / "required-checks-nix.tf"
-).read_text(encoding="utf-8")
-for fragment in (
-    'context = "nix / verdict"',
-    "strict_required_status_checks_policy = true",
-    "do_not_enforce_on_create             = true",
-):
-    if fragment not in nix_ruleset:
-        err(f"required-checks-nix implementation omits {fragment}")
+
+try:
+    validate_release_tag_contracts(ROOT)
+except TerraformContractError as exc:
+    err(str(exc))
+for contract in REQUIRED_STATUS_RULESET_CONTRACTS:
+    try:
+        validate_required_status_ruleset(
+            ROOT,
+            contract,
+            rulesets.get(contract.ruleset_name, {}),
+        )
+    except TerraformContractError as exc:
+        err(str(exc))
 
 nix_workflow_path = ROOT / ".github" / "workflows" / "nix-qualification.yml"
 try:
@@ -1234,15 +1250,15 @@ else:
                 "state that it is not independent review"
             )
 
-expiry_workflow = (ROOT / ".github/workflows/drift.yml").read_text(encoding="utf-8")
-for fragment in (
-    "access-expiry:",
-    "scripts/check-access-expiry.py --warn-days 14",
-    "Access exception renewal or revocation required",
-    "Fail on expired access",
-):
-    if fragment not in expiry_workflow:
-        err(f"drift workflow omits access-expiry control fragment: {fragment}")
+try:
+    expiry_workflow = yaml.safe_load(
+        (ROOT / ".github/workflows/drift.yml").read_text(encoding="utf-8")
+    )
+    if not isinstance(expiry_workflow, dict):
+        raise TerraformContractError("drift workflow: expected YAML object")
+    validate_drift_access_expiry(expiry_workflow)
+except (OSError, yaml.YAMLError, TerraformContractError) as exc:
+    err(f"drift workflow access-expiry contract is invalid: {exc}")
 solo_founder_runbook = (ROOT / "docs/solo-founder-reviewer.md").read_text(
     encoding="utf-8"
 )
@@ -1426,34 +1442,10 @@ if '"BOOTSTRAP_FOLDER_ID"' in ci_variable_exporter:
 if '"AUTOMATION_SECRET_LOCATION"' in ci_variable_exporter:
     err("ci-variable exporter must not publish an unused bootstrap default as a repository variable")
 
-ci_variable_contract = (ROOT / "modules" / "repositories" / "ci-variables.tf").read_text(
-    encoding="utf-8"
-)
-for fragment in (
-    'check "bazel_cache_source_contract_is_exact"',
-    'check "bazel_cache_handoff_is_exact"',
-    "can(jsondecode(local.bazel_cache_source_contract_raw))",
-    '"workload_identity_provider", "repository", "repository_owner_id", "repository_id", "routes"',
-    'local.bazel_cache_handoff.provider == try(local.bazel_cache_source_contract.workload_identity_provider, "")',
-    '"bazel-cache-reader@${try(var.ci_variables["mindclade-internal-monorepo"]["CI_PROJECT_ID"], "")}.iam.gserviceaccount.com"',
-    '"bazel-cache-writer@${try(var.ci_variables["mindclade-internal-monorepo"]["CI_PROJECT_ID"], "")}.iam.gserviceaccount.com"',
-):
-    if fragment not in ci_variable_contract:
-        err(f"repository CI-variable contract omits Bazel cache guard: {fragment}")
-
-imports = (ROOT / "imports.tf").read_text(encoding="utf-8")
-for fragment in (
-    'github_repository.this[".github-private"]',
-    "for_each = local.preexisting_bootstrap_actions_variables",
-    'id       = "bootstrap:${each.value}"',
-    "for_each = local.preexisting_repository_environments",
-    "github_repository_environment.this[each.value]",
-):
-    if fragment not in imports:
-        err(f"declarative adoption imports omit {fragment}")
-for stale_import in ('"BOOTSTRAP_FOLDER_ID"', '"AUTOMATION_SECRET_LOCATION"'):
-    if stale_import in imports:
-        err(f"declarative adoption imports retain absent live variable {stale_import}")
+try:
+    validate_bazel_cache_ci_variable_contract(ROOT)
+except TerraformContractError as exc:
+    err(str(exc))
 
 expected_preexisting_environments = {
     "bootstrap:bootstrap",
@@ -1473,16 +1465,25 @@ expected_preexisting_environments = {
     "infrastructure-live:staging",
     "mindclade-internal-monorepo:release",
 }
-environment_import_block = re.search(
-    r"preexisting_repository_environments\s*=\s*toset\(\[(.*?)\]\)",
-    imports,
-    re.DOTALL,
-)
-actual_preexisting_environments = (
-    set(re.findall(r'"([a-z0-9.-]+:[a-z0-9.-]+)"', environment_import_block.group(1)))
-    if environment_import_block
-    else set()
-)
+try:
+    validate_import_contract(ROOT)
+    imports_document = load_terraform(ROOT / "imports.tf")
+    environment_import_expression = local_value(
+        imports_document,
+        "preexisting_repository_environments",
+        "declarative adoption imports",
+    )
+    if not isinstance(environment_import_expression, str):
+        raise TerraformContractError(
+            "declarative adoption imports: environment inventory is not an expression"
+        )
+    actual_preexisting_environments = literal_toset_strings(
+        environment_import_expression,
+        "declarative adoption environment inventory",
+    )
+except TerraformContractError as exc:
+    err(str(exc))
+    actual_preexisting_environments = set()
 if actual_preexisting_environments != expected_preexisting_environments:
     err(
         "declarative environment imports differ from refreshed connected inventory: "
@@ -1520,42 +1521,18 @@ for fragment in (
     if fragment not in branch_merge_protection_gap:
         err(f"branch merge-protection adoption blocker omits {fragment}")
 
-environment_module = (
-    ROOT / "modules" / "repositories" / "environments.tf"
-).read_text(encoding="utf-8")
-for fragment in (
-    'check "environment_project_handoff_is_empty_or_complete"',
-    "length(var.environment_project_ids) == 0",
-    "toset(keys(var.environment_project_ids)) == local.project_required_environments",
-):
-    if fragment not in environment_module:
-        err(f"environment project staged handoff omits {fragment}")
+try:
+    validate_environment_handoff(ROOT)
+except TerraformContractError as exc:
+    err(str(exc))
 
 # Every managed repository must actively restore GitHub's default subject. Merely declining to
 # opt in leaves an out-of-band repository template untouched and breaks bootstrap's
 # environment-shaped subjects just as effectively as opting in here would.
-oidc_module = (ROOT / "modules" / "policies" / "oidc.tf").read_text(encoding="utf-8")
-for fragment, label in (
-    (
-        "for_each = var.managed_repository_ids",
-        "manage every repository subject template",
-    ),
-    (
-        "use_default        = !var.oidc_policy.repository_opt_in",
-        "set use_default explicitly",
-    ),
-    (
-        "include_claim_keys = var.oidc_policy.repository_opt_in ? "
-        "var.oidc_policy.subject_claim_keys : null",
-        "omit custom claims while default subjects are active",
-    ),
-    (
-        ') : "github-immutable-default"',
-        "report the effective immutable-default subject contract",
-    ),
-):
-    if fragment not in oidc_module:
-        err(f"OIDC policy module must {label}")
+try:
+    validate_oidc_module(ROOT)
+except TerraformContractError as exc:
+    err(str(exc))
 
 # Bootstrap binds plan federation to the protected environment subject. Keep every
 # github-config PR plan-capable entrypoint on that subject. Drift, scheduled IdP sync, and
@@ -1579,17 +1556,10 @@ if drift_job.get("environment") is not None:
     )
 if "github.ref == 'refs/heads/main'" not in str(drift_job.get("if", "")):
     err("drift.yml must reject manual dispatch from non-main refs")
-readiness_job = workflow_docs["drift"].get("jobs", {}).get("readiness", {})
-readiness_text = yaml.safe_dump(readiness_job, sort_keys=True)
-for fragment in (
-    "GOVERNANCE_CONNECTED_DRIFT",
-    "TF_PLAN_APP_ID",
-    "TF_GITHUB_PLAN_APP_PEM",
-    "enabled=true",
-    "enabled=false",
-):
-    if fragment not in readiness_text:
-        err(f"drift.yml readiness gate omits required fragment: {fragment}")
+try:
+    validate_drift_readiness(workflow_docs["drift"])
+except TerraformContractError as exc:
+    err(str(exc))
 drift_needs = drift_job.get("needs", [])
 if "readiness" not in ([drift_needs] if isinstance(drift_needs, str) else drift_needs):
     err("drift.yml connected drift must depend on the readiness gate")
