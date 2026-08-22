@@ -35,6 +35,14 @@ Mindclade's repository-home action is allowlisted only at its exact
 `mindclade/.github/actions/validate-repository-home` subpath; adding another first-party action
 requires its own reviewed catalog entry.
 
+Nix cache publication uses the dedicated `nix-cache-publication` environment on only
+`mindclade-internal-monorepo`. It requires protected main, reviewer eligibility from Platform or
+Security, a five-minute wait, and no self-review. GitHub requires one eligible environment
+reviewer, not one reviewer from each team. The environment is only an authorization boundary: no
+cache endpoint, public key, token, or caller is cataloged while the cache activation contract is
+blocked. A future activation must add non-secret endpoint/key variables and a scoped write-token
+secret through protected operations after connected qualification; a signing key is forbidden.
+
 Changes to the allowlist, OIDC policy, required workflows, protected workflow paths, or token
 permissions are security changes and require the owners declared by `CODEOWNERS`.
 
