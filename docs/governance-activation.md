@@ -27,11 +27,6 @@ or retrospective closeout.
   evidence from the published v5 workflow.
 - `.github` declares the two protected workflow-release environments, but the connected inventory
   found neither environment live.
-- `rescue/uncommitted-work-20260820` is temporarily accepted only in
-  `mindclade-internal-monorepo`, only at object
-  `2ad2af73670fa993fd00c2208a30bd84a5fe8f88`, through 2026-09-21. Platform owns the
-  integrate-then-delete disposition; moving it, adding another rescue tag, or passing expiry is a
-  connected-audit failure.
 - The exact observed `copilot` environments are GitHub-platform-managed exceptions, not Terraform
   resources. The audit requires zero secrets, variables, reviewers, timers, and custom protection
   rules and rejects any additional unmanaged environment.

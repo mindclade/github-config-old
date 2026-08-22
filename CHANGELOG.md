@@ -75,6 +75,9 @@ not reconstructed or relabeled here.
 
 ### Removed
 
+- Retired the temporary monorepo rescue-tag exception after its durable GKE qualification work
+  moved to a governed pull request and the obsolete Buildkite path remained intentionally retired.
+
 ## 2026-08-21 — Common-document governance baseline
 
 ### Added
