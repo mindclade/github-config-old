@@ -157,6 +157,7 @@ mindclade-internal-monorepo:
   lifecycle: active
   environments:
     - release
+    - nix-cache-publication
   topics:
     - monorepo
     - go

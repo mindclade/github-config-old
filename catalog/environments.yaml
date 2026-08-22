@@ -82,6 +82,15 @@ release:
   custom_branch_policies: false
   prevent_self_review: true
   project_required: false
+nix-cache-publication:
+  wait_timer: 5
+  reviewer_teams:
+    - platform
+    - security
+  protected_branches: true
+  custom_branch_policies: false
+  prevent_self_review: true
+  project_required: false
 workflow-release-platform:
   wait_timer: 0
   reviewer_teams:

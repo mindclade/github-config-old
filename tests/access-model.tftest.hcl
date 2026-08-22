@@ -173,9 +173,26 @@ run "deployment_gates_match_risk" {
       output.environments["governance"].prevent_self_review &&
       output.environments["bootstrap"].prevent_self_review &&
       output.environments["bootstrap-recovery-read"].prevent_self_review &&
+      output.environments["nix-cache-publication"].prevent_self_review &&
       output.environments["break-glass"].prevent_self_review
     )
     error_message = "Critical control-plane environments must prevent self-review."
+  }
+
+  assert {
+    condition = (
+      contains(output.repositories["mindclade-internal-monorepo"].environments, "nix-cache-publication") &&
+      alltrue([
+        for repository, config in output.repositories :
+        repository == "mindclade-internal-monorepo" || !contains(config.environments, "nix-cache-publication")
+      ]) &&
+      toset(output.environments["nix-cache-publication"].reviewer_teams) == toset(["platform", "security"]) &&
+      output.environments["nix-cache-publication"].wait_timer >= 5 &&
+      output.environments["nix-cache-publication"].protected_branches &&
+      output.environments["nix-cache-publication"].prevent_self_review &&
+      !output.environments["nix-cache-publication"].custom_branch_policies
+    )
+    error_message = "Nix cache publication must remain a delayed, independently reviewed, protected-main monorepo authority."
   }
 
   assert {

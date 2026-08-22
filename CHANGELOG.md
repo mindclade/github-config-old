@@ -10,6 +10,9 @@ not reconstructed or relabeled here.
 
 ### Added
 
+- Added an inert `nix-cache-publication` environment assigned only to the monorepo, with protected
+  main, Platform and Security review, self-review prevention, and a wait timer. It contains no
+  variables or secrets and activates no cache publisher while connected qualification is blocked.
 - Added the source-only bootstrap `1.5.0` Bazel-cache WIF handoff and exact applied `1.4.0`
   provider/reader/writer governance contract, with all cache client activation remaining blocked.
 - Added structural HCL validation for required-check rulesets, release-tag controls, adoption
