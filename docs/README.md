@@ -26,6 +26,8 @@
   repository-key migration non-destructive and verify it by immutable repository ID.
 - [Governance activation preflight](governance-activation.md) — sequence release, environment,
   import, reviewer, and ruleset evidence without bypass.
+- [Monorepo required-check rollout](monorepo-required-check-rollout.md) — qualify affected Bazel,
+  merge-group full validation, critical contexts, and evaluate-to-active promotion.
 - [Onboard an engineer](onboarding.md) and [offboard an engineer](offboarding.md) — change
   access through the corporate identity path.
 

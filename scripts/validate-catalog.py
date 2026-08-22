@@ -312,10 +312,14 @@ if tag_exceptions:
 activation_enforcement = governance_activation.get("ruleset_enforcement", {})
 for name in (
     "baseline-all",
+    "merge-queue",
     "protected-paths",
     "release-tag-creation",
     "required-checks-bootstrap",
     "required-checks-github-config",
+    "required-checks-go",
+    "required-checks-infra-static",
+    "required-checks-mixed",
     "required-checks-nix",
     "ruleset-workflows",
 ):
@@ -999,6 +1003,7 @@ for context in (
     "rust / build",
     "architecture",
     "Go registry + admission / live PostgreSQL and failure injection",
+    "bazel / verdict",
 ):
     if f'context = "{context}"' not in mixed_ruleset:
         err(f"required-checks-mixed implementation omits {context}")

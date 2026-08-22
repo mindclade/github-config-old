@@ -18,9 +18,16 @@ gates:
   nix_estate_qualified: blocked
   exact_import_plan_reviewed: blocked
   rulesets_connected_audit: blocked
+  monorepo_bazel_verdict_observed: blocked
+  monorepo_merge_group_full_graph_observed: blocked
+  monorepo_affected_latency_qualified: blocked
 ruleset_enforcement:
   baseline-all: active
+  merge-queue: active
   protected-paths: active
+  required-checks-go: evaluate
+  required-checks-mixed: evaluate
+  required-checks-infra-static: evaluate
   required-checks-github-config: evaluate
   release-tag-creation: evaluate
   required-checks-bootstrap: evaluate
