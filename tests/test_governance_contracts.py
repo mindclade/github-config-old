@@ -109,6 +109,32 @@ class PromotionContractTest(unittest.TestCase):
         )
 
 
+class RunnerGroupContractTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.runner_groups = yaml.safe_load(
+            (ROOT / "catalog/runner-groups.yaml").read_text(encoding="utf-8")
+        )
+
+    def test_current_release_and_presubmit_groups_are_exact(self) -> None:
+        self.assertEqual(
+            GOVERNANCE.runner_group_contract_errors(self.runner_groups),
+            [],
+        )
+
+    def test_release_caller_cannot_replace_job_defining_workflows(self) -> None:
+        self.runner_groups["mindclade-arc-artifact-authority"]["workflows"] = [
+            "mindclade/mindclade-internal-monorepo/.github/workflows/release.yml@refs/heads/main"
+        ]
+        errors = GOVERNANCE.runner_group_contract_errors(self.runner_groups)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("workflows is not exact", errors[0])
+
+    def test_presubmit_cannot_share_artifact_authority_group(self) -> None:
+        del self.runner_groups["mindclade-arc-ci"]
+        errors = GOVERNANCE.runner_group_contract_errors(self.runner_groups)
+        self.assertEqual(errors, ["ARC runner-group inventory is not exact"])
+
+
 class RequiredCheckReadinessTest(unittest.TestCase):
     def setUp(self) -> None:
         self.contract = yaml.safe_load(

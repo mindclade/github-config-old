@@ -10,4 +10,16 @@ mindclade-arc-artifact-authority:
   repositories:
     - mindclade-internal-monorepo
   workflows:
-    - mindclade/mindclade-internal-monorepo/.github/workflows/release.yml@refs/heads/main
+    - mindclade/.github/.github/workflows/reusable-arc-wif-canary.yml@v5.0.0
+    - mindclade/.github/.github/workflows/reusable-arc-oci-build.yml@v5.0.0
+    - mindclade/.github/.github/workflows/reusable-arc-oci-qualify.yml@v5.0.0
+    - mindclade/.github/.github/workflows/reusable-arc-qualification-attest.yml@v5.0.0
+
+mindclade-arc-ci:
+  visibility: selected
+  allowsPublicRepositories: false
+  restrictedToWorkflows: true
+  repositories:
+    - mindclade-internal-monorepo
+  workflows:
+    - mindclade/mindclade-internal-monorepo/.github/workflows/presubmit.yml@refs/heads/main

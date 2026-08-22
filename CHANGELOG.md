@@ -82,6 +82,9 @@ not reconstructed or relabeled here.
 
 ### Security
 
+- Split ARC presubmit from artifact authority with an exact second runner group, and corrected
+  release access to the four reusable workflows that directly define ARC jobs instead of the
+  caller workflow that cannot authorize them.
 - Add an always-present, path-aware `plan / verdict` contract for github-config and a dedicated
   evaluate-mode required-check ruleset. Active enforcement is machine-blocked until both
   credential-free and protected-plan paths are observed.

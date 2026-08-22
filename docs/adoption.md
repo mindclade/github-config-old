@@ -245,10 +245,18 @@ installation. Before enabling the canary provider, create or verify both exact i
 - `mindclade-release-promoter`: selected to `gitops`, repository contents/pull-requests write
   and metadata read.
 
-Apply and verify runner group `mindclade-arc-artifact-authority` as private/selected, with only
-the monorepo and only its `release.yml@refs/heads/main` workflow. Record the live IDs and
-effective permissions as connected evidence. Do not infer installation from the catalog or add
-broader App scopes to make a failed canary pass.
+Apply and verify both ARC groups as private/selected and available only to the monorepo.
+`mindclade-arc-artifact-authority` permits only the four `v5.0.0` reusable ARC workflows that
+directly define the canary, build, qualification, and qualification-attestation jobs. The caller
+`release.yml` is deliberately not sufficient: GitHub runner-group workflow restrictions authorize
+the workflow that directly defines a job. `mindclade-arc-ci` permits only
+`presubmit.yml@refs/heads/main` and must remain separate from every signing or publishing job.
+
+Record the live group IDs, selected repositories, selected workflows, and effective permissions as
+connected evidence. Before routing pull-request work to `mindclade-arc-ci`, prove with a bounded
+canary that pull-request and merge-group events can schedule the permitted job while an unlisted
+workflow cannot. Do not infer installation or routing from catalog source, and do not add broader
+App scopes or workflow access to make a failed canary pass.
 
 The Terraform plan/apply Apps follow the separate exact contract in
 [`github-apps.md`](github-apps.md). In particular, the plan App's organization-ruleset read requires

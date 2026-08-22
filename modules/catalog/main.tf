@@ -27,19 +27,32 @@ locals {
   )
 }
 
-check "artifact_authority_runner_group_is_exact" {
+check "arc_runner_groups_are_exact" {
   assert {
     condition = (
-      toset(keys(local.runner_groups)) == toset(["mindclade-arc-artifact-authority"]) &&
+      toset(keys(local.runner_groups)) == toset([
+        "mindclade-arc-artifact-authority",
+        "mindclade-arc-ci",
+      ]) &&
       local.runner_groups["mindclade-arc-artifact-authority"].visibility == "selected" &&
       local.runner_groups["mindclade-arc-artifact-authority"].allowsPublicRepositories == false &&
       local.runner_groups["mindclade-arc-artifact-authority"].restrictedToWorkflows == true &&
       toset(local.runner_groups["mindclade-arc-artifact-authority"].repositories) == toset(["mindclade-internal-monorepo"]) &&
       toset(local.runner_groups["mindclade-arc-artifact-authority"].workflows) == toset([
-        "mindclade/mindclade-internal-monorepo/.github/workflows/release.yml@refs/heads/main"
+        "mindclade/.github/.github/workflows/reusable-arc-wif-canary.yml@v5.0.0",
+        "mindclade/.github/.github/workflows/reusable-arc-oci-build.yml@v5.0.0",
+        "mindclade/.github/.github/workflows/reusable-arc-oci-qualify.yml@v5.0.0",
+        "mindclade/.github/.github/workflows/reusable-arc-qualification-attest.yml@v5.0.0",
+      ]) &&
+      local.runner_groups["mindclade-arc-ci"].visibility == "selected" &&
+      local.runner_groups["mindclade-arc-ci"].allowsPublicRepositories == false &&
+      local.runner_groups["mindclade-arc-ci"].restrictedToWorkflows == true &&
+      toset(local.runner_groups["mindclade-arc-ci"].repositories) == toset(["mindclade-internal-monorepo"]) &&
+      toset(local.runner_groups["mindclade-arc-ci"].workflows) == toset([
+        "mindclade/mindclade-internal-monorepo/.github/workflows/presubmit.yml@refs/heads/main",
       ])
     )
-    error_message = "ARC artifact authority must be private, selected to the monorepo, and restricted to the exact trusted-main release workflow."
+    error_message = "ARC release and presubmit groups must be private, separately selected to the monorepo, and restricted to their exact job-defining workflows."
   }
 }
 

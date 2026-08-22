@@ -38,6 +38,56 @@ EVIDENCE_GATED_RULESET_GATES = {
     ),
 }
 
+EXPECTED_RUNNER_GROUPS = {
+    "mindclade-arc-artifact-authority": {
+        "visibility": "selected",
+        "allowsPublicRepositories": False,
+        "restrictedToWorkflows": True,
+        "repositories": ("mindclade-internal-monorepo",),
+        "workflows": (
+            "mindclade/.github/.github/workflows/reusable-arc-wif-canary.yml@v5.0.0",
+            "mindclade/.github/.github/workflows/reusable-arc-oci-build.yml@v5.0.0",
+            "mindclade/.github/.github/workflows/reusable-arc-oci-qualify.yml@v5.0.0",
+            "mindclade/.github/.github/workflows/reusable-arc-qualification-attest.yml@v5.0.0",
+        ),
+    },
+    "mindclade-arc-ci": {
+        "visibility": "selected",
+        "allowsPublicRepositories": False,
+        "restrictedToWorkflows": True,
+        "repositories": ("mindclade-internal-monorepo",),
+        "workflows": (
+            "mindclade/mindclade-internal-monorepo/.github/workflows/presubmit.yml@refs/heads/main",
+        ),
+    },
+}
+
+
+def runner_group_contract_errors(runner_groups: Mapping[str, Any]) -> list[str]:
+    """Require distinct, least-privilege release and presubmit runner groups."""
+
+    errors: list[str] = []
+    if set(runner_groups) != set(EXPECTED_RUNNER_GROUPS):
+        errors.append("ARC runner-group inventory is not exact")
+        return errors
+    for name, expected in EXPECTED_RUNNER_GROUPS.items():
+        actual = runner_groups.get(name)
+        if not isinstance(actual, Mapping):
+            errors.append(f"ARC runner group {name}: contract must be an object")
+            continue
+        for field in (
+            "visibility",
+            "allowsPublicRepositories",
+            "restrictedToWorkflows",
+        ):
+            if actual.get(field) != expected[field]:
+                errors.append(f"ARC runner group {name}: {field} is not exact")
+        for field in ("repositories", "workflows"):
+            values = actual.get(field)
+            if not isinstance(values, list) or set(values) != set(expected[field]):
+                errors.append(f"ARC runner group {name}: {field} is not exact")
+    return errors
+
 
 def resting_ruleset_errors(
     rulesets: Mapping[str, Mapping[str, Any]],
