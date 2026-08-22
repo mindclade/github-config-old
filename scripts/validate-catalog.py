@@ -68,6 +68,7 @@ EXPECTED_ENVIRONMENTS = {
     "bootstrap",
     "bootstrap-recovery-read",
     "release",
+    "nix-cache-publication",
     "workflow-release-platform",
     "workflow-release-security",
     "repository-observability",
@@ -872,6 +873,7 @@ for name, cfg in environments.items():
         "bootstrap-recovery-read",
         "production",
         "release",
+        "nix-cache-publication",
         "workflow-release-platform",
         "workflow-release-security",
         "repository-maintenance",
@@ -921,6 +923,25 @@ if observability_environment.get("reviewer_teams") != [] or not observability_en
 maintenance_environment = environments.get("repository-maintenance", {})
 if set(maintenance_environment.get("reviewer_teams", [])) != {"platform", "security"} or maintenance_environment.get("wait_timer", 0) < 5:
     err("environment repository-maintenance requires platform and security review plus a wait timer")
+nix_cache_environment = environments.get("nix-cache-publication", {})
+if (
+    set(nix_cache_environment.get("reviewer_teams", [])) != {"platform", "security"}
+    or nix_cache_environment.get("wait_timer", 0) < 5
+    or not nix_cache_environment.get("protected_branches")
+    or nix_cache_environment.get("custom_branch_policies")
+    or not nix_cache_environment.get("prevent_self_review")
+):
+    err(
+        "environment nix-cache-publication requires protected main, platform and security "
+        "review, no self-review, and a wait timer"
+    )
+cache_environment_repositories = {
+    repository
+    for repository, config in repos.items()
+    if "nix-cache-publication" in config.get("environments", [])
+}
+if cache_environment_repositories != {"mindclade-internal-monorepo"}:
+    err("nix-cache-publication must be assigned only to mindclade-internal-monorepo")
 break_glass_environment = environments.get("break-glass", {})
 if set(break_glass_environment.get("reviewer_teams", [])) != {"security"}:
     err(
