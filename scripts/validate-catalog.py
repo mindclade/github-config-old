@@ -48,6 +48,8 @@ EXPECTED_ENVIRONMENTS = {
     "bootstrap",
     "bootstrap-recovery-read",
     "release",
+    "workflow-release-platform",
+    "workflow-release-security",
     "break-glass",
 }
 EXPECTED_RULESETS = {
@@ -565,6 +567,8 @@ for name, cfg in environments.items():
         "bootstrap-recovery-read",
         "production",
         "release",
+        "workflow-release-platform",
+        "workflow-release-security",
         "break-glass",
     }:
         if not cfg.get("protected_branches"):
@@ -586,6 +590,21 @@ if "infrastructure" not in plan_environment.get("reviewer_teams", []):
     err("environment plan: infrastructure review is required")
 if not plan_environment.get("prevent_self_review"):
     err("environment plan: self-review must be disabled")
+expected_workflow_release_reviewers = {
+    "workflow-release-platform": {"platform"},
+    "workflow-release-security": {"security"},
+}
+github_environments = set(repos.get(".github", {}).get("environments", []))
+if set(expected_workflow_release_reviewers) != github_environments:
+    err(".github must declare exactly both workflow-release approval environments")
+for name, reviewers in expected_workflow_release_reviewers.items():
+    environment = environments.get(name, {})
+    if set(environment.get("reviewer_teams", [])) != reviewers:
+        err(f"environment {name}: reviewer team must be exactly {sorted(reviewers)}")
+    if not environment.get("protected_branches") or not environment.get(
+        "prevent_self_review"
+    ):
+        err(f"environment {name}: protected main and no self-review are required")
 break_glass_environment = environments.get("break-glass", {})
 if set(break_glass_environment.get("reviewer_teams", [])) != {"security"}:
     err(
@@ -1062,6 +1081,7 @@ required_export_fragments = {
     "infrastructure-live/ARTIFACT_RELEASE_IDENTITIES_JSON": '"ARTIFACT_RELEASE_IDENTITIES_JSON"',
     "infrastructure-live/ARTIFACT_SIGNER_PRINCIPAL": '"ARTIFACT_SIGNER_PRINCIPAL"',
     "infrastructure-live/ARTIFACT_SIGNER_JOB_WORKFLOW_REF": '"ARTIFACT_SIGNER_JOB_WORKFLOW_REF"',
+    "infrastructure-live/PRODUCTION_QUALIFICATION_IDENTITY_JSON": '"PRODUCTION_QUALIFICATION_IDENTITY_JSON"',
     "github-config/DR_EVIDENCE_ENVIRONMENT_VARIABLES": '"DR_EVIDENCE_ENVIRONMENT_VARIABLES"',
     "monorepo/WIF_PROVIDER_SIGNER": '"WIF_PROVIDER_SIGNER"',
     "monorepo/WIF_PROVIDER_ARC_CANARY": '"WIF_PROVIDER_ARC_CANARY"',
@@ -1086,6 +1106,10 @@ for fragment in (
     '"artifact_release_identities"',
     "artifact_release_contract(",
     "dr_evidence_environment_contract(",
+    "production_qualification_identity_contract(",
+    "load_applied_handoff(",
+    "apply_applied_handoff(",
+    '"contract_version"] != "1.2.0"',
     'choices=("bootstrap", "full")',
 ):
     if fragment not in ci_variable_exporter:

@@ -126,6 +126,8 @@
               "bootstrap",
               "bootstrap-recovery-read",
               "release",
+              "workflow-release-platform",
+              "workflow-release-security",
               "break-glass"
             ]
           },
@@ -265,6 +267,8 @@
               "bootstrap",
               "bootstrap-recovery-read",
               "release",
+              "workflow-release-platform",
+              "workflow-release-security",
               "break-glass"
             ]
           },
@@ -401,6 +405,8 @@
               "bootstrap",
               "bootstrap-recovery-read",
               "release",
+              "workflow-release-platform",
+              "workflow-release-security",
               "break-glass"
             ]
           },
@@ -537,6 +543,8 @@
               "bootstrap",
               "bootstrap-recovery-read",
               "release",
+              "workflow-release-platform",
+              "workflow-release-security",
               "break-glass"
             ]
           },
@@ -673,6 +681,8 @@
               "bootstrap",
               "bootstrap-recovery-read",
               "release",
+              "workflow-release-platform",
+              "workflow-release-security",
               "break-glass"
             ]
           },
@@ -809,6 +819,8 @@
               "bootstrap",
               "bootstrap-recovery-read",
               "release",
+              "workflow-release-platform",
+              "workflow-release-security",
               "break-glass"
             ]
           },

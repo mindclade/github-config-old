@@ -1,4 +1,6 @@
-# Contributing to `github-config`
+<!-- mindclade-doc: contributing@1 -->
+
+# Contributing to Mindclade · `github-config`
 
 Org-wide conventions are the canonical
 [`CONTRIBUTING.md`](https://github.com/mindclade/.github/blob/main/CONTRIBUTING.md).
@@ -69,3 +71,32 @@ pre-commit run --all-files mindclade-license-header
 **Custom properties are security-relevant.** Rulesets target `mindclade_repository_class` and related properties. Changing a repository from `production-control` or `enterprise-control` can lower its merge requirements and therefore requires security review.
 
 **Changing `subject_claim_keys` is a trust migration.** This repository changes GitHub token subjects while `bootstrap/modules/identity/wif.tf` maps and authorizes their top-level claims. Follow `docs/oidc.md`: update the cloud side first, verify token exchange, then change the GitHub template. Optional claims such as `environment` and `job_workflow_ref` must never become organization-wide requirements unless every affected job supplies them.
+
+
+## Contributor authorization and intellectual property
+
+A contribution may be submitted only by a person authorized under a current
+written employment, contractor, assignment, or other contribution agreement
+with Mindclade, LLC. Before opening or updating a pull request, the contributor
+must confirm that:
+
+- they have the right and authority to submit every part of the contribution;
+- first-party work is covered by the contributor's controlling written
+  agreement with Mindclade, LLC.;
+- third-party code, data, models, media, fonts, specifications, and generated
+  material are identified with their source, version, license, provenance, and
+  required notices;
+- the contribution contains no material whose confidentiality, license,
+  consent, acceptable-use terms, export controls, or other restrictions
+  prohibit submission; and
+- the change description and validation evidence are complete and accurate.
+
+By submitting or updating a pull request, the contributor represents that these
+statements are true. Submission is not acceptance and does not by itself alter
+ownership, grant a license, or replace the controlling written agreement.
+Signed commits establish source identity and integrity; they are not a
+substitute for the required written agreement.
+
+If authorization or ownership is unclear, stop before submission and use the
+legal or contract channel named in the applicable agreement. Do not place
+confidential material in a public issue or an unapproved email.

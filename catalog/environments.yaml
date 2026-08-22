@@ -82,6 +82,22 @@ release:
   custom_branch_policies: false
   prevent_self_review: true
   project_required: false
+workflow-release-platform:
+  wait_timer: 0
+  reviewer_teams:
+    - platform
+  protected_branches: true
+  custom_branch_policies: false
+  prevent_self_review: true
+  project_required: false
+workflow-release-security:
+  wait_timer: 0
+  reviewer_teams:
+    - security
+  protected_branches: true
+  custom_branch_policies: false
+  prevent_self_review: true
+  project_required: false
 break-glass:
   wait_timer: 0
   reviewer_teams:

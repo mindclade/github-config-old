@@ -7,8 +7,8 @@ and expects the stable `nix / verdict` context. Its resting enforcement is `eval
 
 Keep the ruleset in evaluate mode until all of the following evidence has been reviewed:
 
-1. An operator publishes the immutable `.github` workflow release `v5.0.0`, which includes the
-   x86 baseline, native ARM qualification, and independent rebuild qualification.
+1. An operator publishes the single immutable `.github` `v5.0.0` workflow release only after
+   x86_64 Linux, aarch64 Linux, aarch64 Darwin, and independent rebuild evidence is attached.
 2. Until that tag exists, every consumer uses the audited immutable candidate commit
    `0bdba2a8d06c732a6eb0a09238267dc83e1ca576`; a reviewed follow-up moves consumers to
    `@v5.0.0` only after the annotated tag resolves to that exact commit.

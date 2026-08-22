@@ -58,7 +58,8 @@ infrastructure-live:
   DR_REGION: us-east4
   DR_GPU_ZONE: us-east4-b
   DOMAIN: mindclade.com
-  PRODUCTION_QUALIFICATION_IDENTITY_JSON: env:PRODUCTION_QUALIFICATION_IDENTITY_JSON
+  # The full exporter replaces this fail-closed sentinel from bootstrap/platform_contract.
+  PRODUCTION_QUALIFICATION_IDENTITY_JSON: '{}'
 
 gitops:
   RENDER_APP_ID: env:RENDER_APP_ID

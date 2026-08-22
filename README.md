@@ -28,6 +28,8 @@
 | Visibility | `private` |
 | Change model | `pull-request` |
 | Authority | `github-enterprise-governance`<br>`repositories`<br>`teams`<br>`access`<br>`rulesets`<br>`environments`<br>`actions-policy`<br>`oidc-policy` |
+| Primary readers | GitHub platform, security, and access-governance maintainers |
+| First success | [Validate catalog policy](#quick-start) |
 | Start here | [`docs/README.md`](docs/README.md) |
 
 ## Mission
@@ -52,7 +54,8 @@ compile that catalog into governed GitHub resources.
 
 ## Quick start
 
-Run the pinned, credential-free policy and Terraform checks:
+Prerequisite: Nix with flakes enabled. These checks need no GitHub credentials and do not change
+organization or repository settings.
 
 ```sh
 nix develop .#ci --command make validate
@@ -60,9 +63,14 @@ nix develop .#ci --command make test
 nix flake check --no-update-lock-file
 ```
 
-Expected result: catalog schemas, access expiry, cross-references, Terraform formatting and
-tests, security checks, and the repository contract pass without changing GitHub. Do not apply
-Terraform, alter live settings, refresh credentials, or widen access from a development session.
+**Success means:** catalog schemas, access expiry, cross-references, Terraform formatting and
+tests, security checks, and the repository contract all pass.
+
+**If it fails:** correct the human-authored source in `catalog/` first; do not hand-edit compiled
+Terraform output to silence a schema, ownership, or access error.
+
+**Safety boundary:** do not apply Terraform, alter live settings, refresh credentials, or widen
+access from a development session.
 
 ## Estate position
 
@@ -116,6 +124,9 @@ replacements fail closed unless an authorized operator provides the documented d
 - [GitHub App authority contracts](docs/github-apps.md)
 - [Onboarding](docs/onboarding.md) and [offboarding](docs/offboarding.md)
 - [Contributing](CONTRIBUTING.md)
+- Policies and terms: [governance](GOVERNANCE.md) · [conduct](CODE_OF_CONDUCT.md) ·
+  [support](SUPPORT.md) · [legal](LEGAL.md) · [license](LICENSE) · [notice](NOTICE) ·
+  [changes](CHANGELOG.md)
 
 ## Security
 

@@ -35,3 +35,14 @@ emergency exception.
 - [ ] New Actions references are immutable-pinned and least-privilege permissions are explicit.
 - [ ] No credential, private key, state, saved plan, or local Terraform cache is committed.
 - [ ] Any access exception has an owner, approver, exact scope, reason, and expiration.
+
+
+## Contributor authorization
+
+- [ ] I am authorized under a current written agreement with Mindclade, LLC. to
+      submit every part of this contribution.
+- [ ] I identified every third-party component, dataset, model, font, media,
+      specification, or generated artifact and preserved its source, license,
+      provenance, and required notices.
+- [ ] I updated `LICENSE`, `NOTICE`, the SBOM, or other license evidence when
+      the included or distributed material changed.

@@ -15,7 +15,9 @@
   ci_profile: shared-workflows
   language_profile: none
   lifecycle: active
-  environments: []
+  environments:
+    - workflow-release-platform
+    - workflow-release-security
   topics:
     - github
     - governance

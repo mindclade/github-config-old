@@ -1,4 +1,4 @@
-# github-config production blueprint
+# Mindclade · `github-config` production blueprint
 
 **Repository class:** `enterprise-control`  
 **Visibility:** `private`  
