@@ -12,6 +12,8 @@ not reconstructed or relabeled here.
 
 - Added a machine-validated governance activation gate and the mandatory independent
   retrospective record for bootstrap PR #25.
+- Added the stable live PostgreSQL registry and admission qualification context to the
+  evaluate-only mixed-language ruleset, preserving the connected database safety gate.
 - Added the exact estate-wide `LEGAL.md` reliance policy and made it part of
   the repository contract.
 - Added connected-audit expectations for `members_can_delete_repositories` and

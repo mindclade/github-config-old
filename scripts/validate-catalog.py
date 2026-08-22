@@ -878,6 +878,25 @@ for forbidden_context in ("render", "provenance"):
         err(
             f"required-checks-gitops cannot require unsupported {forbidden_context} context"
         )
+mixed_checks = rulesets.get("required-checks-mixed", {})
+if mixed_checks.get("enforcement") != "evaluate":
+    err(
+        "required-checks-mixed must remain evaluate until every exact context has "
+        "positive and intentional-negative pull-request and merge-group evidence"
+    )
+if mixed_checks.get("language_profiles") != ["mixed"]:
+    err("required-checks-mixed must target only the mixed language profile")
+mixed_ruleset = (
+    ROOT / "modules" / "rulesets" / "required-checks-mixed.tf"
+).read_text(encoding="utf-8")
+for context in (
+    "python / build",
+    "rust / build",
+    "architecture",
+    "Go registry + admission / live PostgreSQL and failure injection",
+):
+    if f'context = "{context}"' not in mixed_ruleset:
+        err(f"required-checks-mixed implementation omits {context}")
 infra_static_checks = rulesets.get("required-checks-infra-static", {})
 if infra_static_checks.get("enforcement") != "evaluate":
     err("required-checks-infra-static must remain evaluate until rollout evidence is reviewed")
