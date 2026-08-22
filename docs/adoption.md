@@ -112,9 +112,21 @@ until their IdP-backed group mailboxes exist. Do not substitute `security@mindcl
 
 After `infrastructure-live` creates normal-plane GitOps service accounts, exact environment
 projects, and supply-chain attestors, change `ENVIRONMENT_PROJECT_IDS` to
-`env:ENVIRONMENT_PROJECT_IDS`, supply only exact applied outputs for every remaining `env:` input,
-run the default full exporter, and reapply `github-config`. Full mode remains fail-closed on every
-unresolved normal-plane input.
+`env:ENVIRONMENT_PROJECT_IDS`. Export the exact clean, applied infrastructure handoff outside both
+repositories, then run the full exporter with it:
+
+```sh
+python3 scripts/export-ci-variables.py \
+  --stage full \
+  --bootstrap ../bootstrap \
+  --applied-handoff /protected/evidence/infrastructure-control-plane-handoff.json
+```
+
+The exporter requires handoff contract `1.2.0`, an exact 22-variable inventory, a full immutable
+source commit, and an explicit assertion that credential material is absent. Bootstrap supplies
+`PRODUCTION_QUALIFICATION_IDENTITY_JSON` directly from `platform_contract`; an operator cannot
+substitute it. Supply only exact applied values for remaining non-handoff `env:` inputs and reapply
+`github-config`. Full mode remains fail-closed on every unresolved normal-plane input.
 
 The same export requires bootstrap `platform_contract` version `1.4.0`, reads
 `state.replica_buckets.bootstrap`, and publishes it as the managed
@@ -125,7 +137,8 @@ auto-create an unprotected environment with that name.
 The exporter requires `platform_contract.buildkite` to remain disabled with null pool/provider
 and the matching catalog flag. Buildkite cannot be re-enabled through an operator input. It also
 validates all six capability-specific ARC providers, collision-resistant mapped principals,
-trusted-main caller, and immutable v4 reusable workflows before publishing any release variable.
+trusted-main caller, immutable v4 canary/build/attestation/signing workflows, and the isolated v5
+qualification-reader and promotion workflows before publishing any release variable.
 It also validates the exact eight-principal DR evidence provider and compiles the applied writer,
 project, and bucket outputs into environment variables on only the protected `scratch` and
 `staging` environments of `bootstrap`, `github-config`, `infrastructure-live`, and `gitops`.

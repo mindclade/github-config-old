@@ -40,14 +40,28 @@ check "artifact_authority_runner_group_is_exact" {
 check "github_app_installation_contracts_are_exact" {
   assert {
     condition = (
-      toset(keys(local.github_apps)) == toset(["mindclade-arc", "mindclade-release-promoter"]) &&
+      toset(keys(local.github_apps)) == toset([
+        "mindclade-arc",
+        "mindclade-release-promoter",
+        "mindclade-production-qualification-reader",
+      ]) &&
       toset(local.github_apps["mindclade-arc"].repositories) == toset(["mindclade-internal-monorepo"]) &&
       toset(local.github_apps["mindclade-release-promoter"].repositories) == toset(["gitops"]) &&
       local.github_apps["mindclade-arc"].organizationPermissions.selfHostedRunners == "write" &&
       local.github_apps["mindclade-release-promoter"].repositoryPermissions.contents == "write" &&
-      local.github_apps["mindclade-release-promoter"].repositoryPermissions.pullRequests == "write"
+      local.github_apps["mindclade-release-promoter"].repositoryPermissions.pullRequests == "write" &&
+      toset(local.github_apps["mindclade-production-qualification-reader"].repositories) == toset([
+        ".github", ".github-private", "bootstrap", "github-config",
+        "infrastructure-live", "gitops", "mindclade-internal-monorepo"
+      ]) &&
+      local.github_apps["mindclade-production-qualification-reader"].organizationPermissions == {} &&
+      local.github_apps["mindclade-production-qualification-reader"].repositoryPermissions == {
+        actions  = "read"
+        contents = "read"
+        metadata = "read"
+      }
     )
-    error_message = "GitHub App installation or permission contract exceeds the ARC/promoter least-privilege boundary."
+    error_message = "GitHub App installation or permission contract exceeds the ARC, promoter, or qualification least-privilege boundary."
   }
 }
 

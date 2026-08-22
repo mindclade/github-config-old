@@ -48,6 +48,8 @@ EXPECTED_ENVIRONMENTS = {
     "bootstrap",
     "bootstrap-recovery-read",
     "release",
+    "workflow-release-platform",
+    "workflow-release-security",
     "break-glass",
 }
 EXPECTED_RULESETS = {
@@ -129,13 +131,22 @@ REQUIRED_CI_VARIABLES = {
     },
     "bootstrap": {
         "ENABLE_BUILDKITE_WIF": "false",
+        "GCP_REGION": "us-central1",
+        "RESIDENCY_PROFILE": "us-only-v1",
         "SECURITY_CONTACT": "security@mindclade.com",
+        "STATE_BUCKET_LOCATION": "US",
+        "STATE_KMS_LOCATION": "us",
+        "STATE_REPLICA_LOCATION": "us-east4",
+        "STATE_REPLICA_KMS_LOCATION": "us-east4",
     },
     "infrastructure-live": {
         "CLOUD_IDENTITY_CUSTOMER_ID": "env:CLOUD_IDENTITY_CUSTOMER_ID",
+        "DR_GPU_ZONE": "us-east4-b",
+        "DR_REGION": "us-east4",
         "ORG_POLICY_ACTIVATION_PHASE": "baseline",
         "PRIMARY_REGION": "us-central1",
         "GPU_ZONE": "us-central1-b",
+        "RESIDENCY_PROFILE": "us-only-v1",
     },
     "gitops": {
         "BINAUTHZ_DEPLOYMENT_ATTESTOR_PROJECT": "env:BINAUTHZ_DEPLOYMENT_ATTESTOR_PROJECT",
@@ -144,6 +155,8 @@ REQUIRED_CI_VARIABLES = {
         "SA_GITOPS_VERIFIER": "env:SA_GITOPS_VERIFIER",
     },
     "mindclade-internal-monorepo": {
+        "ARTIFACT_REGISTRY_DR_HOST": "us-east4-docker.pkg.dev",
+        "ARTIFACT_REGISTRY_HOST": "us-central1-docker.pkg.dev",
         "CI_PROJECT_ID": "env:CI_PROJECT_ID",
         "SA_ARC_CANARY": "env:SA_ARC_CANARY",
         "SA_ARTIFACT_BUILDER": "env:SA_ARTIFACT_BUILDER",
@@ -270,7 +283,11 @@ expected_runner_group = {
 }
 if runner_groups != {"mindclade-arc-artifact-authority": expected_runner_group}:
     err("ARC artifact-authority runner group contract is not exact")
-if set(github_apps) != {"mindclade-arc", "mindclade-release-promoter"}:
+if set(github_apps) != {
+    "mindclade-arc",
+    "mindclade-release-promoter",
+    "mindclade-production-qualification-reader",
+}:
     err("GitHub App contract inventory is not exact")
 else:
     if github_apps["mindclade-arc"].get("repositories") != [
@@ -297,6 +314,17 @@ else:
         err("release promoter App has an unexpected repository permission contract")
     if promoter.get("organizationPermissions") != {}:
         err("release promoter App must not have organization permissions")
+    qualification = github_apps["mindclade-production-qualification-reader"]
+    if set(qualification.get("repositories", [])) != EXPECTED_REPOS:
+        err("production qualification App must select exactly the seven managed repositories")
+    if qualification.get("repositoryPermissions") != {
+        "actions": "read",
+        "contents": "read",
+        "metadata": "read",
+    }:
+        err("production qualification App has an unexpected repository permission contract")
+    if qualification.get("organizationPermissions") != {}:
+        err("production qualification App must not have organization permissions")
 
 expected_control_repositories = sorted(EXPECTED_REPOS)
 expected_control_permissions = {
@@ -539,6 +567,8 @@ for name, cfg in environments.items():
         "bootstrap-recovery-read",
         "production",
         "release",
+        "workflow-release-platform",
+        "workflow-release-security",
         "break-glass",
     }:
         if not cfg.get("protected_branches"):
@@ -560,6 +590,21 @@ if "infrastructure" not in plan_environment.get("reviewer_teams", []):
     err("environment plan: infrastructure review is required")
 if not plan_environment.get("prevent_self_review"):
     err("environment plan: self-review must be disabled")
+expected_workflow_release_reviewers = {
+    "workflow-release-platform": {"platform"},
+    "workflow-release-security": {"security"},
+}
+github_environments = set(repos.get(".github", {}).get("environments", []))
+if set(expected_workflow_release_reviewers) != github_environments:
+    err(".github must declare exactly both workflow-release approval environments")
+for name, reviewers in expected_workflow_release_reviewers.items():
+    environment = environments.get(name, {})
+    if set(environment.get("reviewer_teams", [])) != reviewers:
+        err(f"environment {name}: reviewer team must be exactly {sorted(reviewers)}")
+    if not environment.get("protected_branches") or not environment.get(
+        "prevent_self_review"
+    ):
+        err(f"environment {name}: protected main and no self-review are required")
 break_glass_environment = environments.get("break-glass", {})
 if set(break_glass_environment.get("reviewer_teams", [])) != {"security"}:
     err(
@@ -717,7 +762,7 @@ for name, cfg in rulesets.items():
 workflow_ref = rulesets.get("ruleset-workflows", {}).get("workflow_ref", "")
 if not re.fullmatch(r"refs/tags/v[0-9]+\.[0-9]+\.[0-9]+", workflow_ref):
     err(
-        "ruleset-workflows.workflow_ref must be an immutable release tag such as refs/tags/v4.0.0"
+        "ruleset-workflows.workflow_ref must be an immutable release tag such as refs/tags/v5.0.0"
     )
 merge_queue_classes = set(rulesets.get("merge-queue", {}).get("classes", []))
 class_merge_queue = {
@@ -819,7 +864,7 @@ if nix_job.get("uses") != (
     "mindclade/.github/.github/workflows/"
     "reusable-nix-qualification.yml@ccae13968c4112aaa918accd08a5de0214cf58b1"
 ):
-    err("nix-qualification must use the audited immutable v4.1.0 candidate commit")
+    err("nix-qualification must use the audited immutable v5.0.0 candidate commit")
 nix_inputs = nix_job.get("with", {})
 for name in ("enable-aarch64-linux", "enable-aarch64-darwin"):
     if nix_inputs.get(name) is not True:
@@ -1036,6 +1081,7 @@ required_export_fragments = {
     "infrastructure-live/ARTIFACT_RELEASE_IDENTITIES_JSON": '"ARTIFACT_RELEASE_IDENTITIES_JSON"',
     "infrastructure-live/ARTIFACT_SIGNER_PRINCIPAL": '"ARTIFACT_SIGNER_PRINCIPAL"',
     "infrastructure-live/ARTIFACT_SIGNER_JOB_WORKFLOW_REF": '"ARTIFACT_SIGNER_JOB_WORKFLOW_REF"',
+    "infrastructure-live/PRODUCTION_QUALIFICATION_IDENTITY_JSON": '"PRODUCTION_QUALIFICATION_IDENTITY_JSON"',
     "github-config/DR_EVIDENCE_ENVIRONMENT_VARIABLES": '"DR_EVIDENCE_ENVIRONMENT_VARIABLES"',
     "monorepo/WIF_PROVIDER_SIGNER": '"WIF_PROVIDER_SIGNER"',
     "monorepo/WIF_PROVIDER_ARC_CANARY": '"WIF_PROVIDER_ARC_CANARY"',
@@ -1060,6 +1106,10 @@ for fragment in (
     '"artifact_release_identities"',
     "artifact_release_contract(",
     "dr_evidence_environment_contract(",
+    "production_qualification_identity_contract(",
+    "load_applied_handoff(",
+    "apply_applied_handoff(",
+    '"contract_version"] != "1.2.0"',
     'choices=("bootstrap", "full")',
 ):
     if fragment not in ci_variable_exporter:
@@ -1216,8 +1266,8 @@ if report_job.get("needs") not in (["export_main"], "export_main"):
 initial_import_path = ROOT / "docs" / "initial-import.md"
 if initial_import_path.is_file():
     initial_import = initial_import_path.read_text(encoding="utf-8")
-    if "protected `v4.0.0` workflow-contract tag" not in initial_import:
-        err("initial-import.md must use the immutable v4.0.0 workflow-contract tag")
+    if "protected `v5.0.0` workflow-contract tag" not in initial_import:
+        err("initial-import.md must use the immutable v5.0.0 workflow-contract tag")
     if "protected `v1` workflow-contract tag" in initial_import:
         err("initial-import.md retains the stale v1 workflow-contract tag")
 

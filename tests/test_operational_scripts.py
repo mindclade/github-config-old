@@ -147,7 +147,7 @@ class ExportSafetyTest(unittest.TestCase):
         platform = self.deployed_v12_contract()
         platform["github"]["artifact_signer"]["job_workflow_ref"] = (
             "mindclade/.github/.github/workflows/"
-            "reusable-binauthz-sign.yml@refs/tags/v4.0.0"
+            "reusable-binauthz-sign.yml@refs/tags/v5.0.0"
         )
         catalog = {
             name: {}
@@ -175,6 +175,7 @@ class ExportSafetyTest(unittest.TestCase):
             bootstrap=ROOT,
             repo="mindclade/github-config",
             stage="full",
+            applied_handoff=None,
             set=True,
             check=False,
         )
@@ -258,7 +259,9 @@ class ExportSafetyTest(unittest.TestCase):
                 "principal": f"principal://iam.googleapis.com/{pool}/subject/{mapped}",
                 "subject": subject,
                 "workflow_ref": "mindclade/mindclade-internal-monorepo/.github/workflows/release.yml@refs/heads/main",
-                "job_workflow_ref": f"mindclade/.github/.github/workflows/{workflow}@refs/tags/v4.0.0",
+                "job_workflow_ref": (
+                    f"mindclade/.github/.github/workflows/{workflow}@refs/tags/v5.0.0"
+                ),
             }
         github = {
             "artifact_release_identities": identities,
@@ -278,6 +281,70 @@ class ExportSafetyTest(unittest.TestCase):
         identities["builder"]["principal"] = identities["qualifier"]["principal"]
         with self.assertRaisesRegex(ValueError, "builder"):
             CI.artifact_release_contract(github, pool, "mindclade")
+
+    def test_production_qualification_identity_is_exact(self) -> None:
+        pool = "projects/123456789/locations/global/workloadIdentityPools/github"
+        subject = "repo:mindclade@316676129/gitops@1333792222:environment:production"
+        identity = {
+            "workload_identity_provider": (
+                f"{pool}/providers/gh-production-qualification"
+            ),
+            "principal": (
+                f"principal://iam.googleapis.com/{pool}/subject/"
+                f"production-qualification:{subject}"
+            ),
+            "subject": subject,
+            "workflow_ref": (
+                "mindclade/gitops/.github/workflows/"
+                "production-qualification-evidence.yml@refs/heads/main"
+            ),
+        }
+        github = {"production_qualification_identity": identity}
+        self.assertEqual(
+            CI.production_qualification_identity_contract(
+                github, pool, "mindclade"
+            ),
+            identity,
+        )
+        identity["subject"] = subject.replace("production", "staging")
+        with self.assertRaisesRegex(ValueError, "subject differs"):
+            CI.production_qualification_identity_contract(
+                github, pool, "mindclade"
+            )
+
+    def test_applied_handoff_inventory_and_catalog_projection_are_exact(self) -> None:
+        variables = {
+            name: f"value-{name.lower()}" for name in CI.APPLIED_HANDOFF_VARIABLES
+        }
+        config = {
+            "gitops": {"SA_GITOPS_RENDER": "env:SA_GITOPS_RENDER"},
+            "other": {
+                name: f"env:{name}"
+                for name in CI.APPLIED_HANDOFF_VARIABLES - {"SA_GITOPS_RENDER"}
+            },
+        }
+        CI.apply_applied_handoff(config, variables)
+        self.assertEqual(
+            config["gitops"]["SA_GITOPS_RENDER"], variables["SA_GITOPS_RENDER"]
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "handoff.json"
+            payload = {
+                "contract_version": "1.2.0",
+                "producer": "mindclade/infrastructure-live",
+                "source_commit": "a" * 40,
+                "environment": "production",
+                "source_units": {},
+                "variables": variables,
+                "credential_material_included": False,
+            }
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            self.assertEqual(CI.load_applied_handoff(path), variables)
+            payload["variables"].pop("SA_GITOPS_RENDER")
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "inventory"):
+                CI.load_applied_handoff(path)
 
     def test_dr_evidence_environment_handoff_is_exact_and_applied(self) -> None:
         pool = "projects/123456789/locations/global/workloadIdentityPools/github"
@@ -299,7 +366,7 @@ class ExportSafetyTest(unittest.TestCase):
                 "workload_identity_provider": f"{pool}/providers/gh-dr-evidence",
                 "job_workflow_ref": (
                     "mindclade/.github/.github/workflows/"
-                    "reusable-dr-evidence.yml@refs/tags/v4.0.0"
+                    "reusable-dr-evidence.yml@refs/tags/v5.0.0"
                 ),
                 "principals": principals,
             }

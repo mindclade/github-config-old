@@ -20,6 +20,31 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 
+APPLIED_HANDOFF_VARIABLES = {
+    "CI_PROJECT_ID",
+    "SA_ARC_CANARY",
+    "SA_ARTIFACT_BUILDER",
+    "SA_ARTIFACT_QUALIFICATION_READER",
+    "SA_ARTIFACT_QUALIFIER",
+    "SA_ARTIFACT_SIGNER",
+    "SA_ARTIFACT_PROMOTER",
+    "SA_GITOPS_RENDER",
+    "SA_GITOPS_VERIFIER",
+    "WIF_PROVIDER_PRODUCTION_QUALIFICATION",
+    "SA_PRODUCTION_QUALIFICATION_READER",
+    "SA_PRODUCTION_QUALIFICATION_WRITER",
+    "PRODUCTION_QUALIFICATION_PROJECT",
+    "PRODUCTION_QUALIFICATION_BUCKET",
+    "PRODUCTION_QUALIFICATION_PRIVATE_KEY_SECRET",
+    "BINAUTHZ_BUILD_ATTESTOR_PROJECT",
+    "BINAUTHZ_BUILD_ATTESTOR",
+    "BINAUTHZ_QUALIFICATION_ATTESTOR_PROJECT",
+    "BINAUTHZ_QUALIFICATION_ATTESTOR",
+    "BINAUTHZ_DEPLOYMENT_ATTESTOR_PROJECT",
+    "BINAUTHZ_DEPLOYMENT_ATTESTOR",
+    "BINAUTHZ_DEPLOYMENT_ATTESTOR_KEY_VERSION",
+}
+
 BUILDKITE_DEFERRED_VARIABLES: dict[str, set[str]] = {}
 
 # Initial governance runs before GitHub Apps, normal-plane identities, attestors, and
@@ -32,6 +57,7 @@ BOOTSTRAP_STAGE_CATALOG_KEYS = {
     "bootstrap": {
         "RESOURCE_PREFIX",
         "GCP_REGION",
+        "RESIDENCY_PROFILE",
         "STATE_BUCKET_LOCATION",
         "STATE_KMS_LOCATION",
         "STATE_REPLICA_LOCATION",
@@ -44,12 +70,18 @@ BOOTSTRAP_STAGE_CATALOG_KEYS = {
         "ORG_POLICY_ACTIVATION_PHASE",
         "MONOREPO_ORG",
         "RESOURCE_PREFIX",
+        "RESIDENCY_PROFILE",
         "PRIMARY_REGION",
         "GPU_ZONE",
+        "DR_REGION",
+        "DR_GPU_ZONE",
         "DOMAIN",
     },
     "gitops": {"MONOREPO_ORG"},
-    "mindclade-internal-monorepo": {"ARTIFACT_REGISTRY_HOST"},
+    "mindclade-internal-monorepo": {
+        "ARTIFACT_REGISTRY_HOST",
+        "ARTIFACT_REGISTRY_DR_HOST",
+    },
 }
 
 
@@ -64,6 +96,11 @@ def parse_args() -> argparse.Namespace:
         choices=("bootstrap", "full"),
         default="full",
         help="bootstrap emits only initial-governance inputs; full remains fail-closed",
+    )
+    parser.add_argument(
+        "--applied-handoff",
+        type=Path,
+        help="Exact infrastructure-live applied control-plane handoff (full stage only).",
     )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--set", action="store_true", help="set CI_VARIABLES with gh")
@@ -95,6 +132,59 @@ def resolve_environment(value: Any) -> Any:
             raise ValueError(f"required operator environment variable is unset: {name}")
         return resolved
     return value
+
+
+def load_applied_handoff(path: Path) -> dict[str, str]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError(f"applied control-plane handoff is unreadable: {error}") from error
+    required = {
+        "contract_version",
+        "producer",
+        "source_commit",
+        "environment",
+        "source_units",
+        "variables",
+        "credential_material_included",
+    }
+    if not isinstance(payload, dict) or set(payload) != required:
+        raise ValueError("applied control-plane handoff field inventory is not exact")
+    if (
+        payload["contract_version"] != "1.2.0"
+        or payload["producer"] != "mindclade/infrastructure-live"
+        or payload["environment"] != "production"
+        or payload["credential_material_included"] is not False
+        or re.fullmatch(r"[0-9a-f]{40}", str(payload["source_commit"])) is None
+    ):
+        raise ValueError("applied control-plane handoff authority is invalid")
+    variables = payload["variables"]
+    if not isinstance(variables, dict) or set(variables) != APPLIED_HANDOFF_VARIABLES:
+        raise ValueError("applied control-plane handoff variable inventory is not exact")
+    for name, value in variables.items():
+        if not isinstance(value, str) or not value or re.search(
+            r"(?i)(mock|unknown|placeholder|example|changeme|known after apply)", value
+        ):
+            raise ValueError(f"applied control-plane handoff value is invalid: {name}")
+    return variables
+
+
+def apply_applied_handoff(
+    config: dict[str, dict[str, Any]], variables: dict[str, str]
+) -> None:
+    consumed: set[str] = set()
+    for repository, values in config.items():
+        for name, value in values.items():
+            if value == f"env:{name}" and name in variables:
+                config[repository][name] = variables[name]
+                consumed.add(name)
+    expected_consumed = APPLIED_HANDOFF_VARIABLES
+    if consumed != expected_consumed:
+        difference = sorted(consumed ^ expected_consumed)
+        raise ValueError(
+            "applied control-plane handoff/catalog projection differs: "
+            + ", ".join(difference)
+        )
 
 
 def require(mapping: dict[str, Any], key: str, label: str) -> Any:
@@ -260,8 +350,10 @@ def artifact_release_contract(
             "release.yml@refs/heads/main"
         ):
             raise ValueError(f"ARC release caller differs: {capability}")
+        workflow_version = "v5.0.0"
         if identity.get("job_workflow_ref") != (
-            f"{organization}/.github/.github/workflows/{workflow}@refs/tags/v4.0.0"
+            f"{organization}/.github/.github/workflows/{workflow}@refs/tags/"
+            f"{workflow_version}"
         ):
             raise ValueError(f"ARC reusable workflow differs: {capability}")
     signer = require(github_contract, "artifact_signer", "platform_contract.github")
@@ -271,6 +363,44 @@ def artifact_release_contract(
     }:
         raise ValueError("legacy artifact_signer projection differs from signer capability")
     return identities
+
+
+def production_qualification_identity_contract(
+    github_contract: dict[str, Any], github_pool: str, organization: str
+) -> dict[str, str]:
+    identity = require(
+        github_contract,
+        "production_qualification_identity",
+        "platform_contract.github",
+    )
+    fields = {
+        "workload_identity_provider",
+        "principal",
+        "subject",
+        "workflow_ref",
+    }
+    if not isinstance(identity, dict) or set(identity) != fields:
+        raise ValueError("platform_contract production qualification identity is not exact")
+    provider = f"{github_pool}/providers/gh-production-qualification"
+    if identity["workload_identity_provider"] != provider:
+        raise ValueError("platform_contract production qualification provider differs")
+    subject = identity["subject"]
+    if not isinstance(subject, str) or re.fullmatch(
+        rf"repo:{re.escape(organization)}@[0-9]+/gitops@[0-9]+:environment:production",
+        subject,
+    ) is None:
+        raise ValueError("platform_contract production qualification subject differs")
+    if identity["principal"] != (
+        f"principal://iam.googleapis.com/{github_pool}/subject/"
+        f"production-qualification:{subject}"
+    ):
+        raise ValueError("platform_contract production qualification principal differs")
+    if identity["workflow_ref"] != (
+        f"{organization}/gitops/.github/workflows/"
+        "production-qualification-evidence.yml@refs/heads/main"
+    ):
+        raise ValueError("platform_contract production qualification workflow differs")
+    return identity
 
 
 def dr_evidence_environment_contract(
@@ -292,7 +422,7 @@ def dr_evidence_environment_contract(
         raise ValueError("platform_contract DR evidence provider differs")
     if identity.get("job_workflow_ref") != (
         f"{organization}/.github/.github/workflows/"
-        "reusable-dr-evidence.yml@refs/tags/v4.0.0"
+        "reusable-dr-evidence.yml@refs/tags/v5.0.0"
     ):
         raise ValueError("platform_contract DR evidence reusable workflow differs")
 
@@ -344,7 +474,10 @@ def dr_evidence_environment_contract(
 
 
 def compile_payload(
-    bootstrap: Path, *, stage: str = "full"
+    bootstrap: Path,
+    *,
+    stage: str = "full",
+    applied_handoff: dict[str, str] | None = None,
 ) -> dict[str, dict[str, Any]]:
     config = run_json(
         ["yq", "-o=json", ".", str(ROOT / "catalog/ci-variables.yaml")]
@@ -370,6 +503,10 @@ def compile_payload(
         config = select_bootstrap_stage(config)
     elif stage != "full":
         raise ValueError(f"unsupported CI variable export stage: {stage}")
+    if applied_handoff is not None:
+        if stage != "full":
+            raise ValueError("applied handoff is only valid for the full export stage")
+        apply_applied_handoff(config, applied_handoff)
     config = resolve_environment(config)
 
     state_contract = require(platform, "state", "platform_contract")
@@ -394,9 +531,15 @@ def compile_payload(
             "platform_contract GitHub WIF pool has an invalid resource name"
         )
     release_identities: dict[str, dict[str, str]] | None = None
+    production_qualification_identity: dict[str, str] | None = None
     if contract_version == "1.4.0":
         release_identities = artifact_release_contract(
             github_contract, str(github_pool), github_organization
+        )
+        production_qualification_identity = (
+            production_qualification_identity_contract(
+                github_contract, str(github_pool), github_organization
+            )
         )
         signer = release_identities["signer"]
     else:
@@ -553,6 +696,14 @@ def compile_payload(
         infrastructure_live_values["ARTIFACT_RELEASE_IDENTITIES_JSON"] = json.dumps(
             release_identities, sort_keys=True, separators=(",", ":")
         )
+    if production_qualification_identity is not None:
+        infrastructure_live_values[
+            "PRODUCTION_QUALIFICATION_IDENTITY_JSON"
+        ] = json.dumps(
+            production_qualification_identity,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
     config["infrastructure-live"].update(infrastructure_live_values)
     config["gitops"]["WIF_PROVIDER_PLAN"] = need(
         providers, "gitops", "GitHub WIF providers"
@@ -603,7 +754,16 @@ def rendered(payload: dict[str, dict[str, Any]], *, compact: bool = False) -> st
 def main() -> int:
     args = parse_args()
     try:
-        payload = compile_payload(args.bootstrap.resolve(), stage=args.stage)
+        applied_handoff = (
+            load_applied_handoff(args.applied_handoff.resolve())
+            if args.applied_handoff is not None
+            else None
+        )
+        payload = compile_payload(
+            args.bootstrap.resolve(),
+            stage=args.stage,
+            applied_handoff=applied_handoff,
+        )
         expected = rendered(payload)
         if args.set:
             subprocess.run(
