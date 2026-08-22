@@ -681,6 +681,16 @@ def validate_bazel_cache_ci_variable_contract(root: Path) -> None:
         "values(local.bazel_cache_handoff)",
         f"{label}.handoff_values",
     )
+    _expect(
+        _canonical_expression(
+            str(local_value(document, "bazel_remote_cache_state", label))
+        ),
+        _canonical_expression(
+            'try(var.ci_variables["mindclade-internal-monorepo"]'
+            '["BAZEL_REMOTE_CACHE_STATE"], "blocked")'
+        ),
+        f"{label}.activation_state",
+    )
 
     source_check = check(document, "bazel_cache_source_contract_is_exact", label)
     source_assertion = _block(source_check, "assert", f"{label}.source")
@@ -749,6 +759,40 @@ def validate_bazel_cache_ci_variable_contract(root: Path) -> None:
     if missing_handoff_terms:
         raise TerraformContractError(
             f"{label}.handoff: assertion omits required terms {missing_handoff_terms}"
+        )
+
+    activation_check = check(
+        document, "bazel_remote_cache_activation_is_safe", label
+    )
+    activation_assertion = _block(
+        activation_check, "assert", f"{label}.activation"
+    )
+    activation_condition = _canonical_expression(
+        _string(activation_assertion, "condition", f"{label}.activation")
+    )
+    required_activation_terms = (
+        (
+            'contains(["blocked","qualified-v1"],local.bazel_remote_cache_state)',
+            "contains([blocked,qualified-v1],local.bazel_remote_cache_state)",
+        ),
+        ('local.bazel_remote_cache_state=="blocked"',),
+        (
+            'alltrue([forvalueinlocal.bazel_cache_handoff_values:value!=""])',
+        ),
+        (
+            '!contains(["","{}"],local.bazel_cache_source_contract_raw)',
+            "!contains([,{}],local.bazel_cache_source_contract_raw)",
+        ),
+    )
+    missing_activation_terms = [
+        alternatives[0]
+        for alternatives in required_activation_terms
+        if not any(term in activation_condition for term in alternatives)
+    ]
+    if missing_activation_terms:
+        raise TerraformContractError(
+            f"{label}.activation: assertion omits required terms "
+            f"{missing_activation_terms}"
         )
 
 
