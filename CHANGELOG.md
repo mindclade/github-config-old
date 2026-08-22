@@ -12,9 +12,17 @@ not reconstructed or relabeled here.
 
 - Added the exact estate-wide `LEGAL.md` reliance policy and made it part of
   the repository contract.
+- Added connected-audit expectations for `members_can_delete_repositories` and
+  `members_can_change_repo_visibility`, so the enterprise repository-policy ceiling
+  fails closed instead of passing unobserved.
 
 ### Changed
 
+- Documented that repository deletion/transfer and visibility-change member privileges are
+  enterprise-owner-only writes with no REST or provider path, including the exact GraphQL
+  mutations and the required read-back verification.
+- Documented that GitHub-to-cloud token-exchange evidence must consume a cloud API, because a
+  successful authentication step alone does not prove a token was minted.
 - Synchronized policy bundle `2026.08.21.3`, pinned repository-home validation to canonical
   commit `8467615f12868d4b78718b8ddf7f05797c44a507`, and removed the obsolete duplicate validator.
 - Updated the proprietary license with the protected-disclosure notice and
