@@ -26,6 +26,11 @@ release-authority-paths:
   repositories:
     - mindclade-internal-monorepo
   enforcement: active
+release-tag-creation:
+  target: all
+  # Creation is separately restricted to Release. The no-bypass tag-protection ruleset still
+  # prevents that team from moving or deleting an existing release tag.
+  enforcement: active
 push-blocklist:
   target: all-private-internal
   enforcement: active

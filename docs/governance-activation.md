@@ -15,6 +15,8 @@ or retrospective closeout.
 - `baseline-all` and `protected-paths` remain the active desired floor with no baseline bypass and
   two approvals plus CODEOWNERS on enterprise/production control repositories.
 - `ruleset-workflows` remains `evaluate` while the referenced `v5.0.0` tag is absent.
+- `release-tag-creation` blocks new `v*` tags for everyone except the Release team, while the
+  separate no-bypass `tag-protection` ruleset prevents Release from moving or deleting them.
 - `required-checks-bootstrap` expects `plan / verdict` but remains `evaluate` until both its
   connected-plan and credential-free paths are observed.
 - `required-checks-nix` remains `evaluate` until all seven repositories have native and rebuild
@@ -29,11 +31,14 @@ or retrospective closeout.
    approvals.
 2. Refresh organization-ruleset and Terraform-state inventory with an organization-ruleset-capable
    plan identity. Import every known-existing address and reject delete/replace actions.
+   Remove redundant `.github` repository ruleset `21082865` only after the organization
+   `tag-protection` rule is independently proven active and no-bypass.
 3. Review the exact merged-SHA Terraform plan. Its first bounded apply may reconcile
    `baseline-all` and `protected-paths` and create `workflow-release-platform` and
    `workflow-release-security`; it must leave release-dependent rules in evaluate mode.
-4. Merge the canonical `.github` v5 source through independent review. An operator—not an agent—
-   creates the annotated `v5.0.0` tag on that exact merged commit. Qualify the exact tag, approve
+4. Merge the canonical `.github` v5 source through independent review. A Release-team operator—not
+   an agent—creates the annotated `v5.0.0` tag on that exact merged commit through the active
+   creation guard. Qualify the exact tag, approve
    both protected environments with distinct people, and publish the immutable release.
 5. Adopt the published release and policy provenance record through consumer pull requests. Keep
    legacy Nix checks until `nix / verdict` is observed on pull requests, merge groups, schedules,

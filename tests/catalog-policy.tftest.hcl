@@ -59,6 +59,14 @@ run "policy_catalog_is_production_grade" {
 
   assert {
     condition = (
+      output.rulesets["release-tag-creation"].enforcement == "active" &&
+      output.rulesets["tag-protection"].enforcement == "active"
+    )
+    error_message = "Release-tag creation and immutable tag protection must both remain active."
+  }
+
+  assert {
+    condition = (
       !output.repository_classes["enterprise-control"].merge_queue &&
       toset(output.rulesets["merge-queue"].classes) == toset([
         "production-control",

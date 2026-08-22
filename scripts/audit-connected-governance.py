@@ -280,7 +280,13 @@ def expected_rulesets(
         name: {} for name in repositories
     }
     for name, config in rulesets.items():
-        target = "push" if name == "push-blocklist" else "tag" if name == "tag-protection" else "branch"
+        target = (
+            "push"
+            if name == "push-blocklist"
+            else "tag"
+            if name in {"release-tag-creation", "tag-protection"}
+            else "branch"
+        )
         shape = {"target": target, "enforcement": str(config["enforcement"])}
         if name == "merge-queue":
             for repository_name, repository_config in repositories.items():

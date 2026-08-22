@@ -195,6 +195,8 @@ unresolved_discovery:
     reason: The remote state address inventory was not readable; every known-existing address must be proven imported before activation.
   - resource_class: organization_rulesets
     reason: The connected credential lacks admin:org and cannot enumerate organization rulesets directly; repository-effective reads show only push-blocklist and tag-protection, so absence of the other desired rulesets is not proven.
+  - resource_class: unmanaged_repository_rulesets
+    reason: The .github repository still exposes redundant repository ruleset 21082865 (bootstrap-v3-tag-immutability); remove it only after the active organization tag-protection rule is independently re-verified.
   - resource_class: unmanaged_environments
     reason: Read-only inventory found auto-created copilot environments outside the governed catalog; ownership and disposition require separate review, and this change neither imports nor deletes them.
   - resource_class: workflow_release_environments

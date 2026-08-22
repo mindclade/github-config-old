@@ -24,6 +24,17 @@ locals {
   # Nobody. The default for anything that protects a security control.
   bypass_none = []
 
+  # Release may create a new immutable version tag. This actor list is used only by the
+  # creation-blocking ruleset; tag-protection remains no-bypass, so the same team cannot move
+  # or delete a tag after creation.
+  bypass_release_tag_creation = [
+    {
+      actor_id    = var.release_team_id
+      actor_type  = "Team"
+      bypass_mode = "always"
+    }
+  ]
+
   # Security team, PR-scoped. Reason: security must be able to land a fix for a rule that is
   # itself blocking the fix — a bad required check, a CODEOWNERS entry pointing at a team
   # that no longer exists. Not for routine work.

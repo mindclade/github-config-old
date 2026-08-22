@@ -58,6 +58,7 @@ EXPECTED_RULESETS = {
     "merge-queue",
     "protected-paths",
     "release-authority-paths",
+    "release-tag-creation",
     "push-blocklist",
     "required-checks-bootstrap",
     "required-checks-gitops",
@@ -77,6 +78,7 @@ EXPECTED_RULESET_ENFORCEMENT = {
     "merge-queue": "active",
     "protected-paths": "active",
     "release-authority-paths": "active",
+    "release-tag-creation": "active",
     "push-blocklist": "active",
     "required-checks-bootstrap": "evaluate",
     "required-checks-gitops": "active",
@@ -282,6 +284,7 @@ activation_enforcement = governance_activation.get("ruleset_enforcement", {})
 for name in (
     "baseline-all",
     "protected-paths",
+    "release-tag-creation",
     "required-checks-bootstrap",
     "required-checks-nix",
     "ruleset-workflows",
