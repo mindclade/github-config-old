@@ -168,7 +168,10 @@ def validate_spdx_coverage(paths: list[Path], materials: list[dict[str, Any]]) -
             if not isinstance(package, dict):
                 raise NoticeError(f"{path}: SPDX package must be an object")
             name = str(package.get("name", "")).strip()
-            if package.get("SPDXID") == "SPDXRef-Mindclade-Release":
+            if package.get("SPDXID") in {
+                "SPDXRef-Mindclade-Artifact",
+                "SPDXRef-Mindclade-Release",
+            }:
                 continue
             if not name or name.casefold() not in covered:
                 raise NoticeError(f"{path}: SPDX package lacks reviewed notice metadata: {name or '<unnamed>'}")

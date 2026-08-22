@@ -73,7 +73,8 @@ CANONICAL_DOCUMENT_DIGESTS = {
 }
 SOURCE_HEADER_PATH = ".github/MINDCLADE_PROPRIETARY_SOURCE_HEADER.txt"
 SOURCE_HEADER_DIGEST = "0f2b024dbf454c08d57b663d8ad8e469215984a7007ef66bd37d651e046e0029"
-THIRD_PARTY_NOTICE_TOOL_DIGEST = "1f4c9594d77197240dd30a8f752e9883eafc477c261d946989008eb269dc4abd"
+THIRD_PARTY_NOTICE_TOOL_DIGEST = "5c344b342d487242b5ff96dec64cf2f22afe52a3bbf8d1b6b97922cb0151d28f"
+SPDX_LICENSE_TOOL_DIGEST = "c6e3077d817d7f9181f35e42a55944c65dc36acb28a2228ff5abbab90633f7bd"
 
 LEGAL_CLAIM_PATTERNS = (
     (
@@ -232,6 +233,23 @@ def validate_third_party_notices(root: Path) -> list[str]:
         return errors
     if hashlib.sha256(tool.read_bytes()).hexdigest() != THIRD_PARTY_NOTICE_TOOL_DIGEST:
         errors.append("third-party notice validator differs from the policy bundle")
+        return errors
+    spdx_tool = next(
+        (
+            candidate
+            for candidate in (
+                root / "scripts" / "enrich-spdx-license.py",
+                root / "tools" / "enrich_spdx_license.py",
+            )
+            if candidate.is_file()
+        ),
+        None,
+    )
+    if spdx_tool is None:
+        errors.append("missing canonical SPDX proprietary-license enricher")
+        return errors
+    if hashlib.sha256(spdx_tool.read_bytes()).hexdigest() != SPDX_LICENSE_TOOL_DIGEST:
+        errors.append("SPDX proprietary-license enricher differs from the policy bundle")
         return errors
     if errors:
         return errors
