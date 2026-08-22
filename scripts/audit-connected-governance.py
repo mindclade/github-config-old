@@ -21,6 +21,12 @@ import yaml
 
 
 ROOT = Path(__file__).resolve().parents[1]
+SEMVER_TAG = re.compile(
+    r"^v(?:0|[1-9][0-9]*)\."
+    r"(?:0|[1-9][0-9]*)\."
+    r"(?:0|[1-9][0-9]*)"
+    r"(?:-[0-9A-Za-z.-]+)?$"
+)
 
 
 class AuditError(RuntimeError):
@@ -163,6 +169,51 @@ def audit_repositories(
         exact(f"{name} archived", repository.get("archived"), desired.get("lifecycle") == "archive", errors)
         if name in connected_ids:
             exact(f"{name} immutable repository ID", repository.get("id"), connected_ids[name], errors)
+
+
+def audit_repository_tags(
+    api: GitHubApi,
+    org: str,
+    repositories: dict[str, Any],
+    errors: list[str],
+) -> dict[str, list[str]]:
+    """Inventory live tag refs and reject non-release identities without mutating them."""
+
+    inventory: dict[str, list[str]] = {}
+    for repository in sorted(repositories):
+        tags: list[str] = []
+        seen_tags: set[str] = set()
+        page = 1
+        while True:
+            response = api.get(
+                f"/repos/{org}/{repository}/tags?per_page=100&page={page}"
+            )
+            if not isinstance(response, list):
+                raise AuditError(f"{repository}: tag response page {page} is not a list")
+            for item in response:
+                if not isinstance(item, dict):
+                    errors.append(f"{repository}: tag entry is not an object")
+                    continue
+                tag = item.get("name")
+                if not isinstance(tag, str) or not tag:
+                    errors.append(f"{repository}: malformed tag name {tag!r}")
+                    continue
+                if tag in seen_tags:
+                    raise AuditError(
+                        f"{repository}: repeated tag {tag!r} across paginated evidence"
+                    )
+                seen_tags.add(tag)
+                tags.append(tag)
+                if not SEMVER_TAG.fullmatch(tag):
+                    errors.append(
+                        f"{repository}: non-SemVer tag {tag!r} is forbidden; "
+                        "integrate or remove rescue, reconcile, backup, and temporary refs"
+                    )
+            if len(response) < 100:
+                break
+            page += 1
+        inventory[repository] = sorted(tags)
+    return inventory
 
 
 def audit_organization(
@@ -676,10 +727,16 @@ def main() -> int:
         if item.get("kind") == "organization" and item.get("connected_id")
     ]
     organization_id = organization_ids[0] if len(organization_ids) == 1 else None
+    tag_inventory: dict[str, list[str]] = {}
 
     try:
         run_check("organization", lambda: audit_organization(api, args.organization, organization_id, errors), errors)
         run_check("repositories", lambda: audit_repositories(api, args.organization, repositories, repository_ids, errors), errors)
+        tag_inventory = run_check(
+            "release tags",
+            lambda: audit_repository_tags(api, args.organization, repositories, errors),
+            errors,
+        ) or {}
         team_ids = run_check("teams", lambda: audit_teams(api, args.organization, teams, errors), errors) or {}
         run_check("Apps", lambda: audit_apps(api, args.organization, apps, errors), errors)
         run_check("Actions", lambda: audit_actions(api, args.organization, actions, errors), errors)
@@ -711,6 +768,7 @@ def main() -> int:
         "organization": args.organization,
         "observed_at": datetime.now(timezone.utc).isoformat(),
         "qualified": not errors,
+        "release_tags": tag_inventory,
         "errors": errors,
     }
     rendered = json.dumps(evidence, indent=2, sort_keys=True) + "\n"

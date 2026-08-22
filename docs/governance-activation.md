@@ -24,6 +24,10 @@ or retrospective closeout.
   evidence from the published v5 workflow.
 - `.github` declares the two protected workflow-release environments, but the connected inventory
   found neither environment live.
+- Read-only connected evidence proves `github-config/main` currently has no branch protection and
+  inherits only active `push-blocklist` and `tag-protection`; desired branch-review and check
+  rulesets are not live. GitHub accepting a merge is therefore not qualification to merge: PRs
+  #35–#37 were merged by the repository administrator with zero reviews while `plan` was waiting.
 
 ## Required order
 
@@ -66,4 +70,11 @@ or retrospective closeout.
 Stop on a missing tag or release, same-human environment approvals, absent workflow context,
 unimported live object, Terraform deletion/replacement, administrator bypass, tag-creation
 activation without active no-bypass tag protection, incomplete API scope, or disagreement between
-the plan, state list, connected audit, and activation record.
+the plan, state list, connected audit, and activation record. Until the connected no-bypass branch
+rules are proven active, stop even when GitHub presents an enabled merge action; an unprotected
+repository accepting the operation is an external control gap, not an approval.
+
+The read-only connected audit also inventories every live tag ref in every catalog-managed
+repository. It emits that inventory as release evidence and fails closed on non-SemVer rescue,
+reconcile, backup, or temporary refs, or when the API result could be truncated. Cleanup remains a
+separate reviewed operation; the auditor issues only GitHub GET requests.

@@ -178,6 +178,64 @@ class ConnectedGovernanceTest(unittest.TestCase):
         with self.assertRaises(AUDIT.AuditError):
             AUDIT.object_items({"total_count": 2, "repositories": [{"name": "one"}]}, "repositories")
 
+    def test_release_tag_inventory_accepts_only_semver(self) -> None:
+        errors: list[str] = []
+        api = mock.Mock()
+        api.get.side_effect = [
+            [
+                {"name": "v3.0.0"},
+                {"name": "v5.0.0-rc.1"},
+            ],
+            [{"name": "rescue/pre-rebase"}],
+        ]
+
+        inventory = AUDIT.audit_repository_tags(
+            api,
+            "mindclade",
+            {"alpha": {}, "beta": {}},
+            errors,
+        )
+
+        self.assertEqual(
+            inventory,
+            {
+                "alpha": ["v3.0.0", "v5.0.0-rc.1"],
+                "beta": ["rescue/pre-rebase"],
+            },
+        )
+        self.assertEqual(
+            errors,
+            [
+                "beta: non-SemVer tag 'rescue/pre-rebase' is forbidden; integrate or "
+                "remove rescue, reconcile, backup, and temporary refs"
+            ],
+        )
+
+    def test_release_tag_inventory_paginates_without_truncation(self) -> None:
+        api = mock.Mock()
+        api.get.side_effect = [
+            [{"name": f"v1.0.{patch}"} for patch in range(100)],
+            [{"name": "v2.0.0"}],
+        ]
+        inventory = AUDIT.audit_repository_tags(
+            api, "mindclade", {"alpha": {}}, []
+        )
+        self.assertEqual(len(inventory["alpha"]), 101)
+        self.assertEqual(
+            [call.args[0] for call in api.get.call_args_list],
+            [
+                "/repos/mindclade/alpha/tags?per_page=100&page=1",
+                "/repos/mindclade/alpha/tags?per_page=100&page=2",
+            ],
+        )
+
+    def test_release_tag_inventory_rejects_a_repeated_page(self) -> None:
+        api = mock.Mock()
+        first_page = [{"name": f"v1.0.{patch}"} for patch in range(100)]
+        api.get.side_effect = [first_page, first_page]
+        with self.assertRaisesRegex(AUDIT.AuditError, "repeated tag"):
+            AUDIT.audit_repository_tags(api, "mindclade", {"alpha": {}}, [])
+
     def test_api_timeout_is_a_fail_fast_transport_error(self) -> None:
         with mock.patch.object(
             AUDIT.subprocess,

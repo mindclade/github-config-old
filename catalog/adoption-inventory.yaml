@@ -191,6 +191,13 @@ known_existing:
     import_id: mindclade-internal-monorepo:release
     connected_id: "20261023008"
 unresolved_discovery:
+  - resource_class: branch_merge_protection
+    reason: >-
+      Read-only connected evidence proves github-config/main has no branch protection and its
+      effective rulesets are exactly active push-blocklist and tag-protection, so the desired
+      no-bypass baseline, protected-path review, and required-check rules are not live; PRs 35
+      through 37 were merged by the repository administrator with zero reviews while their
+      protected plan jobs were waiting.
   - resource_class: terraform_state
     reason: The remote state address inventory was not readable; every known-existing address must be proven imported before activation.
   - resource_class: organization_rulesets
