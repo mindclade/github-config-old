@@ -4,8 +4,8 @@
 
 `catalog/control-plane-apps.yaml` is the machine-readable registration and installation
 contract for Terraform plan and apply identities. `catalog/github-apps.yaml` is the equivalent
-contract for ARC runner registration, GitOps promotion, and production-qualification source
-reads. Neither catalog proves an App exists:
+contract for ARC runner registration, GitOps promotion, production-qualification source reads,
+estate observation, and protected ref cleanup. Neither catalog proves an App exists:
 `scripts/audit-connected-governance.py` must observe the exact installation, permission map, and
 selected repositories before production activation.
 
@@ -36,6 +36,11 @@ The production-qualification App is installed on exactly the seven managed repos
 organization permissions or webhooks, and receives only Actions read, Contents read, and Metadata
 read. Its private key is stored in the infrastructure-owned Secret Manager container and is
 available only to the protected GitOps production-qualification reader identity.
+
+The estate-observer App is read-only and selected to the same exact estate. The ref-janitor App
+adds only Contents write, plus Metadata and Pull Requests read, and is usable for deletion only
+through the reviewed `repository-maintenance` environment. See
+[`repository-operations.md`](repository-operations.md) for retention, deletion, and rollback.
 
 ## Qualification
 

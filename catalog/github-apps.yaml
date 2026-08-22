@@ -36,6 +36,38 @@ mindclade-production-qualification-reader:
     actions: read
     contents: read
     metadata: read
+mindclade-estate-observer:
+  purpose: Read CI, pull requests, checks, branches, and tags for the seven-repository dashboard and janitor plan.
+  repositories:
+    - .github
+    - .github-private
+    - bootstrap
+    - github-config
+    - infrastructure-live
+    - gitops
+    - mindclade-internal-monorepo
+  organizationPermissions: {}
+  repositoryPermissions:
+    actions: read
+    checks: read
+    contents: read
+    metadata: read
+    pullRequests: read
+mindclade-ref-janitor:
+  purpose: Delete only merged retained branches and unauthorized retained non-release tags after protected approval.
+  repositories:
+    - .github
+    - .github-private
+    - bootstrap
+    - github-config
+    - infrastructure-live
+    - gitops
+    - mindclade-internal-monorepo
+  organizationPermissions: {}
+  repositoryPermissions:
+    contents: write
+    metadata: read
+    pullRequests: read
 mindclade-policy-sync:
   purpose: Open review-only pull requests that synchronize the signed central policy bundle.
   repositories:

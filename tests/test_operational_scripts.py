@@ -331,7 +331,7 @@ class ExportSafetyTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "handoff.json"
             payload = {
-                "contract_version": "1.2.0",
+                "contract_version": "1.3.0",
                 "producer": "mindclade/infrastructure-live",
                 "source_commit": "a" * 40,
                 "environment": "production",

@@ -128,6 +128,8 @@
               "release",
               "workflow-release-platform",
               "workflow-release-security",
+              "repository-observability",
+              "repository-maintenance",
               "break-glass"
             ]
           },
@@ -269,6 +271,8 @@
               "release",
               "workflow-release-platform",
               "workflow-release-security",
+              "repository-observability",
+              "repository-maintenance",
               "break-glass"
             ]
           },
@@ -407,6 +411,8 @@
               "release",
               "workflow-release-platform",
               "workflow-release-security",
+              "repository-observability",
+              "repository-maintenance",
               "break-glass"
             ]
           },
@@ -545,6 +551,8 @@
               "release",
               "workflow-release-platform",
               "workflow-release-security",
+              "repository-observability",
+              "repository-maintenance",
               "break-glass"
             ]
           },
@@ -683,6 +691,8 @@
               "release",
               "workflow-release-platform",
               "workflow-release-security",
+              "repository-observability",
+              "repository-maintenance",
               "break-glass"
             ]
           },
@@ -821,6 +831,8 @@
               "release",
               "workflow-release-platform",
               "workflow-release-security",
+              "repository-observability",
+              "repository-maintenance",
               "break-glass"
             ]
           },

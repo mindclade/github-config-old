@@ -10,6 +10,8 @@ not reconstructed or relabeled here.
 
 ### Added
 
+- Added selected-repository estate-observer and ref-janitor Apps, separate read/delete
+  environments, and a dry-run-first retention policy for the exact seven-repository estate.
 - Added a machine-validated governance activation gate and the mandatory independent
   retrospective record for bootstrap PR #25.
 - Added the stable live PostgreSQL registry and admission qualification context to the

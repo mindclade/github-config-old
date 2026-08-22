@@ -45,7 +45,9 @@ check "github_app_installation_contracts_are_exact" {
     condition = (
       toset(keys(local.github_apps)) == toset([
         "mindclade-arc",
+        "mindclade-estate-observer",
         "mindclade-policy-sync",
+        "mindclade-ref-janitor",
         "mindclade-release-promoter",
         "mindclade-production-qualification-reader",
       ]) &&
@@ -73,6 +75,28 @@ check "github_app_installation_contracts_are_exact" {
         actions  = "read"
         contents = "read"
         metadata = "read"
+      } &&
+      toset(local.github_apps["mindclade-estate-observer"].repositories) == toset([
+        ".github", ".github-private", "bootstrap", "github-config",
+        "infrastructure-live", "gitops", "mindclade-internal-monorepo"
+      ]) &&
+      local.github_apps["mindclade-estate-observer"].organizationPermissions == {} &&
+      local.github_apps["mindclade-estate-observer"].repositoryPermissions == {
+        actions      = "read"
+        checks       = "read"
+        contents     = "read"
+        metadata     = "read"
+        pullRequests = "read"
+      } &&
+      toset(local.github_apps["mindclade-ref-janitor"].repositories) == toset([
+        ".github", ".github-private", "bootstrap", "github-config",
+        "infrastructure-live", "gitops", "mindclade-internal-monorepo"
+      ]) &&
+      local.github_apps["mindclade-ref-janitor"].organizationPermissions == {} &&
+      local.github_apps["mindclade-ref-janitor"].repositoryPermissions == {
+        contents     = "write"
+        metadata     = "read"
+        pullRequests = "read"
       }
     )
     error_message = "GitHub App installation or permission contract exceeds the ARC, promoter, or qualification least-privilege boundary."

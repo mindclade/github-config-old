@@ -130,7 +130,7 @@ python3 scripts/export-ci-variables.py \
   --applied-handoff /protected/evidence/infrastructure-control-plane-handoff.json
 ```
 
-The exporter requires handoff contract `1.2.0`, an exact 22-variable inventory, a full immutable
+The exporter requires handoff contract `1.3.0`, an exact 25-variable inventory, a full immutable
 source commit, and an explicit assertion that credential material is absent. Bootstrap supplies
 `PRODUCTION_QUALIFICATION_IDENTITY_JSON` directly from `platform_contract`; an operator cannot
 substitute it. Supply only exact applied values for remaining non-handoff `env:` inputs and reapply

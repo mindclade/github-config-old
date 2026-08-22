@@ -38,6 +38,8 @@
 - [OIDC governance](oidc.md) — GitHub claim policy and the cloud-trust change sequence.
 - [GitHub App authority contracts](github-apps.md) — exact plan/apply/runtime permissions,
   installation selection, qualification, rotation, and revocation.
+- [Repository estate operations](repository-operations.md) — dashboard evidence, conservative
+  ref retention, protected deletion, activation, and rollback.
 
 ## Operations
 
