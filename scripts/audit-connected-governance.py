@@ -177,6 +177,12 @@ def audit_organization(
         "members_can_create_private_repositories": False,
         "members_can_create_internal_repositories": False,
         "members_can_fork_private_repositories": False,
+        # Repository deletion/transfer and visibility changes are the enterprise policy
+        # ceiling. GitHub exposes them in this organization response but accepts no REST or
+        # pinned-provider write for them, so this GET is the only honest evidence that an
+        # enterprise owner has restricted both to organization owners.
+        "members_can_delete_repositories": False,
+        "members_can_change_repo_visibility": False,
         "members_can_create_pages": False,
         "members_can_create_public_pages": False,
         "members_can_create_private_pages": False,

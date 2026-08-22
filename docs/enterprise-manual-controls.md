@@ -66,6 +66,24 @@ disabled until an audited endpoint and non-persisted secret-delivery path exist.
 Organization-level Actions permissions, rulesets, repositories, and environments are managed by
 this root. The enterprise policy is the ceiling and must not silently widen them.
 
+#### Repository deletion and visibility are enterprise-owner-only writes
+
+The organization REST response reports `members_can_delete_repositories` and
+`members_can_change_repo_visibility`, and `scripts/audit-connected-governance.py` requires both
+to be `false`. Neither field is writable: the current REST `Update an organization` contract
+accepts the request, ignores those fields, and a read-after-write still reports the previous
+value. The pinned Terraform provider does not model them either. A connected audit that reports
+either as `true` is therefore a real finding that no automated path in this repository can fix.
+
+Remediation is an enterprise-owner action, taken either in the enterprise repository-policy UI or
+through the GraphQL mutations `updateEnterpriseMembersCanDeleteRepositoriesSetting` and
+`updateEnterpriseMembersCanChangeRepositoryVisibilitySetting` set to `DISABLED`. Those mutations
+need enterprise administration authority; an authorization limited to `admin:org` fails closed on
+the enterprise node with `INSUFFICIENT_SCOPES`. Do not add scope to an authorization that is
+already scheduled for revocation — reauthenticate through browser/device flow first, then apply
+the change and confirm by re-reading both organization fields as `false`. Never record a partial
+or ignored mutation as remediation.
+
 The connected organization audit is `scripts/audit-connected-governance.py`. It is GET-only and
 fails when any required endpoint is denied; a partial inventory is not compliance evidence. App
 installation repository selection requires an approved organization-owner read credential because

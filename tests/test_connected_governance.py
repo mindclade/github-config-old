@@ -78,5 +78,33 @@ class ConnectedGovernanceTest(unittest.TestCase):
                 AUDIT.GitHubApi().get("/orgs/mindclade")
 
 
+    def test_member_repository_ceiling_is_audited(self) -> None:
+        errors: list[str] = []
+        api = mock.Mock()
+        api.get.return_value = {
+            "login": "mindclade",
+            "default_repository_permission": "none",
+            "members_can_create_repositories": False,
+            "members_can_create_public_repositories": False,
+            "members_can_create_private_repositories": False,
+            "members_can_create_internal_repositories": False,
+            "members_can_fork_private_repositories": False,
+            "members_can_delete_repositories": True,
+            "members_can_change_repo_visibility": True,
+            "members_can_create_pages": False,
+            "members_can_create_public_pages": False,
+            "members_can_create_private_pages": False,
+            "web_commit_signoff_required": True,
+        }
+        AUDIT.audit_organization(api, "mindclade", None, errors)
+        self.assertEqual(
+            errors,
+            [
+                "organization members_can_delete_repositories: expected False, got True",
+                "organization members_can_change_repo_visibility: expected False, got True",
+            ],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -74,3 +74,18 @@ Changing the subject template is a trust migration:
 8. remove obsolete compatibility conditions.
 
 Never change both sides blindly in one unrecoverable step.
+
+## What counts as token-exchange evidence
+
+Step 4 above is satisfied only by an immutable Actions run that proves the exchange end to end.
+The cloud authentication action can configure an external-account credential file lazily, so a
+green authentication step alone is not proof that a token was minted.
+
+- Positive evidence must consume a cloud API with the federated credential (for example, an
+  actual access-token request or an authenticated Terraform backend initialization) from the
+  exact ref and environment under test.
+- Negative evidence must attempt to mint or use a token from a non-allowlisted subject and record
+  the cloud provider's denial; a run that only configures credentials proves nothing.
+- Cite the retained run URLs and the exact commit SHA. Temporary probe branches may be deleted
+  once the run record exists, and no IAM binding, protected environment, provider condition, or
+  default-branch source may be changed to obtain evidence.
