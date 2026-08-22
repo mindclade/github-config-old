@@ -6,10 +6,10 @@ ACTIONLINT ?= actionlint
 YAMLLINT ?= yamllint
 
 .PHONY: validate lint catalog adoption fmt fmt-check test security license-headers doctor
-.PHONY: validate-production-contract validate-repository-home workspace-remotes-check workspace-remotes-apply
+.PHONY: validate-production-contract validate-repository-home validate-repository-policy workspace-remotes-check workspace-remotes-apply
 .PHONY: workspace-remotes-test scripts-test terraform-init-test connected-audit activation-gate
 
-validate: lint fmt-check catalog adoption security license-headers validate-production-contract validate-repository-home
+validate: lint fmt-check catalog adoption security license-headers validate-production-contract validate-repository-policy validate-repository-home
 
 lint:
 	@$(ACTIONLINT) -config-file .github/actionlint.yaml .github/workflows/*.yml
@@ -50,6 +50,9 @@ validate-production-contract:
 
 validate-repository-home:
 	@$(PYTHON) scripts/validate-repository-home.py --root .
+
+validate-repository-policy:
+	@$(PYTHON) scripts/validate-repository-policy.py --root .
 
 doctor: workspace-remotes-check
 
