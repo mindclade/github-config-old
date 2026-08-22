@@ -299,3 +299,4 @@ if ERRORS:
     print(f"{len(set(ERRORS))} production contract violation(s)", file=sys.stderr)
     raise SystemExit(1)
 print(f"{REPOSITORY}: production contract passed")
+
