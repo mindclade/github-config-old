@@ -64,5 +64,6 @@ or retrospective closeout.
 ## Stop conditions
 
 Stop on a missing tag or release, same-human environment approvals, absent workflow context,
-unimported live object, Terraform deletion/replacement, administrator bypass, incomplete API
-scope, or disagreement between the plan, state list, connected audit, and activation record.
+unimported live object, Terraform deletion/replacement, administrator bypass, tag-creation
+activation without active no-bypass tag protection, incomplete API scope, or disagreement between
+the plan, state list, connected audit, and activation record.

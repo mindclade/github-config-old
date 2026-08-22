@@ -23,7 +23,7 @@ not reconstructed or relabeled here.
   fails closed instead of passing unobserved.
 - Added an evaluate-first organization rule for `v*` tag creation with Release as its sole
   creation bypass, plus a Terraform precondition that rejects activation before connected
-  qualification while the existing no-bypass immutability rule remains active.
+  qualification or without active no-bypass immutability protection.
 
 ### Changed
 
