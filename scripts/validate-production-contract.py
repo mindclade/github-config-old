@@ -20,7 +20,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY = "github-config"
 CONTRACT = json.loads(
-    '{"authority": ["github-enterprise-governance", "repositories", "teams", "access", "rulesets", "environments", "actions-policy", "oidc-policy"], "forbidden_authority": ["google-cloud-resources", "kubernetes-desired-state", "shared-workflow-implementation", "application-source"], "forbidden_paths": [".terraform", ".terragrunt-cache"], "repository_class": "enterprise-control", "required_paths": ["AGENTS.md", "catalog/repositories.yaml", "catalog/teams.yaml", "catalog/access.yaml", "catalog/environments.yaml", "modules/rulesets", "modules/repositories", "modules/teams"], "visibility": "private"}'
+    '{"authority": ["github-enterprise-governance", "repositories", "teams", "access", "rulesets", "environments", "actions-policy", "oidc-policy"], "forbidden_authority": ["google-cloud-resources", "service-accounts", "gke-clusters", "cloud-sql", "cloud-storage-buckets[any-region]", "cloud-kms", "secret-manager[any-region]", "vertex-ai", "cloud-armor", "beyondcorp", "vpcsc[non-us]", "gcs-cors", "ci-systems[non-immutable]"], "required_paths": [".github/workflows", "catalog/repositories.yaml", "catalog/teams.yaml", "catalog/access.yaml", "catalog/rulesets.yaml", "contracts/repository.yaml", "contracts/oidc-policy.yaml", "modules/repositories", "modules/teams", "modules/rulesets", "scripts/validate-production-contract.py", "scripts/validate-catalog.py"], "forbidden_paths": [".env", ".env.local", "**/.tfstate", "**/.tfstate.backup", ".terraform", ".terraform.lock.hcl", "*.tfplan", ".terragrunt-cache", ".cache", ".direnv", ".venv", "venv", "node_modules", "**/*.key", "**/*.pem", ".ssh"]}'
 )
 ERRORS = []
 
