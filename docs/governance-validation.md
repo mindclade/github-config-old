@@ -15,10 +15,13 @@ retain the old text in comments while changing behavior, and proves those mutati
 
 ## Promotion contract
 
-`required-checks-mixed` and `required-checks-infra-static` accept only `evaluate` or `active`.
-They may become active only when their exact activation gates in
-`catalog/governance-activation.yaml` are qualified. The current catalog remains in `evaluate`;
-source validation does not constitute connected evidence or permission to apply governance.
+The release-tag creation rule, released-workflow rule, bootstrap and github-config verdicts,
+monorepo Go/mixed/infra-static checks, and estate Nix verdict accept only `evaluate` or `active`.
+Each may become active only when its exact activation gates in
+`catalog/governance-activation.yaml` are qualified. Fixed rules still have one exact resting
+state, so evidence gating cannot weaken the active baseline. The current gated catalog remains
+in `evaluate`; source validation does not constitute connected evidence or permission to apply
+governance.
 
 ## Deferred cost verdict
 

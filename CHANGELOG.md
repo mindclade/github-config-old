@@ -50,9 +50,9 @@ not reconstructed or relabeled here.
 
 ### Changed
 
-- Replaced hard-coded evaluate-only clamps for the mixed and infra-static rulesets with
-  fail-closed promotion gates that accept active enforcement only after their connected evidence
-  is qualified; the resting catalog remains evaluate.
+- Replaced hard-coded evaluate-only clamps for every evidence-gated ruleset with one fail-closed
+  lifecycle that accepts active enforcement only after that rule's connected evidence is
+  qualified; the resting catalog remains evaluate.
 - Changed nightly access-expiry validation from whole-file substring matching to parsed workflow
   job and step validation.
 - Refreshed connected environment imports, including every observed desired environment, while

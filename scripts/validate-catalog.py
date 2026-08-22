@@ -20,8 +20,9 @@ import yaml
 from jsonschema import Draft202012Validator
 
 from governance_contracts import (
-    promotable_ruleset_errors,
+    evidence_gated_ruleset_errors,
     required_check_readiness_errors,
+    resting_ruleset_errors,
 )
 from terraform_contracts import (
     RequiredStatusRulesetContract,
@@ -426,12 +427,8 @@ if set(rulesets) != EXPECTED_RULESETS:
     err(
         f"ruleset inventory differs from implementation: {sorted(set(rulesets) ^ EXPECTED_RULESETS)}"
     )
-for name, enforcement in EXPECTED_RULESET_ENFORCEMENT.items():
-    if rulesets.get(name, {}).get("enforcement") != enforcement:
-        err(
-            f"ruleset {name}: resting enforcement must be {enforcement}; use the "
-            "reviewed enforcement override only for a time-bounded rollout"
-        )
+for message in resting_ruleset_errors(rulesets, EXPECTED_RULESET_ENFORCEMENT):
+    err(message)
 
 expected_copilot_exception_repositories = {
     ".github",
@@ -479,28 +476,7 @@ all_activation_gates_qualified = bool(activation_gates) and all(
 )
 if (governance_activation.get("qualification") == "qualified") != all_activation_gates_qualified:
     err("governance activation qualification must equal the complete gate set")
-if rulesets.get("ruleset-workflows", {}).get("enforcement") == "active" and not all(
-    activation_gates.get(name) == "qualified"
-    for name in (
-        "independent_reviewer_available",
-        "v5_release_published",
-        "release_environments_qualified",
-    )
-):
-    err("required workflows cannot be active before v5 release governance is qualified")
-if rulesets.get("release-tag-creation", {}).get("enforcement") == "active" and (
-    activation_gates.get("release_tag_creation_control_qualified") != "qualified"
-):
-    err("release-tag creation cannot be active before connected qualification")
-if rulesets.get("required-checks-bootstrap", {}).get("enforcement") == "active" and (
-    activation_gates.get("bootstrap_verdict_observed") != "qualified"
-):
-    err("bootstrap plan / verdict cannot be active before connected observation")
-if rulesets.get("required-checks-nix", {}).get("enforcement") == "active" and (
-    activation_gates.get("nix_estate_qualified") != "qualified"
-):
-    err("Nix verdict cannot be active before estate qualification")
-for message in promotable_ruleset_errors(rulesets, activation_gates):
+for message in evidence_gated_ruleset_errors(rulesets, activation_gates):
     err(message)
 ruleset_contexts = {
     contract.ruleset_name: contract.contexts
@@ -1113,13 +1089,9 @@ if merge_queue_classes != class_merge_queue:
 if "enterprise-control" in merge_queue_classes:
     err("enterprise-control repositories must not receive merge-queue enforcement")
 release_tag_creation = rulesets.get("release-tag-creation", {})
-if release_tag_creation.get("enforcement") != "evaluate":
-    err("release-tag-creation must remain evaluate until connected qualification")
 if release_tag_creation.get("target") != "all":
     err("release-tag-creation must target the complete managed estate")
 bootstrap_checks = rulesets.get("required-checks-bootstrap", {})
-if bootstrap_checks.get("enforcement") != "evaluate":
-    err("required-checks-bootstrap must remain evaluate until plan / verdict is observed")
 if bootstrap_checks.get("repositories") != ["bootstrap"]:
     err("required-checks-bootstrap must target only bootstrap")
 gitops_checks = rulesets.get("required-checks-gitops", {})
@@ -1138,8 +1110,6 @@ if infra_static_checks.get("repositories") != ["mindclade-internal-monorepo"]:
     )
 
 nix_checks = rulesets.get("required-checks-nix", {})
-if nix_checks.get("enforcement") != "evaluate":
-    err("required-checks-nix must remain evaluate until native rollout evidence is reviewed")
 nix_repositories = nix_checks.get("repositories", [])
 if len(nix_repositories) != len(EXPECTED_REPOS) or set(nix_repositories) != EXPECTED_REPOS:
     err("required-checks-nix must target exactly the seven managed repositories")
