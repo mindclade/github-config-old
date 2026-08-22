@@ -25,6 +25,10 @@ or retrospective closeout.
   are observed at exact merged revisions.
 - `required-checks-nix` remains `evaluate` until all seven repositories have native and rebuild
   evidence from the published v5 workflow.
+- The monorepo Go, mixed-language, and infra-static rules remain `evaluate`. The mixed rule
+  includes the exact `bazel / verdict` context, whose pull-request, intentional-negative,
+  merge-group full-graph, and 28-day latency evidence is tracked by
+  [the monorepo rollout](monorepo-required-check-rollout.md).
 - `.github` declares the two protected workflow-release environments, but the connected inventory
   found neither environment live.
 - The exact observed `copilot` environments are GitHub-platform-managed exceptions, not Terraform

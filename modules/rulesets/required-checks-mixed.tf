@@ -83,9 +83,13 @@ resource "github_organization_ruleset" "required_checks_mixed" {
         context = "Go registry + admission / live PostgreSQL and failure injection"
       }
 
-      # NOT REQUIRED HERE: the Bazel lane. Its job carries a `name:` that has changed once
-      # already, and a required check pinned to a display name blocks every merge the moment
-      # someone renames the job. Give it a stable name first, then add it.
+      # The monorepo emits this exact stable caller-job name on pull_request and merge_group.
+      # Ordinary pull requests use Bazel-authoritative affected selection; merge-group runs
+      # execute the full configured graph before the queue may merge the change. Keep this
+      # ruleset in evaluate until both event shapes and an intentional failure are observed.
+      required_check {
+        context = "bazel / verdict"
+      }
 
       # Re-run checks against the merge result, not the branch head. Without this, two PRs
       # that each pass alone can merge into a broken main.

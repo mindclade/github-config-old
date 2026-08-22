@@ -46,7 +46,8 @@ required-checks-go:
   language_profiles:
     - go
     - mixed
-  # Promote to active only after the real monorepo reports these exact contexts.
+  # Promote with the mixed and infra-static rules only after the monorepo canary matrix in
+  # docs/monorepo-required-check-rollout.md is reviewed.
   enforcement: evaluate
 required-checks-github-config:
   repositories:
@@ -71,7 +72,8 @@ required-checks-gitops:
 required-checks-mixed:
   language_profiles:
     - mixed
-  # Promote to active only after the real monorepo reports these exact contexts.
+  # Includes the stable Bazel verdict. Promote only after positive and intentional-negative
+  # pull-request evidence plus a full merge-group result are reviewed.
   enforcement: evaluate
 required-checks-nix:
   repositories:

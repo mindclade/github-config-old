@@ -114,7 +114,10 @@ run "policy_catalog_is_production_grade" {
   assert {
     condition = (
       output.rulesets["required-checks-mixed"].enforcement == "evaluate" &&
-      output.rulesets["required-checks-mixed"].language_profiles == ["mixed"]
+      output.rulesets["required-checks-mixed"].language_profiles == ["mixed"] &&
+      output.governance_activation.gates.monorepo_bazel_verdict_observed == "blocked" &&
+      output.governance_activation.gates.monorepo_merge_group_full_graph_observed == "blocked" &&
+      output.governance_activation.gates.monorepo_affected_latency_qualified == "blocked"
     )
     error_message = "Mixed-language checks must remain evaluate-mode and target only the mixed profile until every context is observed."
   }
