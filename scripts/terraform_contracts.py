@@ -796,6 +796,146 @@ def validate_bazel_cache_ci_variable_contract(root: Path) -> None:
         )
 
 
+def validate_bootstrap_account_handoff_ci_variable_contract(root: Path) -> None:
+    """Validate the applied bootstrap account record from parsed HCL."""
+
+    label = "repository bootstrap account handoff CI-variable contract"
+    document = load_terraform(root / "modules/repositories/ci-variables.tf")
+    _expect(
+        _canonical_expression(
+            str(local_value(document, "bootstrap_account_handoff_raw", label))
+        ),
+        _canonical_expression(
+            'try(var.ci_variables["infrastructure-live"]'
+            '["BOOTSTRAP_ACCOUNT_HANDOFF_JSON"], "")'
+        ),
+        f"{label}.raw",
+    )
+    required_expression = _canonical_expression(
+        str(local_value(document, "bootstrap_account_handoff_required", label))
+    )
+    required_alternatives = {
+        _canonical_expression(
+            '!contains(["", "{}"], local.bazel_cache_source_contract_raw)'
+        ),
+        "!contains([,{}],local.bazel_cache_source_contract_raw)",
+    }
+    if required_expression not in required_alternatives:
+        raise TerraformContractError(
+            f"{label}.required: bootstrap 1.5 activation expression differs"
+        )
+    expected_state_buckets = {
+        "development": (
+            'try(var.ci_variables["infrastructure-live"]'
+            '["TFSTATE_BUCKET_DEVELOPMENT"], "")'
+        ),
+        "staging": (
+            'try(var.ci_variables["infrastructure-live"]'
+            '["TFSTATE_BUCKET_STAGING"], "")'
+        ),
+        "production": (
+            'try(var.ci_variables["infrastructure-live"]'
+            '["TFSTATE_BUCKET_PRODUCTION"], "")'
+        ),
+    }
+    expected_service_accounts = {
+        "plan": (
+            'try(var.ci_variables["infrastructure-live"]'
+            '["SA_TF_LIVE_PLAN"], "")'
+        ),
+        "foundation": (
+            'try(var.ci_variables["infrastructure-live"]'
+            '["SA_TF_LIVE_APPLY_FOUNDATION"], "")'
+        ),
+        "development": (
+            'try(var.ci_variables["infrastructure-live"]'
+            '["SA_TF_LIVE_APPLY_DEVELOPMENT"], "")'
+        ),
+        "staging": (
+            'try(var.ci_variables["infrastructure-live"]'
+            '["SA_TF_LIVE_APPLY_STAGING"], "")'
+        ),
+        "production": (
+            'try(var.ci_variables["infrastructure-live"]'
+            '["SA_TF_LIVE_APPLY_PRODUCTION"], "")'
+        ),
+    }
+    for local_name, expected in (
+        ("bootstrap_account_handoff_expected_state_buckets", expected_state_buckets),
+        (
+            "bootstrap_account_handoff_expected_service_accounts",
+            expected_service_accounts,
+        ),
+    ):
+        actual = {
+            name: _canonical_expression(str(value))
+            for name, value in _local_mapping(document, local_name, label).items()
+        }
+        _expect(
+            actual,
+            {
+                name: _canonical_expression(expression)
+                for name, expression in expected.items()
+            },
+            f"{label}.{local_name}",
+        )
+
+    handoff_check = check(document, "bootstrap_account_handoff_is_exact", label)
+    assertion = _block(handoff_check, "assert", label)
+    condition = _canonical_expression(_string(assertion, "condition", label))
+    required_terms = (
+        (
+            '!local.bootstrap_account_handoff_required?local.bootstrap_account_handoff_raw==""',
+            '!local.bootstrap_account_handoff_required?(local.bootstrap_account_handoff_raw=="")',
+        ),
+        ("can(jsondecode(local.bootstrap_account_handoff_raw))",),
+        (
+            'toset(["schema_version","bootstrap_contract_version",'
+            '"bootstrap_source_commit","platform_contract_sha256",'
+            '"state_location","state_buckets","service_accounts"])',
+            "toset([schema_version,bootstrap_contract_version,bootstrap_source_commit,"
+            "platform_contract_sha256,state_location,state_buckets,service_accounts])",
+        ),
+        ("local.bootstrap_account_handoff.schema_version==1",),
+        ('local.bootstrap_account_handoff.bootstrap_contract_version=="1.5.0"',),
+        (
+            'can(regex("^[0-9a-f]{40}$",local.bootstrap_account_handoff.bootstrap_source_commit))',
+        ),
+        (
+            'can(regex("^sha256:[0-9a-f]{64}$",local.bootstrap_account_handoff.platform_contract_sha256))',
+        ),
+        ('local.bootstrap_account_handoff.state_location=="US"',),
+        (
+            'local.bootstrap_account_handoff.state_location=='
+            'try(var.ci_variables["infrastructure-live"]["STATE_LOCATION"],"")',
+        ),
+        (
+            "toset(keys(local.bootstrap_account_handoff.state_buckets))=="
+            "toset(keys(local.bootstrap_account_handoff_expected_state_buckets))",
+        ),
+        (
+            "local.bootstrap_account_handoff.state_buckets[name]==expected",
+        ),
+        (
+            "toset(keys(local.bootstrap_account_handoff.service_accounts))=="
+            "toset(keys(local.bootstrap_account_handoff_expected_service_accounts))",
+        ),
+        (
+            "local.bootstrap_account_handoff.service_accounts[name]==expected",
+        ),
+        (",false)",),
+    )
+    missing = [
+        alternatives[0]
+        for alternatives in required_terms
+        if not any(term in condition for term in alternatives)
+    ]
+    if missing:
+        raise TerraformContractError(
+            f"{label}: assertion omits required terms {missing}"
+        )
+
+
 def validate_drift_access_expiry(workflow: Mapping[str, Any]) -> None:
     """Validate the access-expiry job from parsed workflow YAML."""
 

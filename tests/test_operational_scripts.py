@@ -576,6 +576,103 @@ class ExportSafetyTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "SA_BAZEL_CACHE_WRITER"):
             CI.validate_applied_bazel_cache_handoff(handoff, identity)
 
+    def test_bootstrap_account_handoff_is_canonical_and_source_exact(self) -> None:
+        platform = self.staged_v15_contract()
+        values = {
+            "STATE_LOCATION": platform["state"]["primary_location"],
+            "TFSTATE_BUCKET_DEVELOPMENT": platform["state"]["primary_buckets"][
+                "infrastructure-live-development"
+            ],
+            "TFSTATE_BUCKET_STAGING": platform["state"]["primary_buckets"][
+                "infrastructure-live-staging"
+            ],
+            "TFSTATE_BUCKET_PRODUCTION": platform["state"]["primary_buckets"][
+                "infrastructure-live-production"
+            ],
+            "SA_TF_LIVE_PLAN": platform["automation_identities"][
+                "infrastructure-live-plan"
+            ],
+            "SA_TF_LIVE_APPLY_FOUNDATION": platform["automation_identities"][
+                "infrastructure-live-apply-foundation"
+            ],
+            "SA_TF_LIVE_APPLY_DEVELOPMENT": platform["automation_identities"][
+                "infrastructure-live-apply-development"
+            ],
+            "SA_TF_LIVE_APPLY_STAGING": platform["automation_identities"][
+                "infrastructure-live-apply-staging"
+            ],
+            "SA_TF_LIVE_APPLY_PRODUCTION": platform["automation_identities"][
+                "infrastructure-live-apply-production"
+            ],
+        }
+        source_commit = "c" * 40
+        record = CI.build_bootstrap_account_handoff(
+            platform, values, source_commit
+        )
+        self.assertEqual(
+            CI.bootstrap_account_handoff_errors(
+                record, platform, values, source_commit
+            ),
+            [],
+        )
+        reordered = dict(reversed(list(platform.items())))
+        self.assertEqual(
+            CI.build_bootstrap_account_handoff(
+                reordered, values, source_commit
+            )["platform_contract_sha256"],
+            record["platform_contract_sha256"],
+        )
+        canonical_fixture = {
+            "contract_version": "1.5.0",
+            "organization_id": "1",
+            "state": {"primary_location": "US"},
+            "unicode": "λ",
+        }
+        self.assertEqual(
+            CI.build_bootstrap_account_handoff(
+                canonical_fixture, values, source_commit
+            )["platform_contract_sha256"],
+            "sha256:b375ee572e6274f25c9be5e6c76dda6690ceb64a059a92c80cd9036d8931e613",
+        )
+
+        record["state_buckets"]["production"] = "redacted-substitution"
+        errors = CI.bootstrap_account_handoff_errors(
+            record, platform, values, source_commit
+        )
+        self.assertEqual(
+            errors,
+            [
+                "[ACCOUNT-HANDOFF-MISMATCH] bootstrap account handoff differs "
+                "from applied platform output"
+            ],
+        )
+        self.assertNotIn("redacted-substitution", "\n".join(errors))
+
+    def test_bootstrap_account_handoff_requires_a_clean_full_commit(self) -> None:
+        clean = subprocess.CompletedProcess([], 0, stdout="", stderr="")
+        revision = subprocess.CompletedProcess(
+            [], 0, stdout=f"{'d' * 40}\n", stderr=""
+        )
+        with mock.patch.object(CI.subprocess, "run", side_effect=[clean, revision]):
+            self.assertEqual(CI.bootstrap_source_commit(ROOT), "d" * 40)
+
+        dirty = subprocess.CompletedProcess(
+            [], 0, stdout="?? unreviewed-output.json\n", stderr=""
+        )
+        with mock.patch.object(CI.subprocess, "run", return_value=dirty):
+            with self.assertRaisesRegex(ValueError, "ACCOUNT-HANDOFF-SOURCE-DIRTY"):
+                CI.bootstrap_source_commit(ROOT)
+
+    def test_bootstrap_account_handoff_cannot_be_catalog_authored(self) -> None:
+        catalog = {
+            "infrastructure-live": {
+                "BOOTSTRAP_ACCOUNT_HANDOFF_JSON": '{"schema_version":1}'
+            }
+        }
+        with mock.patch.object(CI, "run_json", return_value=catalog):
+            with self.assertRaisesRegex(ValueError, "free-form catalog input"):
+                CI.compile_payload(ROOT, stage="bootstrap")
+
     def test_bootstrap_v15_full_export_requires_applied_v14_handoff(self) -> None:
         platform = self.staged_v15_contract()
         catalog = {
@@ -630,6 +727,9 @@ class ExportSafetyTest(unittest.TestCase):
             mock.patch.object(
                 CI, "dr_evidence_environment_contract", return_value={}
             ),
+            mock.patch.object(
+                CI, "bootstrap_source_commit", return_value="c" * 40
+            ),
         ):
             payload = CI.compile_payload(
                 ROOT, stage="full", applied_handoff=handoff
@@ -644,6 +744,24 @@ class ExportSafetyTest(unittest.TestCase):
                 payload["mindclade-internal-monorepo"][name],
                 handoff.variables[name],
             )
+        account_handoff = json.loads(
+            payload["infrastructure-live"]["BOOTSTRAP_ACCOUNT_HANDOFF_JSON"]
+        )
+        self.assertEqual(account_handoff["bootstrap_source_commit"], "c" * 40)
+        self.assertEqual(
+            account_handoff["state_buckets"],
+            {
+                "development": payload["infrastructure-live"][
+                    "TFSTATE_BUCKET_DEVELOPMENT"
+                ],
+                "staging": payload["infrastructure-live"][
+                    "TFSTATE_BUCKET_STAGING"
+                ],
+                "production": payload["infrastructure-live"][
+                    "TFSTATE_BUCKET_PRODUCTION"
+                ],
+            },
+        )
 
     def test_bootstrap_v15_stage_exports_only_the_cache_source_contract(self) -> None:
         platform = self.staged_v15_contract()
@@ -676,12 +794,21 @@ class ExportSafetyTest(unittest.TestCase):
             mock.patch.object(
                 CI, "resolve_environment", side_effect=lambda value: value
             ),
+            mock.patch.object(
+                CI, "bootstrap_source_commit", return_value="c" * 40
+            ),
         ):
             payload = CI.compile_payload(ROOT, stage="bootstrap")
 
         self.assertEqual(
             json.loads(payload["infrastructure-live"]["BAZEL_CACHE_IDENTITY_JSON"]),
             platform["github"]["bazel_cache_identity"],
+        )
+        self.assertEqual(
+            json.loads(
+                payload["infrastructure-live"]["BOOTSTRAP_ACCOUNT_HANDOFF_JSON"]
+            )["bootstrap_source_commit"],
+            "c" * 40,
         )
         for name in CI.BAZEL_CACHE_APPLIED_HANDOFF_VARIABLES:
             self.assertNotIn(name, payload["mindclade-internal-monorepo"])
@@ -733,6 +860,9 @@ class ExportSafetyTest(unittest.TestCase):
                 ROOT, stage="full", applied_handoff=handoff
             )
         self.assertNotIn("BAZEL_CACHE_IDENTITY_JSON", payload["infrastructure-live"])
+        self.assertNotIn(
+            "BOOTSTRAP_ACCOUNT_HANDOFF_JSON", payload["infrastructure-live"]
+        )
         for name in CI.BAZEL_CACHE_APPLIED_HANDOFF_VARIABLES:
             self.assertNotIn(name, payload["mindclade-internal-monorepo"])
 

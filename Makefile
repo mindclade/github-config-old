@@ -8,8 +8,9 @@ YAMLLINT ?= yamllint
 .PHONY: validate lint catalog adoption fmt fmt-check test security license-headers doctor
 .PHONY: validate-production-contract validate-repository-home workspace-remotes-check workspace-remotes-apply
 .PHONY: workspace-remotes-test scripts-test terraform-init-test connected-audit activation-gate
+.PHONY: bootstrap-account-handoff
 
-validate: lint fmt-check catalog adoption security license-headers validate-production-contract validate-repository-home
+validate: lint fmt-check catalog adoption security license-headers bootstrap-account-handoff validate-production-contract validate-repository-home
 
 lint:
 	@$(ACTIONLINT) -config-file .github/actionlint.yaml .github/workflows/*.yml
@@ -35,6 +36,9 @@ security:
 
 license-headers:
 	@$(PYTHON) scripts/license-header-check.py --check
+
+bootstrap-account-handoff:
+	@$(PYTHON) scripts/validate-bootstrap-account-handoff.py
 
 fmt:
 	@$(TERRAFORM) fmt -recursive

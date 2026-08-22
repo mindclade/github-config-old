@@ -30,6 +30,10 @@ def load(name: str, path: str):
 
 GOVERNANCE = load("governance_contracts", "scripts/governance_contracts.py")
 TERRAFORM = load("terraform_contracts", "scripts/terraform_contracts.py")
+ACCOUNT_HANDOFF = load(
+    "validate_bootstrap_account_handoff",
+    "scripts/validate-bootstrap-account-handoff.py",
+)
 
 
 class PromotionContractTest(unittest.TestCase):
@@ -138,6 +142,9 @@ class RequiredCheckReadinessTest(unittest.TestCase):
 
 
 class TerraformSemanticContractTest(unittest.TestCase):
+    def test_bootstrap_account_handoff_contract_accepts_current_source(self) -> None:
+        self.assertEqual(ACCOUNT_HANDOFF.contract_errors(ROOT), [])
+
     def test_required_context_in_a_comment_cannot_satisfy_the_contract(self) -> None:
         source = (
             ROOT / "modules/rulesets/required-checks-infra-static.tf"
@@ -195,6 +202,60 @@ class TerraformSemanticContractTest(unittest.TestCase):
         TERRAFORM.validate_oidc_module(ROOT)
         TERRAFORM.validate_import_contract(ROOT)
         TERRAFORM.validate_bazel_cache_ci_variable_contract(ROOT)
+        TERRAFORM.validate_bootstrap_account_handoff_ci_variable_contract(ROOT)
+
+    def test_bootstrap_account_handoff_contract_rejects_catalog_authority(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temporary_root = Path(directory)
+            for source in (
+                "contracts/bootstrap-account-handoff.schema.json",
+                "catalog/ci-variables.yaml",
+                "modules/repositories/ci-variables.tf",
+            ):
+                target = temporary_root / source
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(
+                    (ROOT / source).read_text(encoding="utf-8"),
+                    encoding="utf-8",
+                )
+            catalog = temporary_root / "catalog/ci-variables.yaml"
+            catalog_data = yaml.safe_load(catalog.read_text(encoding="utf-8"))
+            catalog_data["infrastructure-live"][
+                "BOOTSTRAP_ACCOUNT_HANDOFF_JSON"
+            ] = "{}"
+            catalog.write_text(
+                yaml.safe_dump(catalog_data, sort_keys=True),
+                encoding="utf-8",
+            )
+            self.assertIn(
+                "[ACCOUNT-HANDOFF-CATALOG] handoff must not be a free-form catalog input",
+                ACCOUNT_HANDOFF.contract_errors(temporary_root),
+            )
+
+    def test_bootstrap_account_handoff_comment_cannot_hide_substitution(self) -> None:
+        source = (ROOT / "modules/repositories/ci-variables.tf").read_text(
+            encoding="utf-8"
+        )
+        safe_expression = (
+            "local.bootstrap_account_handoff.service_accounts[name] == expected"
+        )
+        source = source.replace(
+            safe_expression,
+            "local.bootstrap_account_handoff.service_accounts[name] != expected\n"
+            f"        # {safe_expression}",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            temporary_root = Path(directory)
+            target = temporary_root / "modules/repositories/ci-variables.tf"
+            target.parent.mkdir(parents=True)
+            target.write_text(source, encoding="utf-8")
+            with self.assertRaisesRegex(
+                TERRAFORM.TerraformContractError,
+                "assertion omits required terms",
+            ):
+                TERRAFORM.validate_bootstrap_account_handoff_ci_variable_contract(
+                    temporary_root
+                )
 
     def test_bazel_cache_comment_cannot_hide_collapsed_reader_writer(self) -> None:
         source = (ROOT / "modules/repositories/ci-variables.tf").read_text(
