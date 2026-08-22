@@ -78,7 +78,7 @@ EXPECTED_RULESET_ENFORCEMENT = {
     "merge-queue": "active",
     "protected-paths": "active",
     "release-authority-paths": "active",
-    "release-tag-creation": "active",
+    "release-tag-creation": "evaluate",
     "push-blocklist": "active",
     "required-checks-bootstrap": "evaluate",
     "required-checks-gitops": "active",
@@ -280,6 +280,7 @@ for name, enforcement in EXPECTED_RULESET_ENFORCEMENT.items():
             f"ruleset {name}: resting enforcement must be {enforcement}; use the "
             "reviewed enforcement override only for a time-bounded rollout"
         )
+
 activation_enforcement = governance_activation.get("ruleset_enforcement", {})
 for name in (
     "baseline-all",
@@ -306,6 +307,10 @@ if rulesets.get("ruleset-workflows", {}).get("enforcement") == "active" and not 
     )
 ):
     err("required workflows cannot be active before v5 release governance is qualified")
+if rulesets.get("release-tag-creation", {}).get("enforcement") == "active" and (
+    activation_gates.get("release_tag_creation_control_qualified") != "qualified"
+):
+    err("release-tag creation cannot be active before connected qualification")
 if rulesets.get("required-checks-bootstrap", {}).get("enforcement") == "active" and (
     activation_gates.get("bootstrap_verdict_observed") != "qualified"
 ):
@@ -846,6 +851,52 @@ if merge_queue_classes != class_merge_queue:
     )
 if "enterprise-control" in merge_queue_classes:
     err("enterprise-control repositories must not receive merge-queue enforcement")
+release_tag_creation = rulesets.get("release-tag-creation", {})
+if release_tag_creation.get("enforcement") != "evaluate":
+    err("release-tag-creation must remain evaluate until connected qualification")
+if release_tag_creation.get("target") != "all":
+    err("release-tag-creation must target the complete managed estate")
+release_tag_creation_ruleset = (
+    ROOT / "modules" / "rulesets" / "release-tag-creation.tf"
+).read_text(encoding="utf-8")
+for fragment in (
+    'name        = "release-tag-creation"',
+    'target      = "tag"',
+    'for_each = local.bypass_release_tag_creation',
+    'include = ["refs/tags/v*"]',
+    "creation = true",
+    'local.enforcement["release-tag-creation"] != "active"',
+    "var.release_tag_creation_control_qualified",
+):
+    if fragment not in release_tag_creation_ruleset:
+        err(f"release-tag-creation implementation omits {fragment}")
+release_tag_bypass = (ROOT / "modules" / "rulesets" / "bypass.tf").read_text(
+    encoding="utf-8"
+)
+for fragment in (
+    "bypass_release_tag_creation",
+    "actor_id    = var.release_team_id",
+    'actor_type  = "Team"',
+    'bypass_mode = "always"',
+):
+    if fragment not in release_tag_bypass:
+        err(f"release-tag creation bypass implementation omits {fragment}")
+tag_protection_ruleset = (
+    ROOT / "modules" / "rulesets" / "tag-protection.tf"
+).read_text(encoding="utf-8")
+for fragment in (
+    'name        = "tag-protection"',
+    'target      = "tag"',
+    "for_each = local.bypass_none",
+    'include = ["refs/tags/v*"]',
+    "update           = true",
+    "deletion         = true",
+    "non_fast_forward = true",
+):
+    if fragment not in tag_protection_ruleset:
+        err(f"tag-protection implementation omits {fragment}")
+if "creation = true" in tag_protection_ruleset:
+    err("tag-protection must not give any creation actor an immutability bypass")
 bootstrap_checks = rulesets.get("required-checks-bootstrap", {})
 if bootstrap_checks.get("enforcement") != "evaluate":
     err("required-checks-bootstrap must remain evaluate until plan / verdict is observed")

@@ -307,11 +307,132 @@ def ruleset_summary(items: list[dict[str, Any]]) -> dict[str, dict[str, str]]:
     }
 
 
+def ruleset_bypass_summary(item: dict[str, Any]) -> list[dict[str, Any]]:
+    return sorted(
+        [
+            {
+                "actor_id": actor.get("actor_id"),
+                "actor_type": actor.get("actor_type"),
+                "bypass_mode": actor.get("bypass_mode"),
+            }
+            for actor in item.get("bypass_actors", [])
+            if isinstance(actor, dict)
+        ],
+        key=lambda actor: (
+            str(actor["actor_type"]),
+            str(actor["actor_id"]),
+            str(actor["bypass_mode"]),
+        ),
+    )
+
+
+def audit_release_tag_rulesets(
+    api: GitHubApi,
+    org: str,
+    actual_org: list[dict[str, Any]],
+    team_ids: dict[str, int],
+    errors: list[str],
+) -> None:
+    """Verify the detailed composition which list-ruleset responses do not expose."""
+
+    by_name = {str(item.get("name")): item for item in actual_org}
+    details: dict[str, dict[str, Any]] = {}
+    for name in ("release-tag-creation", "tag-protection"):
+        ruleset_id = by_name.get(name, {}).get("id")
+        if not isinstance(ruleset_id, int):
+            errors.append(f"{name}: connected ruleset detail id is absent")
+            continue
+        detail = api.get(f"/orgs/{org}/rulesets/{ruleset_id}")
+        if not isinstance(detail, dict):
+            errors.append(f"{name}: connected ruleset detail is not an object")
+            continue
+        details[name] = detail
+        conditions = detail.get("conditions", {})
+        ref_name = conditions.get("ref_name", {})
+        repository_name = conditions.get("repository_name", {})
+        exact(
+            f"{name} ref conditions",
+            {
+                "exclude": ref_name.get("exclude"),
+                "include": ref_name.get("include"),
+            },
+            {"exclude": [], "include": ["refs/tags/v*"]},
+            errors,
+        )
+        exact(
+            f"{name} repository conditions",
+            {
+                "exclude": repository_name.get("exclude"),
+                "include": repository_name.get("include"),
+                "protected": bool(repository_name.get("protected", False)),
+            },
+            {"exclude": [], "include": ["~ALL"], "protected": False},
+            errors,
+        )
+
+    creation = details.get("release-tag-creation")
+    if creation is not None:
+        expected_bypass = (
+            [
+                {
+                    "actor_id": team_ids["release"],
+                    "actor_type": "Team",
+                    "bypass_mode": "always",
+                }
+            ]
+            if "release" in team_ids
+            else []
+        )
+        if "release" not in team_ids:
+            errors.append("release-tag-creation: immutable Release team id is absent")
+        exact(
+            "release-tag-creation bypass actors",
+            ruleset_bypass_summary(creation),
+            expected_bypass,
+            errors,
+        )
+        exact(
+            "release-tag-creation rules",
+            creation.get("rules"),
+            [{"type": "creation"}],
+            errors,
+        )
+
+    protection = details.get("tag-protection")
+    if protection is not None:
+        exact(
+            "tag-protection bypass actors",
+            ruleset_bypass_summary(protection),
+            [],
+            errors,
+        )
+        expected_rules = [
+            {"type": "deletion"},
+            {"type": "non_fast_forward"},
+            {
+                "parameters": {
+                    "name": "semver-only",
+                    "negate": False,
+                    "operator": "regex",
+                    "pattern": "^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$",
+                },
+                "type": "tag_name_pattern",
+            },
+            {"type": "update"},
+        ]
+        actual_rules = sorted(
+            [rule for rule in protection.get("rules", []) if isinstance(rule, dict)],
+            key=lambda rule: str(rule.get("type")),
+        )
+        exact("tag-protection rules", actual_rules, expected_rules, errors)
+
+
 def audit_rulesets(
     api: GitHubApi,
     org: str,
     rulesets: dict[str, Any],
     repositories: dict[str, Any],
+    team_ids: dict[str, int],
     errors: list[str],
 ) -> None:
     expected_org, expected_repos = expected_rulesets(rulesets, repositories)
@@ -319,6 +440,7 @@ def audit_rulesets(
         api.get(f"/orgs/{org}/rulesets?includes_parents=false&per_page=100"), "rulesets"
     )
     exact("organization rulesets", ruleset_summary(actual_org), expected_org, errors)
+    audit_release_tag_rulesets(api, org, actual_org, team_ids, errors)
     for repository, expected in expected_repos.items():
         actual = object_items(
             api.get(
@@ -561,7 +683,13 @@ def main() -> int:
         team_ids = run_check("teams", lambda: audit_teams(api, args.organization, teams, errors), errors) or {}
         run_check("Apps", lambda: audit_apps(api, args.organization, apps, errors), errors)
         run_check("Actions", lambda: audit_actions(api, args.organization, actions, errors), errors)
-        run_check("rulesets", lambda: audit_rulesets(api, args.organization, rulesets, repositories, errors), errors)
+        run_check(
+            "rulesets",
+            lambda: audit_rulesets(
+                api, args.organization, rulesets, repositories, team_ids, errors
+            ),
+            errors,
+        )
         run_check("runner groups", lambda: audit_runner_groups(api, args.organization, runner_groups, errors), errors)
         run_check(
             "environments",

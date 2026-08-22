@@ -28,9 +28,10 @@ release-authority-paths:
   enforcement: active
 release-tag-creation:
   target: all
-  # Creation is separately restricted to Release. The no-bypass tag-protection ruleset still
-  # prevents that team from moving or deleting an existing release tag.
-  enforcement: active
+  # Stage this new organization-wide rule in Insights before enforcement. Promotion is a
+  # separate reviewed change after the connected ruleset shape, immutable Release team id, and
+  # exact plan are qualified. The no-bypass tag-protection ruleset remains active throughout.
+  enforcement: evaluate
 push-blocklist:
   target: all-private-internal
   enforcement: active

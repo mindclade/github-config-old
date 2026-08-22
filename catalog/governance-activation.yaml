@@ -19,7 +19,7 @@ gates:
 ruleset_enforcement:
   baseline-all: active
   protected-paths: active
-  release-tag-creation: active
+  release-tag-creation: evaluate
   required-checks-bootstrap: evaluate
   required-checks-nix: evaluate
   ruleset-workflows: evaluate
