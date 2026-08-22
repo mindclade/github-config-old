@@ -25,6 +25,7 @@ check "catalog_matches_implemented_rulesets" {
       "merge-queue",
       "protected-paths",
       "release-authority-paths",
+      "release-tag-creation",
       "push-blocklist",
       "required-checks-bootstrap",
       "required-checks-gitops",

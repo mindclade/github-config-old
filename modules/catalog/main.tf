@@ -254,6 +254,7 @@ check "ruleset_catalog_matches_the_implementation" {
       "merge-queue",
       "protected-paths",
       "release-authority-paths",
+      "release-tag-creation",
       "push-blocklist",
       "required-checks-bootstrap",
       "required-checks-gitops",
