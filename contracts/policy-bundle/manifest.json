@@ -83,14 +83,14 @@
     {
       "name": "acceptance-record-schema",
       "source": "contracts/policy-bundle/acceptance-record.schema.json",
-      "sha256": "77f5928c176657affba2ce21f6bb12fff7a5aef13623d14a24174c485510fa21",
+      "sha256": "58022260c66fab8ca0163cc7ad7cfea621a53e7619619beb4283435487280c43",
       "mediaType": "application/json",
       "distributions": []
     },
     {
       "name": "policy-bundle-schema",
       "source": "contracts/policy-bundle/policy-bundle.schema.json",
-      "sha256": "c5b8695b8e0b31ec5dcba0c25fd7e1cd14d48b7cd394f9182322235aa14c85bd",
+      "sha256": "e7466737bde556863d765ba6df54dd1f5b6d9439fa51ae1f625455ebf317e20c",
       "mediaType": "application/json",
       "distributions": []
     },
