@@ -84,6 +84,7 @@ flowchart TD
 | --- | --- | --- |
 | Catalog | Organization intent and assignments | `catalog/*.yaml` |
 | Catalog module | Schema, reference, and invariant checks | `modules/catalog/` |
+| Bootstrap output compiler | Source-bound, non-secret repository-variable handoffs | `scripts/export-ci-variables.py` and `contracts/` |
 | Resource modules | Compile normalized intent into provider resources | `modules/` |
 | Plan workflow | Static gates, base-branch scope classification, stable verdict, and read-oriented speculative plan | `.github/workflows/plan.yml` |
 | Apply workflow | Exact post-merge plan, approval, integrity check, apply | `.github/workflows/apply.yml` |
@@ -130,6 +131,8 @@ pull-request scoped; it does not grant an invisible direct-push path.
 ## Invariants
 
 - `catalog/` remains the only human-authored policy source.
+- Applied bootstrap handoffs are derived from a clean, exact bootstrap commit; catalog and direct
+  downstream UI edits cannot author or override them.
 - Repository classes and custom properties drive policy targeting; names are not policy.
 - Plan and apply identities remain separate.
 - Apply consumes the checksummed plan produced for the exact checked-out commit.

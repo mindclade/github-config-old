@@ -10,6 +10,9 @@ not reconstructed or relabeled here.
 
 ### Added
 
+- Added a schema-versioned `BOOTSTRAP_ACCOUNT_HANDOFF_JSON` compiler contract that binds a clean
+  bootstrap source commit and canonical platform-output digest to the exact state buckets and
+  service accounts protected governance publishes to `infrastructure-live`.
 - Added an inert `nix-cache-publication` environment assigned only to the monorepo, with protected
   main, Platform and Security review, self-review prevention, and a wait timer. It contains no
   variables or secrets and activates no cache publisher while connected qualification is blocked.

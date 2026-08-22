@@ -146,6 +146,79 @@ publish a cache endpoint, enable a client, or claim that the provider, accounts,
 bucket are live. Supply only exact applied values for remaining non-handoff `env:` inputs and
 reapply `github-config`. Full mode remains fail-closed on every unresolved normal-plane input.
 
+### Publish the applied bootstrap account handoff
+
+Bootstrap contract `1.5.0` also makes `BOOTSTRAP_ACCOUNT_HANDOFF_JSON` a derived governance
+output. It is not a catalog value and must never be reconstructed in the GitHub UI. The exporter
+requires the bootstrap checkout to be clean, records its full commit SHA, hashes the complete
+canonical `platform_contract`, validates the versioned schema, and binds the record to the exact
+state location, three state buckets, plan identity, and four apply identities already published as
+individual `infrastructure-live` variables. Terraform rejects the complete `CI_VARIABLES` payload
+if any duplicate differs. The credential-free validator pins the byte-identical version `1` schema
+shared with the infrastructure consumer. Bootstrap `1.2.0` and `1.4.0` exports omit the record
+entirely.
+
+After the bootstrap apply is complete and its source commit is independently recorded, use this
+exact activation sequence. The first mutation updates only the self-hosting compiler input on
+`github-config`; the protected plan/apply remains the sole publisher to `infrastructure-live`.
+
+```sh
+set -euo pipefail
+umask 077
+
+export BOOTSTRAP_APPLIED_SHA='<40-character reviewed bootstrap commit>'
+git -C ../bootstrap fetch origin main
+git -C ../bootstrap checkout --detach "$BOOTSTRAP_APPLIED_SHA"
+test -z "$(git -C ../bootstrap status --porcelain=v1)"
+test "$(git -C ../bootstrap rev-parse HEAD)" = "$BOOTSTRAP_APPLIED_SHA"
+
+python3 scripts/export-ci-variables.py \
+  --stage full \
+  --bootstrap ../bootstrap \
+  --applied-handoff /protected/evidence/infrastructure-control-plane-handoff.json \
+  > /protected/evidence/github-ci-variables.json
+jq -er '."infrastructure-live".BOOTSTRAP_ACCOUNT_HANDOFF_JSON | fromjson |
+  .schema_version == 1 and
+  .bootstrap_contract_version == "1.5.0" and
+  .bootstrap_source_commit == env.BOOTSTRAP_APPLIED_SHA' \
+  /protected/evidence/github-ci-variables.json >/dev/null
+
+python3 scripts/export-ci-variables.py \
+  --stage full \
+  --bootstrap ../bootstrap \
+  --applied-handoff /protected/evidence/infrastructure-control-plane-handoff.json \
+  --set
+python3 scripts/export-ci-variables.py \
+  --stage full \
+  --bootstrap ../bootstrap \
+  --applied-handoff /protected/evidence/infrastructure-control-plane-handoff.json \
+  --check
+
+gh workflow run apply.yml --repo mindclade/github-config --ref main \
+  -f rollout_phase=normal -f allow_destroy=false
+```
+
+Review the saved plan for exactly one new repository Actions variable, approve the `governance`
+environment only for that reviewed plan, and wait for apply verification. Then compare the live
+value byte-for-byte with the compiled record:
+
+```sh
+jq -r '."infrastructure-live".BOOTSTRAP_ACCOUNT_HANDOFF_JSON' \
+  /protected/evidence/github-ci-variables.json \
+  > /protected/evidence/bootstrap-account-handoff.expected.json
+gh variable get BOOTSTRAP_ACCOUNT_HANDOFF_JSON \
+  --repo mindclade/infrastructure-live \
+  > /protected/evidence/bootstrap-account-handoff.observed.json
+cmp /protected/evidence/bootstrap-account-handoff.expected.json \
+  /protected/evidence/bootstrap-account-handoff.observed.json
+```
+
+Stop before approval if the bootstrap checkout is dirty, the SHA is not the applied revision, the
+plan changes any unrelated variable, or the read-back differs. Roll back only by restoring a prior
+reviewed compiler payload from its exact clean bootstrap revision and running the same protected
+plan/apply path; never edit or delete the downstream variable manually. Retain the compiled record,
+plan checksum, apply run, read-back, reviewer, and timestamps in the restricted evidence boundary.
+
 The same export accepts bootstrap `platform_contract` version `1.4.0` or `1.5.0`, reads
 `state.replica_buckets.bootstrap`, and publishes it as the managed
 `bootstrap/TFSTATE_REPLICA_BUCKET` Actions variable. The protected

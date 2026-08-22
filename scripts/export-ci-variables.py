@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import difflib
+import hashlib
 import json
 import os
 import re
@@ -17,10 +18,30 @@ import sys
 from pathlib import Path
 from typing import Any, NamedTuple
 
+from jsonschema import Draft202012Validator
+from jsonschema.exceptions import SchemaError
+
 
 ROOT = Path(__file__).resolve().parent.parent
 
 SUPPORTED_BOOTSTRAP_CONTRACT_VERSIONS = {"1.2.0", "1.4.0", "1.5.0"}
+BOOTSTRAP_ACCOUNT_HANDOFF_CONTRACT_VERSION = 1
+BOOTSTRAP_ACCOUNT_HANDOFF_PLATFORM_VERSION = "1.5.0"
+BOOTSTRAP_ACCOUNT_HANDOFF_SCHEMA = (
+    ROOT / "contracts/bootstrap-account-handoff.schema.json"
+)
+BOOTSTRAP_ACCOUNT_HANDOFF_STATE_BUCKETS = {
+    "development": "TFSTATE_BUCKET_DEVELOPMENT",
+    "staging": "TFSTATE_BUCKET_STAGING",
+    "production": "TFSTATE_BUCKET_PRODUCTION",
+}
+BOOTSTRAP_ACCOUNT_HANDOFF_SERVICE_ACCOUNTS = {
+    "plan": "SA_TF_LIVE_PLAN",
+    "foundation": "SA_TF_LIVE_APPLY_FOUNDATION",
+    "development": "SA_TF_LIVE_APPLY_DEVELOPMENT",
+    "staging": "SA_TF_LIVE_APPLY_STAGING",
+    "production": "SA_TF_LIVE_APPLY_PRODUCTION",
+}
 
 APPLIED_HANDOFF_V13_VARIABLES = {
     "CI_PROJECT_ID",
@@ -144,6 +165,103 @@ def run_json(command: list[str], *, cwd: Path | None = None) -> Any:
         raise ValueError(
             f"{' '.join(command)} returned invalid JSON: {error}"
         ) from error
+
+
+def bootstrap_source_commit(root: Path) -> str:
+    """Return the exact clean bootstrap source commit used for applied output."""
+
+    status = subprocess.run(
+        ["git", "-C", str(root), "status", "--porcelain=v1"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    if status.stdout.strip():
+        raise ValueError(
+            "[ACCOUNT-HANDOFF-SOURCE-DIRTY] bootstrap checkout has changes or "
+            "untracked files"
+        )
+    result = subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    commit = result.stdout.strip()
+    if re.fullmatch(r"[0-9a-f]{40}", commit) is None:
+        raise ValueError(
+            "[ACCOUNT-HANDOFF-SOURCE] bootstrap checkout does not resolve to one "
+            "full commit SHA"
+        )
+    return commit
+
+
+def build_bootstrap_account_handoff(
+    contract: dict[str, Any], values: dict[str, Any], source_commit: str
+) -> dict[str, Any]:
+    """Build the canonical non-secret record from applied bootstrap output."""
+
+    if contract.get("contract_version") != BOOTSTRAP_ACCOUNT_HANDOFF_PLATFORM_VERSION:
+        raise ValueError(
+            "[ACCOUNT-HANDOFF-BOOTSTRAP] bootstrap platform contract version differs"
+        )
+    if re.fullmatch(r"[0-9a-f]{40}", source_commit) is None:
+        raise ValueError("[ACCOUNT-HANDOFF-SOURCE] bootstrap source commit is invalid")
+    encoded = json.dumps(
+        contract, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+    ).encode("utf-8")
+    return {
+        "schema_version": BOOTSTRAP_ACCOUNT_HANDOFF_CONTRACT_VERSION,
+        "bootstrap_contract_version": BOOTSTRAP_ACCOUNT_HANDOFF_PLATFORM_VERSION,
+        "bootstrap_source_commit": source_commit,
+        "platform_contract_sha256": f"sha256:{hashlib.sha256(encoded).hexdigest()}",
+        "state_location": values["STATE_LOCATION"],
+        "state_buckets": {
+            name: values[variable]
+            for name, variable in BOOTSTRAP_ACCOUNT_HANDOFF_STATE_BUCKETS.items()
+        },
+        "service_accounts": {
+            name: values[variable]
+            for name, variable in BOOTSTRAP_ACCOUNT_HANDOFF_SERVICE_ACCOUNTS.items()
+        },
+    }
+
+
+def bootstrap_account_handoff_errors(
+    handoff: object,
+    contract: dict[str, Any],
+    values: dict[str, Any],
+    source_commit: str,
+) -> list[str]:
+    """Validate exact producer parity without returning record values."""
+
+    try:
+        schema = json.loads(
+            BOOTSTRAP_ACCOUNT_HANDOFF_SCHEMA.read_text(encoding="utf-8")
+        )
+        Draft202012Validator.check_schema(schema)
+    except (OSError, json.JSONDecodeError, SchemaError):
+        return [
+            "[ACCOUNT-HANDOFF-CONTRACT] bootstrap account handoff schema is unavailable"
+        ]
+    if any(Draft202012Validator(schema).iter_errors(handoff)):
+        return [
+            "[ACCOUNT-HANDOFF-SCHEMA] bootstrap account handoff violates its schema"
+        ]
+    try:
+        expected = build_bootstrap_account_handoff(
+            contract, values, source_commit
+        )
+    except (KeyError, TypeError, ValueError):
+        return [
+            "[ACCOUNT-HANDOFF-SOURCE] bootstrap account handoff source is invalid"
+        ]
+    if handoff != expected:
+        return [
+            "[ACCOUNT-HANDOFF-MISMATCH] bootstrap account handoff differs from "
+            "applied platform output"
+        ]
+    return []
 
 
 def resolve_environment(value: Any) -> Any:
@@ -628,6 +746,10 @@ def compile_payload(
     )
     if not isinstance(config, dict):
         raise ValueError("ci-variables catalog is not an object")
+    if "BOOTSTRAP_ACCOUNT_HANDOFF_JSON" in config.get("infrastructure-live", {}):
+        raise ValueError(
+            "BOOTSTRAP_ACCOUNT_HANDOFF_JSON must not be a free-form catalog input"
+        )
     outputs = run_json(["terraform", f"-chdir={bootstrap}", "output", "-json"])
     if not outputs:
         raise ValueError("bootstrap has no outputs")
@@ -879,6 +1001,22 @@ def compile_payload(
     if bazel_cache_identity is not None:
         infrastructure_live_values["BAZEL_CACHE_IDENTITY_JSON"] = json.dumps(
             bazel_cache_identity, sort_keys=True, separators=(",", ":")
+        )
+    if contract_version == BOOTSTRAP_ACCOUNT_HANDOFF_PLATFORM_VERSION:
+        source_commit = bootstrap_source_commit(bootstrap)
+        account_handoff = build_bootstrap_account_handoff(
+            platform, infrastructure_live_values, source_commit
+        )
+        account_handoff_errors = bootstrap_account_handoff_errors(
+            account_handoff,
+            platform,
+            infrastructure_live_values,
+            source_commit,
+        )
+        if account_handoff_errors:
+            raise ValueError("; ".join(account_handoff_errors))
+        infrastructure_live_values["BOOTSTRAP_ACCOUNT_HANDOFF_JSON"] = json.dumps(
+            account_handoff, sort_keys=True, separators=(",", ":")
         )
     config["infrastructure-live"].update(infrastructure_live_values)
     config["gitops"]["WIF_PROVIDER_PLAN"] = need(

@@ -303,6 +303,75 @@ check "bazel_remote_cache_activation_is_safe" {
   }
 }
 
+# infrastructure-live consumes the same bootstrap account values both as individual workflow
+# variables and as one source-bound handoff record. The record is generated from the complete
+# applied platform_contract and a clean bootstrap commit; it is never human-authored catalog
+# input. Requiring exact equality here prevents a partial update or variable substitution from
+# reaching the downstream repository even if CI_VARIABLES itself is edited incorrectly.
+locals {
+  bootstrap_account_handoff_raw = try(
+    var.ci_variables["infrastructure-live"]["BOOTSTRAP_ACCOUNT_HANDOFF_JSON"],
+    ""
+  )
+  bootstrap_account_handoff = try(
+    jsondecode(local.bootstrap_account_handoff_raw),
+    {}
+  )
+  bootstrap_account_handoff_required = !contains(
+    ["", "{}"],
+    local.bazel_cache_source_contract_raw,
+  )
+  bootstrap_account_handoff_expected_state_buckets = {
+    development = try(var.ci_variables["infrastructure-live"]["TFSTATE_BUCKET_DEVELOPMENT"], "")
+    staging     = try(var.ci_variables["infrastructure-live"]["TFSTATE_BUCKET_STAGING"], "")
+    production  = try(var.ci_variables["infrastructure-live"]["TFSTATE_BUCKET_PRODUCTION"], "")
+  }
+  bootstrap_account_handoff_expected_service_accounts = {
+    plan        = try(var.ci_variables["infrastructure-live"]["SA_TF_LIVE_PLAN"], "")
+    foundation  = try(var.ci_variables["infrastructure-live"]["SA_TF_LIVE_APPLY_FOUNDATION"], "")
+    development = try(var.ci_variables["infrastructure-live"]["SA_TF_LIVE_APPLY_DEVELOPMENT"], "")
+    staging     = try(var.ci_variables["infrastructure-live"]["SA_TF_LIVE_APPLY_STAGING"], "")
+    production  = try(var.ci_variables["infrastructure-live"]["SA_TF_LIVE_APPLY_PRODUCTION"], "")
+  }
+}
+
+check "bootstrap_account_handoff_is_exact" {
+  assert {
+    condition = !local.bootstrap_account_handoff_required ? (
+      local.bootstrap_account_handoff_raw == ""
+      ) : try(
+      can(jsondecode(local.bootstrap_account_handoff_raw)) &&
+      toset(keys(local.bootstrap_account_handoff)) == toset([
+        "schema_version",
+        "bootstrap_contract_version",
+        "bootstrap_source_commit",
+        "platform_contract_sha256",
+        "state_location",
+        "state_buckets",
+        "service_accounts",
+      ]) &&
+      local.bootstrap_account_handoff.schema_version == 1 &&
+      local.bootstrap_account_handoff.bootstrap_contract_version == "1.5.0" &&
+      can(regex("^[0-9a-f]{40}$", local.bootstrap_account_handoff.bootstrap_source_commit)) &&
+      can(regex("^sha256:[0-9a-f]{64}$", local.bootstrap_account_handoff.platform_contract_sha256)) &&
+      local.bootstrap_account_handoff.state_location == "US" &&
+      local.bootstrap_account_handoff.state_location == try(var.ci_variables["infrastructure-live"]["STATE_LOCATION"], "") &&
+      toset(keys(local.bootstrap_account_handoff.state_buckets)) == toset(keys(local.bootstrap_account_handoff_expected_state_buckets)) &&
+      alltrue([
+        for name, expected in local.bootstrap_account_handoff_expected_state_buckets :
+        local.bootstrap_account_handoff.state_buckets[name] == expected
+      ]) &&
+      toset(keys(local.bootstrap_account_handoff.service_accounts)) == toset(keys(local.bootstrap_account_handoff_expected_service_accounts)) &&
+      alltrue([
+        for name, expected in local.bootstrap_account_handoff_expected_service_accounts :
+        local.bootstrap_account_handoff.service_accounts[name] == expected
+      ]),
+      false,
+    )
+    error_message = "BOOTSTRAP_ACCOUNT_HANDOFF_JSON must be absent before bootstrap 1.5 or contain the exact schema-versioned, source-bound state and service-account values compiled from applied bootstrap output."
+  }
+}
+
 locals {
   deployment_attestor_contract = [
     try(var.ci_variables["gitops"]["BINAUTHZ_DEPLOYMENT_ATTESTOR_PROJECT"], ""),
