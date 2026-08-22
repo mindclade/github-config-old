@@ -50,6 +50,8 @@ EXPECTED_ENVIRONMENTS = {
     "release",
     "workflow-release-platform",
     "workflow-release-security",
+    "repository-observability",
+    "repository-maintenance",
     "break-glass",
 }
 EXPECTED_RULESETS = {
@@ -132,6 +134,10 @@ UNIVERSAL_OIDC_CLAIMS = {
 REQUIRED_WIF_CLAIMS = UNIVERSAL_OIDC_CLAIMS | {"event_name"}
 FORBIDDEN_ORG_SUBJECT_CLAIMS = {"environment", "job_workflow_ref", "job_workflow_sha"}
 REQUIRED_CI_VARIABLES = {
+    ".github": {
+        "ESTATE_OBSERVER_APP_ID": "env:ESTATE_OBSERVER_APP_ID",
+        "REF_JANITOR_APP_ID": "env:REF_JANITOR_APP_ID",
+    },
     "github-config": {
         "BILLING_EMAIL": "env:BILLING_EMAIL",
         "GOVERNANCE_CONNECTED_DRIFT": "false",
@@ -160,6 +166,10 @@ REQUIRED_CI_VARIABLES = {
         "BINAUTHZ_DEPLOYMENT_ATTESTOR": "env:BINAUTHZ_DEPLOYMENT_ATTESTOR",
         "SA_GITOPS_RENDER": "env:SA_GITOPS_RENDER",
         "SA_GITOPS_VERIFIER": "env:SA_GITOPS_VERIFIER",
+        "SA_PRODUCTION_QUALIFICATION_EVALUATOR": "env:SA_PRODUCTION_QUALIFICATION_EVALUATOR",
+        "PRODUCTION_ELIGIBILITY_SIGNING_KEY_ID": "env:PRODUCTION_ELIGIBILITY_SIGNING_KEY_ID",
+        "PRODUCTION_ELIGIBILITY_KMS_KEY_VERSION": "env:PRODUCTION_ELIGIBILITY_KMS_KEY_VERSION",
+        "PRODUCTION_ELIGIBILITY_URL": "https://mindclade.studio",
     },
     "mindclade-internal-monorepo": {
         "ARTIFACT_REGISTRY_DR_HOST": "us-east4-docker.pkg.dev",
@@ -245,6 +255,21 @@ ci_variables = load_yaml("ci-variables.yaml") or {}
 governance_activation = load_yaml("governance-activation.yaml") or {}
 adoption_inventory = load_yaml("adoption-inventory.yaml") or {}
 connected_exceptions = load_yaml("connected-resource-exceptions.yaml") or {}
+try:
+    repository_maintenance = json.loads(
+        (CAT / "repository-maintenance.json").read_text(encoding="utf-8")
+    )
+    repository_maintenance_schema = json.loads(
+        (SCHEMA / "repository-maintenance.schema.json").read_text(encoding="utf-8")
+    )
+    for issue in Draft202012Validator(repository_maintenance_schema).iter_errors(
+        repository_maintenance
+    ):
+        location = "/".join(map(str, issue.absolute_path)) or "<root>"
+        err(f"repository-maintenance: {location}: {issue.message}")
+except Exception as exc:
+    err(f"repository-maintenance: cannot read contract: {exc}")
+    repository_maintenance = {}
 
 idp_mappings_path = ROOT / "idp" / "mappings.yaml"
 try:
@@ -376,7 +401,9 @@ if runner_groups != {"mindclade-arc-artifact-authority": expected_runner_group}:
     err("ARC artifact-authority runner group contract is not exact")
 if set(github_apps) != {
     "mindclade-arc",
+    "mindclade-estate-observer",
     "mindclade-policy-sync",
+    "mindclade-ref-janitor",
     "mindclade-release-promoter",
     "mindclade-production-qualification-reader",
 }:
@@ -428,6 +455,41 @@ else:
         err("policy sync App has an unexpected repository permission contract")
     if policy_sync.get("organizationPermissions") != {}:
         err("policy sync App must not have organization permissions")
+    observer = github_apps["mindclade-estate-observer"]
+    if set(observer.get("repositories", [])) != EXPECTED_REPOS:
+        err("estate observer App must select exactly the seven managed repositories")
+    if observer.get("repositoryPermissions") != {
+        "actions": "read",
+        "checks": "read",
+        "contents": "read",
+        "metadata": "read",
+        "pullRequests": "read",
+    } or observer.get("organizationPermissions") != {}:
+        err("estate observer App permission contract is not exact and read-only")
+    janitor = github_apps["mindclade-ref-janitor"]
+    if set(janitor.get("repositories", [])) != EXPECTED_REPOS:
+        err("ref janitor App must select exactly the seven managed repositories")
+    if janitor.get("repositoryPermissions") != {
+        "contents": "write",
+        "metadata": "read",
+        "pullRequests": "read",
+    } or janitor.get("organizationPermissions") != {}:
+        err("ref janitor App permission contract is not exact")
+
+if set(repository_maintenance.get("repositories", {})) != EXPECTED_REPOS:
+    err("repository maintenance policy must cover exactly the seven managed repositories")
+for repository, maintenance in repository_maintenance.get("repositories", {}).items():
+    if maintenance.get("protected_branches") != ["main"]:
+        err(f"{repository}: ref janitor must protect exactly main by branch name")
+    if maintenance.get("branch_retention_days", 0) < 7 or maintenance.get("tag_retention_days", 0) < 7:
+        err(f"{repository}: ref janitor retention must be at least seven days")
+    try:
+        patterns = [re.compile(value) for value in maintenance.get("allowed_tag_patterns", [])]
+    except re.error as exc:
+        err(f"{repository}: ref janitor tag pattern is invalid: {exc}")
+    else:
+        if not any(pattern.fullmatch("v1.2.3") for pattern in patterns):
+            err(f"{repository}: semantic release tags must be preserved")
 
 expected_control_repositories = sorted(EXPECTED_REPOS)
 expected_control_permissions = {
@@ -689,6 +751,7 @@ for name, cfg in environments.items():
         "release",
         "workflow-release-platform",
         "workflow-release-security",
+        "repository-maintenance",
         "break-glass",
     }:
         if not cfg.get("protected_branches"):
@@ -715,8 +778,12 @@ expected_workflow_release_reviewers = {
     "workflow-release-security": {"security"},
 }
 github_environments = set(repos.get(".github", {}).get("environments", []))
-if set(expected_workflow_release_reviewers) != github_environments:
-    err(".github must declare exactly both workflow-release approval environments")
+expected_github_environments = set(expected_workflow_release_reviewers) | {
+    "repository-observability",
+    "repository-maintenance",
+}
+if expected_github_environments != github_environments:
+    err(".github must declare the exact workflow-release and repository-operations environments")
 for name, reviewers in expected_workflow_release_reviewers.items():
     environment = environments.get(name, {})
     if set(environment.get("reviewer_teams", [])) != reviewers:
@@ -725,6 +792,12 @@ for name, reviewers in expected_workflow_release_reviewers.items():
         "prevent_self_review"
     ):
         err(f"environment {name}: protected main and no self-review are required")
+observability_environment = environments.get("repository-observability", {})
+if observability_environment.get("reviewer_teams") != [] or not observability_environment.get("protected_branches"):
+    err("environment repository-observability must be protected-main and approval-free")
+maintenance_environment = environments.get("repository-maintenance", {})
+if set(maintenance_environment.get("reviewer_teams", [])) != {"platform", "security"} or maintenance_environment.get("wait_timer", 0) < 5:
+    err("environment repository-maintenance requires platform and security review plus a wait timer")
 break_glass_environment = environments.get("break-glass", {})
 if set(break_glass_environment.get("reviewer_teams", [])) != {"security"}:
     err(
@@ -1306,7 +1379,7 @@ for fragment in (
     "production_qualification_identity_contract(",
     "load_applied_handoff(",
     "apply_applied_handoff(",
-    '"contract_version"] != "1.2.0"',
+    '"contract_version"] != "1.3.0"',
     'choices=("bootstrap", "full")',
 ):
     if fragment not in ci_variable_exporter:

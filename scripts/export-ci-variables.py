@@ -31,11 +31,14 @@ APPLIED_HANDOFF_VARIABLES = {
     "SA_GITOPS_RENDER",
     "SA_GITOPS_VERIFIER",
     "WIF_PROVIDER_PRODUCTION_QUALIFICATION",
+    "SA_PRODUCTION_QUALIFICATION_EVALUATOR",
     "SA_PRODUCTION_QUALIFICATION_READER",
     "SA_PRODUCTION_QUALIFICATION_WRITER",
     "PRODUCTION_QUALIFICATION_PROJECT",
     "PRODUCTION_QUALIFICATION_BUCKET",
     "PRODUCTION_QUALIFICATION_PRIVATE_KEY_SECRET",
+    "PRODUCTION_ELIGIBILITY_SIGNING_KEY_ID",
+    "PRODUCTION_ELIGIBILITY_KMS_KEY_VERSION",
     "BINAUTHZ_BUILD_ATTESTOR_PROJECT",
     "BINAUTHZ_BUILD_ATTESTOR",
     "BINAUTHZ_QUALIFICATION_ATTESTOR_PROJECT",
@@ -151,7 +154,7 @@ def load_applied_handoff(path: Path) -> dict[str, str]:
     if not isinstance(payload, dict) or set(payload) != required:
         raise ValueError("applied control-plane handoff field inventory is not exact")
     if (
-        payload["contract_version"] != "1.2.0"
+        payload["contract_version"] != "1.3.0"
         or payload["producer"] != "mindclade/infrastructure-live"
         or payload["environment"] != "production"
         or payload["credential_material_included"] is not False

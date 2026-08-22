@@ -98,6 +98,22 @@ workflow-release-security:
   custom_branch_policies: false
   prevent_self_review: true
   project_required: false
+repository-observability:
+  wait_timer: 0
+  reviewer_teams: []
+  protected_branches: true
+  custom_branch_policies: false
+  prevent_self_review: false
+  project_required: false
+repository-maintenance:
+  wait_timer: 5
+  reviewer_teams:
+    - platform
+    - security
+  protected_branches: true
+  custom_branch_policies: false
+  prevent_self_review: true
+  project_required: false
 break-glass:
   wait_timer: 0
   reviewer_teams:

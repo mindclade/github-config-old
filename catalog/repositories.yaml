@@ -18,6 +18,8 @@
   environments:
     - workflow-release-platform
     - workflow-release-security
+    - repository-observability
+    - repository-maintenance
   topics:
     - github
     - governance

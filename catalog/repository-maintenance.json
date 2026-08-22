@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "organization": "mindclade",
+  "repositories": {
+    ".github": {"branch_retention_days": 14, "tag_retention_days": 14, "protected_branches": ["main"], "protected_branch_prefixes": ["automation/policy-bundle-"], "allowed_tag_patterns": ["^v[0-9]+\\.[0-9]+\\.[0-9]+$"]},
+    ".github-private": {"branch_retention_days": 14, "tag_retention_days": 14, "protected_branches": ["main"], "protected_branch_prefixes": ["automation/policy-bundle-"], "allowed_tag_patterns": ["^v[0-9]+\\.[0-9]+\\.[0-9]+$"]},
+    "bootstrap": {"branch_retention_days": 14, "tag_retention_days": 14, "protected_branches": ["main"], "protected_branch_prefixes": ["automation/policy-bundle-"], "allowed_tag_patterns": ["^v[0-9]+\\.[0-9]+\\.[0-9]+$"]},
+    "github-config": {"branch_retention_days": 14, "tag_retention_days": 14, "protected_branches": ["main"], "protected_branch_prefixes": ["automation/policy-bundle-"], "allowed_tag_patterns": ["^v[0-9]+\\.[0-9]+\\.[0-9]+$"]},
+    "gitops": {"branch_retention_days": 14, "tag_retention_days": 14, "protected_branches": ["main"], "protected_branch_prefixes": ["automation/policy-bundle-"], "allowed_tag_patterns": ["^v[0-9]+\\.[0-9]+\\.[0-9]+$"]},
+    "infrastructure-live": {"branch_retention_days": 14, "tag_retention_days": 14, "protected_branches": ["main"], "protected_branch_prefixes": ["automation/policy-bundle-"], "allowed_tag_patterns": ["^v[0-9]+\\.[0-9]+\\.[0-9]+$"]},
+    "mindclade-internal-monorepo": {"branch_retention_days": 14, "tag_retention_days": 14, "protected_branches": ["main"], "protected_branch_prefixes": ["automation/policy-bundle-"], "allowed_tag_patterns": ["^v[0-9]+\\.[0-9]+\\.[0-9]+$"]}
+  }
+}
