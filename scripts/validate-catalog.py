@@ -1334,6 +1334,24 @@ if inventory_environments != expected_preexisting_environments:
         f"{sorted(inventory_environments ^ expected_preexisting_environments)}"
     )
 
+unresolved_discovery = {
+    str(item.get("resource_class")): str(item.get("reason"))
+    for item in adoption_inventory.get("unresolved_discovery", [])
+    if isinstance(item, dict)
+}
+branch_merge_protection_gap = unresolved_discovery.get(
+    "branch_merge_protection", ""
+)
+for fragment in (
+    "github-config/main has no branch protection",
+    "effective rulesets are exactly active push-blocklist and tag-protection",
+    "no-bypass baseline",
+    "zero reviews",
+    "protected plan jobs were waiting",
+):
+    if fragment not in branch_merge_protection_gap:
+        err(f"branch merge-protection adoption blocker omits {fragment}")
+
 environment_module = (
     ROOT / "modules" / "repositories" / "environments.tf"
 ).read_text(encoding="utf-8")

@@ -24,6 +24,10 @@ not reconstructed or relabeled here.
 - Added an evaluate-first organization rule for `v*` tag creation with Release as its sole
   creation bypass, plus a Terraform precondition that rejects activation before connected
   qualification or without active no-bypass immutability protection.
+- Recorded the connected `github-config/main` merge-protection gap as a machine-enforced adoption
+  blocker after three administrator merges completed with no review while protected plans waited.
+- Added a GET-only estate tag inventory that reports SemVer releases and fails closed on temporary
+  refs or potentially truncated connected evidence.
 
 ### Changed
 
