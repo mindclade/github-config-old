@@ -35,6 +35,10 @@ groups:
     github_team: infrastructure
     status: deferred
     directory_group: null
+  legal:
+    github_team: legal
+    status: deferred
+    directory_group: null
   model-serving:
     github_team: model-serving
     status: deferred

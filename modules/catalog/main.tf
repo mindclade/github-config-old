@@ -42,6 +42,7 @@ check "github_app_installation_contracts_are_exact" {
     condition = (
       toset(keys(local.github_apps)) == toset([
         "mindclade-arc",
+        "mindclade-policy-sync",
         "mindclade-release-promoter",
         "mindclade-production-qualification-reader",
       ]) &&
@@ -50,6 +51,16 @@ check "github_app_installation_contracts_are_exact" {
       local.github_apps["mindclade-arc"].organizationPermissions.selfHostedRunners == "write" &&
       local.github_apps["mindclade-release-promoter"].repositoryPermissions.contents == "write" &&
       local.github_apps["mindclade-release-promoter"].repositoryPermissions.pullRequests == "write" &&
+      toset(local.github_apps["mindclade-policy-sync"].repositories) == toset([
+        ".github-private", "bootstrap", "github-config", "gitops",
+        "infrastructure-live", "mindclade-internal-monorepo"
+      ]) &&
+      local.github_apps["mindclade-policy-sync"].organizationPermissions == {} &&
+      local.github_apps["mindclade-policy-sync"].repositoryPermissions == {
+        contents     = "write"
+        metadata     = "read"
+        pullRequests = "write"
+      } &&
       toset(local.github_apps["mindclade-production-qualification-reader"].repositories) == toset([
         ".github", ".github-private", "bootstrap", "github-config",
         "infrastructure-live", "gitops", "mindclade-internal-monorepo"
@@ -239,6 +250,7 @@ check "ruleset_catalog_matches_the_implementation" {
   assert {
     condition = toset(keys(local.rulesets)) == toset([
       "baseline-all",
+      "legal-policy-paths",
       "merge-queue",
       "protected-paths",
       "release-authority-paths",

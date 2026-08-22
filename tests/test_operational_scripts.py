@@ -505,6 +505,7 @@ class ExportSafetyTest(unittest.TestCase):
             "engineering",
             "incident-command",
             "infrastructure",
+            "legal",
             "model-serving",
             "model-training",
             "platform",
@@ -517,6 +518,36 @@ class ExportSafetyTest(unittest.TestCase):
         self.assertFalse(set(IDP.TEAM_GROUPS) & IDP.DEFERRED_TEAMS)
         self.assertEqual(set(IDP.TEAM_GROUPS) | IDP.DEFERRED_TEAMS, expected)
         self.assertNotIn("data", IDP.TEAM_GROUPS)
+
+    def test_independent_review_teams_must_be_disjoint_and_nonempty(self) -> None:
+        mappings = {team: f"{team}@example.com" for team in ("legal", "platform", "security")}
+        valid = {
+            "team_members": {
+                "legal": [{"username": "legal-reviewer"}],
+                "platform": [{"username": "platform-reviewer"}],
+                "security": [{"username": "security-reviewer"}],
+            }
+        }
+        with mock.patch.object(IDP, "TEAM_GROUPS", mappings):
+            IDP.validate_independent_review_membership(valid)
+            overlapping = {
+                "team_members": {
+                    "legal": [{"username": "same-human"}],
+                    "platform": [{"username": "platform-reviewer"}],
+                    "security": [{"username": "same-human"}],
+                }
+            }
+            with self.assertRaises(IDP.ExportError):
+                IDP.validate_independent_review_membership(overlapping)
+            empty = {
+                "team_members": {
+                    "legal": [],
+                    "platform": [{"username": "platform-reviewer"}],
+                    "security": [{"username": "security-reviewer"}],
+                }
+            }
+            with self.assertRaises(IDP.ExportError):
+                IDP.validate_independent_review_membership(empty)
 
     def test_access_expiry_warns_at_t14_and_expires_after_deadline(self) -> None:
         items = [

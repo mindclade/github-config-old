@@ -7,6 +7,11 @@ variable "security_team_id" {
   type        = number
 }
 
+variable "legal_team_id" {
+  description = "Numeric id of the legal team."
+  type        = number
+}
+
 variable "platform_team_id" {
   description = "Numeric id of the platform team."
   type        = number

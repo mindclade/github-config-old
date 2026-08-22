@@ -6,36 +6,43 @@
 .github:
   platform: maintain
   security: push
+  legal: pull
   engineering: pull
 .github-private:
   platform: maintain
   security: push
+  legal: pull
   engineering: pull
 github-config:
   security: maintain
   infrastructure: push
   platform: pull
+  legal: pull
   bootstrap-reviewers: pull
 bootstrap:
   infrastructure: maintain
   security: push
   platform: pull
+  legal: pull
   incident-command: pull
   bootstrap-reviewers: pull
 infrastructure-live:
   infrastructure: maintain
   security: push
   platform: pull
+  legal: pull
   incident-command: pull
   bootstrap-reviewers: pull
 gitops:
   platform: maintain
   security: push
   infrastructure: pull
+  legal: pull
   engineering: pull
   incident-command: pull
 mindclade-internal-monorepo:
   engineering: maintain
   platform: maintain
   security: push
+  legal: pull
   release: push
