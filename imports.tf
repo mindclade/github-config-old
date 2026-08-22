@@ -46,10 +46,9 @@ import {
   id = "mindclade-internal-monorepo"
 }
 
-# Read-only GitHub API inventory on 2026-08-20 proved these bootstrap variables already exist.
+# Read-only GitHub API inventory refreshed on 2026-08-22 proved these bootstrap variables already exist.
 # Import the exact intersection of live variables and the ARC-authority compiled catalog.
 # Retired Buildkite authority values are absent from both live state and this import set.
-# is enabled and its real UUID contract is available.
 locals {
   preexisting_bootstrap_actions_variables = toset([
     "BILLING_ACCOUNT",
@@ -80,8 +79,18 @@ locals {
     "bootstrap:bootstrap-recovery-read",
     "bootstrap:break-glass",
     "bootstrap:plan",
+    "github-config:governance",
     "github-config:plan",
+    "gitops:break-glass",
+    "gitops:development",
+    "gitops:production",
+    "gitops:staging",
+    "infrastructure-live:break-glass",
+    "infrastructure-live:development",
     "infrastructure-live:plan",
+    "infrastructure-live:production",
+    "infrastructure-live:staging",
+    "mindclade-internal-monorepo:release",
   ])
 }
 

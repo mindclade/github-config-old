@@ -78,7 +78,7 @@ EXPECTED_RULESET_ENFORCEMENT = {
     "protected-paths": "active",
     "release-authority-paths": "active",
     "push-blocklist": "active",
-    "required-checks-bootstrap": "active",
+    "required-checks-bootstrap": "evaluate",
     "required-checks-gitops": "active",
     "required-checks-go": "evaluate",
     "required-checks-infra-static": "evaluate",
@@ -87,7 +87,7 @@ EXPECTED_RULESET_ENFORCEMENT = {
     "required-checks-tf": "active",
     "required-checks-tf-static": "active",
     "required-checks-tf-tests": "active",
-    "ruleset-workflows": "active",
+    "ruleset-workflows": "evaluate",
     "tag-protection": "active",
 }
 EXPECTED_IDP_GROUPS = {
@@ -209,6 +209,7 @@ for stem in (
     "adoption-inventory",
     "environments",
     "control-plane-apps",
+    "governance-activation",
 ):
     data = load_yaml(f"{stem}.yaml")
     try:
@@ -236,6 +237,8 @@ github_apps = load_yaml("github-apps.yaml") or {}
 control_plane_apps = load_yaml("control-plane-apps.yaml") or {}
 exceptions = load_yaml("access-exceptions.yaml") or []
 ci_variables = load_yaml("ci-variables.yaml") or {}
+governance_activation = load_yaml("governance-activation.yaml") or {}
+adoption_inventory = load_yaml("adoption-inventory.yaml") or {}
 
 idp_mappings_path = ROOT / "idp" / "mappings.yaml"
 try:
@@ -275,6 +278,39 @@ for name, enforcement in EXPECTED_RULESET_ENFORCEMENT.items():
             f"ruleset {name}: resting enforcement must be {enforcement}; use the "
             "reviewed enforcement override only for a time-bounded rollout"
         )
+activation_enforcement = governance_activation.get("ruleset_enforcement", {})
+for name in (
+    "baseline-all",
+    "protected-paths",
+    "required-checks-bootstrap",
+    "required-checks-nix",
+    "ruleset-workflows",
+):
+    if activation_enforcement.get(name) != rulesets.get(name, {}).get("enforcement"):
+        err(f"governance activation evidence disagrees with ruleset {name}")
+activation_gates = governance_activation.get("gates", {})
+all_activation_gates_qualified = bool(activation_gates) and all(
+    value == "qualified" for value in activation_gates.values()
+)
+if (governance_activation.get("qualification") == "qualified") != all_activation_gates_qualified:
+    err("governance activation qualification must equal the complete gate set")
+if rulesets.get("ruleset-workflows", {}).get("enforcement") == "active" and not all(
+    activation_gates.get(name) == "qualified"
+    for name in (
+        "independent_reviewer_available",
+        "v5_release_published",
+        "release_environments_qualified",
+    )
+):
+    err("required workflows cannot be active before v5 release governance is qualified")
+if rulesets.get("required-checks-bootstrap", {}).get("enforcement") == "active" and (
+    activation_gates.get("bootstrap_verdict_observed") != "qualified"
+):
+    err("bootstrap plan / verdict cannot be active before connected observation")
+if rulesets.get("required-checks-nix", {}).get("enforcement") == "active" and (
+    activation_gates.get("nix_estate_qualified") != "qualified"
+):
+    err("Nix verdict cannot be active before estate qualification")
 expected_runner_group = {
     "visibility": "selected",
     "allowsPublicRepositories": False,
@@ -808,14 +844,14 @@ if merge_queue_classes != class_merge_queue:
 if "enterprise-control" in merge_queue_classes:
     err("enterprise-control repositories must not receive merge-queue enforcement")
 bootstrap_checks = rulesets.get("required-checks-bootstrap", {})
-if bootstrap_checks.get("enforcement") != "active":
-    err("required-checks-bootstrap must remain active")
+if bootstrap_checks.get("enforcement") != "evaluate":
+    err("required-checks-bootstrap must remain evaluate until plan / verdict is observed")
 if bootstrap_checks.get("repositories") != ["bootstrap"]:
     err("required-checks-bootstrap must target only bootstrap")
 bootstrap_ruleset = (
     ROOT / "modules" / "rulesets" / "required-checks-bootstrap.tf"
 ).read_text(encoding="utf-8")
-for fragment in ('include = ["bootstrap"]', 'context = "speculative"'):
+for fragment in ('include = ["bootstrap"]', 'context = "plan / verdict"'):
     if fragment not in bootstrap_ruleset:
         err(f"required-checks-bootstrap implementation omits {fragment}")
 gitops_checks = rulesets.get("required-checks-gitops", {})
@@ -842,6 +878,25 @@ for forbidden_context in ("render", "provenance"):
         err(
             f"required-checks-gitops cannot require unsupported {forbidden_context} context"
         )
+mixed_checks = rulesets.get("required-checks-mixed", {})
+if mixed_checks.get("enforcement") != "evaluate":
+    err(
+        "required-checks-mixed must remain evaluate until every exact context has "
+        "positive and intentional-negative pull-request and merge-group evidence"
+    )
+if mixed_checks.get("language_profiles") != ["mixed"]:
+    err("required-checks-mixed must target only the mixed language profile")
+mixed_ruleset = (
+    ROOT / "modules" / "rulesets" / "required-checks-mixed.tf"
+).read_text(encoding="utf-8")
+for context in (
+    "python / build",
+    "rust / build",
+    "architecture",
+    "Go registry + admission / live PostgreSQL and failure injection",
+):
+    if f'context = "{context}"' not in mixed_ruleset:
+        err(f"required-checks-mixed implementation omits {context}")
 infra_static_checks = rulesets.get("required-checks-infra-static", {})
 if infra_static_checks.get("enforcement") != "evaluate":
     err("required-checks-infra-static must remain evaluate until rollout evidence is reviewed")
@@ -1170,6 +1225,50 @@ for fragment in (
 for stale_import in ('"BOOTSTRAP_FOLDER_ID"', '"AUTOMATION_SECRET_LOCATION"'):
     if stale_import in imports:
         err(f"declarative adoption imports retain absent live variable {stale_import}")
+
+expected_preexisting_environments = {
+    "bootstrap:bootstrap",
+    "bootstrap:bootstrap-recovery-read",
+    "bootstrap:break-glass",
+    "bootstrap:plan",
+    "github-config:governance",
+    "github-config:plan",
+    "gitops:break-glass",
+    "gitops:development",
+    "gitops:production",
+    "gitops:staging",
+    "infrastructure-live:break-glass",
+    "infrastructure-live:development",
+    "infrastructure-live:plan",
+    "infrastructure-live:production",
+    "infrastructure-live:staging",
+    "mindclade-internal-monorepo:release",
+}
+environment_import_block = re.search(
+    r"preexisting_repository_environments\s*=\s*toset\(\[(.*?)\]\)",
+    imports,
+    re.DOTALL,
+)
+actual_preexisting_environments = (
+    set(re.findall(r'"([a-z0-9.-]+:[a-z0-9.-]+)"', environment_import_block.group(1)))
+    if environment_import_block
+    else set()
+)
+if actual_preexisting_environments != expected_preexisting_environments:
+    err(
+        "declarative environment imports differ from refreshed connected inventory: "
+        f"{sorted(actual_preexisting_environments ^ expected_preexisting_environments)}"
+    )
+inventory_environments = {
+    str(item.get("import_id"))
+    for item in adoption_inventory.get("known_existing", [])
+    if item.get("kind") == "repository_environment"
+}
+if inventory_environments != expected_preexisting_environments:
+    err(
+        "adoption inventory environment identities differ from declarative imports: "
+        f"{sorted(inventory_environments ^ expected_preexisting_environments)}"
+    )
 
 environment_module = (
     ROOT / "modules" / "repositories" / "environments.tf"

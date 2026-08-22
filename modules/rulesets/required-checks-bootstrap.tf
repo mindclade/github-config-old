@@ -2,9 +2,10 @@
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
 
-# Ring 0 has one repository-local, credentialed plan job. Its context is `speculative`, not the
-# `fmt`/`validate`/`plan` contract used by github-config and infrastructure-live. Keep it in a
-# dedicated ruleset so neither repository can accidentally satisfy the other's merge gate.
+# Ring 0 exposes one stable `plan / verdict` context. The verdict succeeds credential-free for
+# unaffected changes and propagates the connected speculative plan result when Terraform, state,
+# trust, or plan-control paths change. Keep it in a dedicated ruleset so another repository
+# cannot accidentally satisfy the Ring-0 gate.
 resource "github_organization_ruleset" "required_checks_bootstrap" {
   name        = "required-checks-bootstrap"
   target      = "branch"
@@ -33,7 +34,7 @@ resource "github_organization_ruleset" "required_checks_bootstrap" {
   rules {
     required_status_checks {
       required_check {
-        context = "speculative"
+        context = "plan / verdict"
       }
 
       strict_required_status_checks_policy = true

@@ -75,6 +75,14 @@ resource "github_organization_ruleset" "required_checks_mixed" {
         context = "architecture"
       }
 
+      # This stable caller-job name qualifies the real PostgreSQL registry and admission
+      # adapters, including transaction failure injection and concurrent no-overspend pressure.
+      # Keep the ruleset in evaluate mode until the context is observed on pull_request and
+      # merge_group runs and an intentional failure proves enforcement.
+      required_check {
+        context = "Go registry + admission / live PostgreSQL and failure injection"
+      }
+
       # NOT REQUIRED HERE: the Bazel lane. Its job carries a `name:` that has changed once
       # already, and a required check pinned to a display name blocks every merge the moment
       # someone renames the job. Give it a stable name first, then add it.

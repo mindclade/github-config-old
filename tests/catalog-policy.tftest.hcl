@@ -70,10 +70,10 @@ run "policy_catalog_is_production_grade" {
 
   assert {
     condition = (
-      output.rulesets["required-checks-bootstrap"].enforcement == "active" &&
+      output.rulesets["required-checks-bootstrap"].enforcement == "evaluate" &&
       output.rulesets["required-checks-bootstrap"].repositories == ["bootstrap"]
     )
-    error_message = "Ring-0 bootstrap changes must require the repository-local speculative plan check."
+    error_message = "Ring-0 plan / verdict must remain evaluate-mode until both path outcomes are observed."
   }
 
   assert {
@@ -90,6 +90,14 @@ run "policy_catalog_is_production_grade" {
       output.rulesets["required-checks-infra-static"].repositories == ["mindclade-internal-monorepo"]
     )
     error_message = "infra-static must remain an evaluate-mode, canonical-monorepo-only source contract until observed on pull_request and merge_group."
+  }
+
+  assert {
+    condition = (
+      output.rulesets["required-checks-mixed"].enforcement == "evaluate" &&
+      output.rulesets["required-checks-mixed"].language_profiles == ["mixed"]
+    )
+    error_message = "Mixed-language checks must remain evaluate-mode and target only the mixed profile until every context is observed."
   }
 
   assert {
