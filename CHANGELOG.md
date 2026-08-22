@@ -14,6 +14,8 @@ not reconstructed or relabeled here.
   retrospective record for bootstrap PR #25.
 - Added the stable live PostgreSQL registry and admission qualification context to the
   evaluate-only mixed-language ruleset, preserving the connected database safety gate.
+- Restored inert Terraform `moved` blocks and an immutable-ID runbook for the historical
+  monorepo repository-key migration while connected state inventory remains unresolved.
 - Added the exact estate-wide `LEGAL.md` reliance policy and made it part of
   the repository contract.
 - Added connected-audit expectations for `members_can_delete_repositories` and

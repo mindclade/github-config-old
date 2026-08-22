@@ -22,6 +22,8 @@
   separate plan and apply identities.
 - [Adopt an existing organization](adoption.md) — inventory and import resources without
   destructive recreation.
+- [Preserve the canonical monorepo state identity](repository-rename.md) — keep the historical
+  repository-key migration non-destructive and verify it by immutable repository ID.
 - [Governance activation preflight](governance-activation.md) — sequence release, environment,
   import, reviewer, and ruleset evidence without bypass.
 - [Onboard an engineer](onboarding.md) and [offboard an engineer](offboarding.md) — change
