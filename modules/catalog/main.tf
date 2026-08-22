@@ -19,6 +19,9 @@ locals {
   custom_properties  = yamldecode(file("${var.catalog_path}/custom-properties.yaml"))
   runner_groups      = yamldecode(file("${var.catalog_path}/runner-groups.yaml"))
   github_apps        = yamldecode(file("${var.catalog_path}/github-apps.yaml"))
+  governance_activation = yamldecode(
+    file("${var.catalog_path}/governance-activation.yaml")
+  )
 }
 
 check "artifact_authority_runner_group_is_exact" {
@@ -290,3 +293,4 @@ output "oidc_policy" { value = local.oidc_policy }
 output "custom_properties" { value = local.custom_properties }
 output "runner_groups" { value = local.runner_groups }
 output "github_apps" { value = local.github_apps }
+output "governance_activation" { value = local.governance_activation }

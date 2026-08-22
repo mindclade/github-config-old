@@ -64,6 +64,116 @@ class ConnectedGovernanceTest(unittest.TestCase):
         self.assertEqual(repository["excluded"], {})
         self.assertEqual(repository["included"]["merge-queue"]["target"], "branch")
 
+    def test_release_tag_ruleset_composition_is_audited_exactly(self) -> None:
+        errors: list[str] = []
+        api = mock.Mock()
+        api.get.side_effect = [
+            {
+                "bypass_actors": [
+                    {
+                        "actor_id": 42,
+                        "actor_type": "Team",
+                        "bypass_mode": "always",
+                    }
+                ],
+                "conditions": {
+                    "ref_name": {"exclude": [], "include": ["refs/tags/v*"]},
+                    "repository_name": {"exclude": [], "include": ["~ALL"]},
+                },
+                "rules": [{"type": "creation"}],
+            },
+            {
+                "bypass_actors": [],
+                "conditions": {
+                    "ref_name": {"exclude": [], "include": ["refs/tags/v*"]},
+                    "repository_name": {"exclude": [], "include": ["~ALL"]},
+                },
+                "rules": [
+                    {"type": "update"},
+                    {"type": "deletion"},
+                    {"type": "non_fast_forward"},
+                    {
+                        "type": "tag_name_pattern",
+                        "parameters": {
+                            "name": "semver-only",
+                            "negate": False,
+                            "operator": "regex",
+                            "pattern": "^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$",
+                        },
+                    },
+                ],
+            },
+        ]
+        AUDIT.audit_release_tag_rulesets(
+            api,
+            "mindclade",
+            [
+                {"id": 1, "name": "release-tag-creation"},
+                {"id": 2, "name": "tag-protection"},
+            ],
+            {"release": 42},
+            errors,
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            [call.args[0] for call in api.get.call_args_list],
+            ["/orgs/mindclade/rulesets/1", "/orgs/mindclade/rulesets/2"],
+        )
+
+    def test_release_tag_ruleset_rejects_an_unexpected_bypass_actor(self) -> None:
+        errors: list[str] = []
+        api = mock.Mock()
+        api.get.side_effect = [
+            {
+                "bypass_actors": [
+                    {
+                        "actor_id": 7,
+                        "actor_type": "OrganizationAdmin",
+                        "bypass_mode": "always",
+                    }
+                ],
+                "conditions": {
+                    "ref_name": {"exclude": [], "include": ["refs/tags/v*"]},
+                    "repository_name": {"exclude": [], "include": ["~ALL"]},
+                },
+                "rules": [{"type": "creation"}],
+            },
+            {
+                "bypass_actors": [],
+                "conditions": {
+                    "ref_name": {"exclude": [], "include": ["refs/tags/v*"]},
+                    "repository_name": {"exclude": [], "include": ["~ALL"]},
+                },
+                "rules": [
+                    {"type": "deletion"},
+                    {"type": "non_fast_forward"},
+                    {
+                        "parameters": {
+                            "name": "semver-only",
+                            "negate": False,
+                            "operator": "regex",
+                            "pattern": "^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$",
+                        },
+                        "type": "tag_name_pattern",
+                    },
+                    {"type": "update"},
+                ],
+            },
+        ]
+        AUDIT.audit_release_tag_rulesets(
+            api,
+            "mindclade",
+            [
+                {"id": 1, "name": "release-tag-creation"},
+                {"id": 2, "name": "tag-protection"},
+            ],
+            {"release": 42},
+            errors,
+        )
+        self.assertTrue(
+            any("release-tag-creation bypass actors" in error for error in errors)
+        )
+
     def test_partial_paginated_evidence_is_rejected(self) -> None:
         with self.assertRaises(AUDIT.AuditError):
             AUDIT.object_items({"total_count": 2, "repositories": [{"name": "one"}]}, "repositories")

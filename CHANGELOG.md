@@ -21,6 +21,9 @@ not reconstructed or relabeled here.
 - Added connected-audit expectations for `members_can_delete_repositories` and
   `members_can_change_repo_visibility`, so the enterprise repository-policy ceiling
   fails closed instead of passing unobserved.
+- Added an evaluate-first organization rule for `v*` tag creation with Release as its sole
+  creation bypass, plus a Terraform precondition that rejects activation before connected
+  qualification while the existing no-bypass immutability rule remains active.
 
 ### Changed
 

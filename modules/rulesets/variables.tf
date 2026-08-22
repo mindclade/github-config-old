@@ -27,6 +27,12 @@ variable "release_team_id" {
   type        = number
 }
 
+variable "release_tag_creation_control_qualified" {
+  description = "Whether connected evidence and the reviewed activation record authorize release-tag creation enforcement."
+  type        = bool
+  default     = false
+}
+
 variable "dot_github_repo_id" {
   description = "Numeric id of the .github repository holding mandatory workflows."
   type        = number

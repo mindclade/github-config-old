@@ -85,6 +85,9 @@ module "rulesets" {
   rulesets              = module.catalog.rulesets
   repositories          = local.repositories
   enforcement_overrides = var.ruleset_enforcement_overrides
+  release_tag_creation_control_qualified = (
+    module.catalog.governance_activation.gates.release_tag_creation_control_qualified == "qualified"
+  )
 
   # Custom-property-targeted rulesets must not race repository/property creation.
   depends_on = [module.repositories]

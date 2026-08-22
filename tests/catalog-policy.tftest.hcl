@@ -59,10 +59,11 @@ run "policy_catalog_is_production_grade" {
 
   assert {
     condition = (
-      output.rulesets["release-tag-creation"].enforcement == "active" &&
-      output.rulesets["tag-protection"].enforcement == "active"
+      output.rulesets["release-tag-creation"].enforcement == "evaluate" &&
+      output.rulesets["tag-protection"].enforcement == "active" &&
+      output.governance_activation.gates.release_tag_creation_control_qualified == "blocked"
     )
-    error_message = "Release-tag creation and immutable tag protection must both remain active."
+    error_message = "Release-tag creation must remain staged until qualified while immutable tag protection stays active."
   }
 
   assert {
