@@ -106,6 +106,7 @@ BOOTSTRAP_STAGE_CATALOG_KEYS = {
     "mindclade-internal-monorepo": {
         "ARTIFACT_REGISTRY_HOST",
         "ARTIFACT_REGISTRY_DR_HOST",
+        "BAZEL_REMOTE_CACHE_STATE",
     },
 }
 

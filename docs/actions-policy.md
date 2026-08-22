@@ -43,6 +43,13 @@ cache endpoint, public key, token, or caller is cataloged while the cache activa
 blocked. A future activation must add non-secret endpoint/key variables and a scoped write-token
 secret through protected operations after connected qualification; a signing key is forbidden.
 
+The Bazel GCS cache uses `BAZEL_REMOTE_CACHE_STATE` as the server-side half of a separate dual
+gate. It remains `blocked` even after the provider and reader/writer account names are handed off.
+Governance permits `qualified-v1` only when that complete applied handoff exists; the monorepo
+independently requires retained behavioral evidence, immutable module `v0.4.0`, and job-scoped
+OIDC permission. The variable alone cannot mint a token, and workflow-level OIDC remains
+forbidden.
+
 Changes to the allowlist, OIDC policy, required workflows, protected workflow paths, or token
 permissions are security changes and require the owners declared by `CODEOWNERS`.
 

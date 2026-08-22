@@ -1329,6 +1329,14 @@ legacy_signing_variables = {
     "BINAUTHZ_ATTESTOR_KEY_VERSION",
 }
 monorepo_variables = ci_variables.get("mindclade-internal-monorepo", {})
+if monorepo_variables.get("BAZEL_REMOTE_CACHE_STATE") not in {
+    "blocked",
+    "qualified-v1",
+}:
+    err(
+        "ci-variables: mindclade-internal-monorepo/BAZEL_REMOTE_CACHE_STATE "
+        "must be blocked or qualified-v1"
+    )
 if legacy_signing_variables & set(monorepo_variables):
     err(
         "ci-variables: builder-scoped legacy signing variables are forbidden in the monorepo"
