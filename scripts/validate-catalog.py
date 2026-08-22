@@ -84,7 +84,7 @@ EXPECTED_RULESET_ENFORCEMENT = {
     "required-checks-bootstrap": "evaluate",
     "required-checks-gitops": "active",
     "required-checks-go": "evaluate",
-    "required-checks-github-config": "active",
+    "required-checks-github-config": "evaluate",
     "required-checks-infra-static": "evaluate",
     "required-checks-mixed": "evaluate",
     "required-checks-nix": "evaluate",
@@ -923,6 +923,7 @@ for fragment in (
     "creation = true",
     'local.enforcement["release-tag-creation"] != "active"',
     "var.release_tag_creation_control_qualified",
+    "var.release_signer_identity_qualified",
     'local.enforcement["tag-protection"] == "active"',
 ):
     if fragment not in release_tag_creation_ruleset:

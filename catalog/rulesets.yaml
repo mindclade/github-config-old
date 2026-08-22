@@ -51,9 +51,10 @@ required-checks-go:
 required-checks-github-config:
   repositories:
     - github-config
-  # The source workflow now provides this always-present context. Keep the resting contract
-  # active; rollout-phase overrides stage its first connected creation in evaluate mode.
-  enforcement: active
+  # Observe both credential-free and protected-plan verdict outcomes before activation.
+  # The Terraform lifecycle precondition independently rejects active enforcement while the
+  # machine qualification gate remains blocked.
+  enforcement: evaluate
 required-checks-infra-static:
   repositories:
     - mindclade-internal-monorepo

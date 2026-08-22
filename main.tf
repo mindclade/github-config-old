@@ -88,6 +88,9 @@ module "rulesets" {
   release_tag_creation_control_qualified = (
     module.catalog.governance_activation.gates.release_tag_creation_control_qualified == "qualified"
   )
+  release_signer_identity_qualified = (
+    module.catalog.governance_activation.gates.release_signer_identity_qualified == "qualified"
+  )
   github_config_verdict_observed = (
     module.catalog.governance_activation.gates.github_config_verdict_observed == "qualified"
   )

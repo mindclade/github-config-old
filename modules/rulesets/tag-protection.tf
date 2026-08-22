@@ -48,9 +48,9 @@ resource "github_organization_ruleset" "tag_protection" {
     non_fast_forward = true
 
     tag_name_pattern {
-      name     = "semver-only"
+      name     = "stable-semver-only"
       operator = "regex"
-      pattern  = "^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$"
+      pattern  = "^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
     }
   }
 }

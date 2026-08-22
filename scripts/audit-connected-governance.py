@@ -25,8 +25,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SEMVER_TAG = re.compile(
     r"^v(?:0|[1-9][0-9]*)\."
     r"(?:0|[1-9][0-9]*)\."
-    r"(?:0|[1-9][0-9]*)"
-    r"(?:-[0-9A-Za-z.-]+)?$"
+    r"(?:0|[1-9][0-9]*)$"
 )
 
 
@@ -506,10 +505,10 @@ def audit_release_tag_rulesets(
             {"type": "non_fast_forward"},
             {
                 "parameters": {
-                    "name": "semver-only",
+                    "name": "stable-semver-only",
                     "negate": False,
                     "operator": "regex",
-                    "pattern": "^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$",
+                    "pattern": "^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
                 },
                 "type": "tag_name_pattern",
             },

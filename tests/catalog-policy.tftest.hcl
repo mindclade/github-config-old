@@ -95,11 +95,12 @@ run "policy_catalog_is_production_grade" {
 
   assert {
     condition = (
-      output.rulesets["required-checks-github-config"].enforcement == "active" &&
+      output.rulesets["required-checks-github-config"].enforcement == "evaluate" &&
+      output.governance_activation.gates.github_config_verdict_observed == "blocked" &&
       output.rulesets["required-checks-github-config"].repositories == ["github-config"] &&
       output.rulesets["required-checks-tf"].repositories == ["infrastructure-live"]
     )
-    error_message = "github-config's path-aware verdict and infrastructure-live's raw plan must remain in separate rulesets."
+    error_message = "github-config's path-aware verdict must remain evaluate while blocked and separate from infrastructure-live's raw plan."
   }
 
   assert {

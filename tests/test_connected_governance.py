@@ -96,10 +96,10 @@ class ConnectedGovernanceTest(unittest.TestCase):
                     {
                         "type": "tag_name_pattern",
                         "parameters": {
-                            "name": "semver-only",
+                            "name": "stable-semver-only",
                             "negate": False,
                             "operator": "regex",
-                            "pattern": "^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$",
+                            "pattern": "^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
                         },
                     },
                 ],
@@ -150,10 +150,10 @@ class ConnectedGovernanceTest(unittest.TestCase):
                     {"type": "non_fast_forward"},
                     {
                         "parameters": {
-                            "name": "semver-only",
+                            "name": "stable-semver-only",
                             "negate": False,
                             "operator": "regex",
-                            "pattern": "^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$",
+                            "pattern": "^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
                         },
                         "type": "tag_name_pattern",
                     },

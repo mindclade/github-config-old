@@ -20,10 +20,9 @@ or retrospective closeout.
   prevent anyone—including Release—from moving or deleting an existing version tag.
 - `required-checks-bootstrap` expects `plan / verdict` but remains `evaluate` until both its
   connected-plan and credential-free paths are observed.
-- `required-checks-github-config` defines the resting active contract around the always-present
-  `plan / verdict` context. Its first connected creation remains evaluate-only through the
-  rollout override, and normal active enforcement is blocked until both documentation-only and
-  connected-plan paths are observed at exact merged revisions.
+- `required-checks-github-config` remains `evaluate` around the always-present `plan / verdict`
+  context. Active enforcement is blocked until both documentation-only and connected-plan paths
+  are observed at exact merged revisions.
 - `required-checks-nix` remains `evaluate` until all seven repositories have native and rebuild
   evidence from the published v5 workflow.
 - `.github` declares the two protected workflow-release environments, but the connected inventory
