@@ -23,6 +23,7 @@ from governance_contracts import (
     evidence_gated_ruleset_errors,
     required_check_readiness_errors,
     resting_ruleset_errors,
+    runner_group_contract_errors,
 )
 from terraform_contracts import (
     RequiredStatusRulesetContract,
@@ -488,17 +489,8 @@ for message in required_check_readiness_errors(
     ruleset_contexts,
 ):
     err(message)
-expected_runner_group = {
-    "visibility": "selected",
-    "allowsPublicRepositories": False,
-    "restrictedToWorkflows": True,
-    "repositories": ["mindclade-internal-monorepo"],
-    "workflows": [
-        "mindclade/mindclade-internal-monorepo/.github/workflows/release.yml@refs/heads/main"
-    ],
-}
-if runner_groups != {"mindclade-arc-artifact-authority": expected_runner_group}:
-    err("ARC artifact-authority runner group contract is not exact")
+for contract_error in runner_group_contract_errors(runner_groups):
+    err(contract_error)
 if set(github_apps) != {
     "mindclade-arc",
     "mindclade-estate-observer",

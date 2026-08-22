@@ -170,4 +170,23 @@ run "policy_catalog_is_production_grade" {
     )
     error_message = "Nix qualification must remain evaluate-mode and cover exactly the managed estate until rollout evidence is reviewed."
   }
+
+  assert {
+    condition = (
+      toset(keys(output.runner_groups)) == toset([
+        "mindclade-arc-artifact-authority",
+        "mindclade-arc-ci",
+      ]) &&
+      toset(output.runner_groups["mindclade-arc-artifact-authority"].workflows) == toset([
+        "mindclade/.github/.github/workflows/reusable-arc-wif-canary.yml@v5.0.0",
+        "mindclade/.github/.github/workflows/reusable-arc-oci-build.yml@v5.0.0",
+        "mindclade/.github/.github/workflows/reusable-arc-oci-qualify.yml@v5.0.0",
+        "mindclade/.github/.github/workflows/reusable-arc-qualification-attest.yml@v5.0.0",
+      ]) &&
+      output.runner_groups["mindclade-arc-ci"].workflows == [
+        "mindclade/mindclade-internal-monorepo/.github/workflows/presubmit.yml@refs/heads/main",
+      ]
+    )
+    error_message = "ARC artifact authority and presubmit must use separate groups restricted to the exact workflows that define their jobs."
+  }
 }
