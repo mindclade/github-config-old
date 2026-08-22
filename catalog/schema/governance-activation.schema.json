@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "gates": {
+      "additionalProperties": false,
+      "properties": {
+        "bootstrap_verdict_observed": {"enum": ["blocked", "qualified"]},
+        "exact_import_plan_reviewed": {"enum": ["blocked", "qualified"]},
+        "independent_reviewer_available": {"enum": ["blocked", "qualified"]},
+        "nix_estate_qualified": {"enum": ["blocked", "qualified"]},
+        "release_environments_qualified": {"enum": ["blocked", "qualified"]},
+        "rulesets_connected_audit": {"enum": ["blocked", "qualified"]},
+        "v5_release_published": {"enum": ["blocked", "qualified"]}
+      },
+      "required": [
+        "independent_reviewer_available",
+        "v5_release_published",
+        "release_environments_qualified",
+        "bootstrap_verdict_observed",
+        "nix_estate_qualified",
+        "exact_import_plan_reviewed",
+        "rulesets_connected_audit"
+      ],
+      "type": "object"
+    },
+    "observed_at": {"format": "date", "type": "string"},
+    "qualification": {"enum": ["blocked", "qualified"]},
+    "retrospective_issue": {
+      "const": "https://github.com/mindclade/github-config/issues/33"
+    },
+    "ruleset_enforcement": {
+      "additionalProperties": false,
+      "properties": {
+        "baseline-all": {"enum": ["active", "evaluate", "disabled"]},
+        "protected-paths": {"enum": ["active", "evaluate", "disabled"]},
+        "required-checks-bootstrap": {"enum": ["active", "evaluate", "disabled"]},
+        "required-checks-nix": {"enum": ["active", "evaluate", "disabled"]},
+        "ruleset-workflows": {"enum": ["active", "evaluate", "disabled"]}
+      },
+      "required": [
+        "baseline-all",
+        "protected-paths",
+        "required-checks-bootstrap",
+        "required-checks-nix",
+        "ruleset-workflows"
+      ],
+      "type": "object"
+    },
+    "schema_version": {"const": 1}
+  },
+  "required": [
+    "schema_version",
+    "observed_at",
+    "qualification",
+    "retrospective_issue",
+    "gates",
+    "ruleset_enforcement"
+  ],
+  "type": "object"
+}

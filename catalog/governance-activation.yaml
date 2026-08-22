@@ -1,0 +1,23 @@
+# Copyright © 2026 Mindclade, LLC. All Rights Reserved.
+# Mindclade Proprietary and Confidential.
+# SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
+
+---
+schema_version: 1
+observed_at: "2026-08-22"
+qualification: blocked
+retrospective_issue: https://github.com/mindclade/github-config/issues/33
+gates:
+  independent_reviewer_available: blocked
+  v5_release_published: blocked
+  release_environments_qualified: blocked
+  bootstrap_verdict_observed: blocked
+  nix_estate_qualified: blocked
+  exact_import_plan_reviewed: blocked
+  rulesets_connected_audit: blocked
+ruleset_enforcement:
+  baseline-all: active
+  protected-paths: active
+  required-checks-bootstrap: evaluate
+  required-checks-nix: evaluate
+  ruleset-workflows: evaluate

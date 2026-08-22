@@ -10,13 +10,15 @@
 ## Prerequisites
 
 - the existing `mindclade/github-config` repository and its `.git` history;
-- the `.github` repository's protected `v5.0.0` workflow-contract tag, which is the
-  full-semver baseline referenced by `catalog/rulesets.yaml`;
+- the `.github` repository's protected `v5.0.0` workflow-contract tag before activating
+  `ruleset-workflows`; initial import and release-environment creation keep that ruleset in
+  evaluate mode while the tag is absent;
 - completed Ring-0 bootstrap state and GitHub-to-Google Cloud federation;
 - plan and apply GitHub Apps with distinct minimum permissions, or the approved one-time founder
   OAuth adoption exception documented in [adoption](adoption.md), with exact permissions from
   [GitHub App authority contracts](github-apps.md);
-- `plan` and `governance` protected environments; and
+- `plan` and `governance` protected environments, plus independently staffed desired-state
+  reviewers for the two `.github` workflow-release environments; and
 - approved non-secret variables and protected secrets required by the workflows.
 
 Do not activate `apply.yml` until the plan and apply identities have passed positive and
@@ -52,6 +54,10 @@ negative authorization tests.
    ownership, or visibility change is a stop condition.
 9. Run `scripts/validate-adoption-plan.py` with the plan JSON and state list. Production activation
    additionally requires `--activation`; do not bypass its connected-state or IdP blockers.
+10. Confirm `catalog/governance-activation.yaml` still records release-dependent rules in
+    evaluate mode. The first bounded apply may create protected release environments and restore
+    baseline/protected-path enforcement, but may not activate an absent v5 workflow or unobserved
+    check context.
 
 If the Apps do not exist yet, follow the one-time local founder OAuth procedure in
 [adoption](adoption.md). Keep the token only in `GITHUB_TOKEN`, apply only the saved reviewed plan,
@@ -80,6 +86,7 @@ qualified.
 - every managed repository issues an immutable default OIDC subject containing its owner and
   repository IDs, and a mismatched repository ID fails WIF token exchange;
 - required workflow rules reference the immutable `v5.0.0` release;
+- bootstrap reports the stable `plan / verdict` context for both connected and unaffected paths;
 - negative tests prove the plan workflow does not invoke mutation and the apply identity cannot
   skip the protected environment; and
 - drift detection reports no unexplained changes; and

@@ -10,6 +10,8 @@ not reconstructed or relabeled here.
 
 ### Added
 
+- Added a machine-validated governance activation gate and the mandatory independent
+  retrospective record for bootstrap PR #25.
 - Added the exact estate-wide `LEGAL.md` reliance policy and made it part of
   the repository contract.
 - Added connected-audit expectations for `members_can_delete_repositories` and
@@ -18,6 +20,12 @@ not reconstructed or relabeled here.
 
 ### Changed
 
+- Refreshed connected environment imports, including every observed desired environment, while
+  recording auto-created `copilot` environments and absent `.github` release environments as
+  unresolved rather than mutating them.
+- Staged `ruleset-workflows` and the bootstrap `plan / verdict` gate in evaluate mode until their
+  release and connected-context evidence exists; baseline and protected-path desired enforcement
+  remain active.
 - Documented that repository deletion/transfer and visibility-change member privileges are
   enterprise-owner-only writes with no REST or provider path, including the exact GraphQL
   mutations and the required read-back verification.

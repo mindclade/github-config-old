@@ -70,10 +70,10 @@ run "policy_catalog_is_production_grade" {
 
   assert {
     condition = (
-      output.rulesets["required-checks-bootstrap"].enforcement == "active" &&
+      output.rulesets["required-checks-bootstrap"].enforcement == "evaluate" &&
       output.rulesets["required-checks-bootstrap"].repositories == ["bootstrap"]
     )
-    error_message = "Ring-0 bootstrap changes must require the repository-local speculative plan check."
+    error_message = "Ring-0 plan / verdict must remain evaluate-mode until both path outcomes are observed."
   }
 
   assert {

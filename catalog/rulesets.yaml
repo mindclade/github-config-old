@@ -32,7 +32,10 @@ push-blocklist:
 required-checks-bootstrap:
   repositories:
     - bootstrap
-  enforcement: active
+  # The source contract now expects the always-present plan / verdict context. Keep evaluate
+  # until the bootstrap workflow is merged and that exact context is observed on both relevant
+  # and documentation-only pull requests; the current live speculative gate remains untouched.
+  enforcement: evaluate
 required-checks-go:
   language_profiles:
     - go
@@ -88,7 +91,9 @@ ruleset-workflows:
     - enterprise-control
     - production-control
     - source-monorepo
-  enforcement: active
+  # The referenced tag does not exist yet. Evaluation is the only safe source state until the
+  # reviewed v5 release is published, source-attested, and representative consumers pass.
+  enforcement: evaluate
   workflow_ref: refs/tags/v5.0.0
 tag-protection:
   target: all

@@ -22,6 +22,8 @@
   separate plan and apply identities.
 - [Adopt an existing organization](adoption.md) — inventory and import resources without
   destructive recreation.
+- [Governance activation preflight](governance-activation.md) — sequence release, environment,
+  import, reviewer, and ruleset evidence without bypass.
 - [Onboard an engineer](onboarding.md) and [offboard an engineer](offboarding.md) — change
   access through the corporate identity path.
 

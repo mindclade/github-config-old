@@ -26,6 +26,9 @@ Adoption is a reviewed migration, not an ordinary first apply.
 2. Review the immutable IDs in `catalog/adoption-inventory.yaml` against a fresh read-only export.
    Apply only the matching declarative imports in `imports.tf`; never translate a name into an ID
    by convention.
+   The 2026-08-22 refresh added every observed desired repository environment to `imports.tf`.
+   Auto-created `copilot` environments remain unresolved and unmanaged; do not import or delete
+   them as part of this rollout.
 3. Import any other pre-existing teams, environments, rulesets, custom-property definitions, App
    scopes, or variables before enabling the corresponding resources. Use addresses and provider
    import IDs from a speculative plan and the provider documentation; never guess either one. Do
@@ -49,6 +52,9 @@ Adoption is a reviewed migration, not an ordinary first apply.
 8. Before approval, run the same gate with `--activation`. It deliberately remains closed while
    the inventory says `blocked`, a discovery class is unresolved, an IdP mapping is deferred, or
    `team-members.json` is unavailable.
+   `catalog/governance-activation.yaml` is an additional stop: release-dependent rules cannot
+   become active until their exact published release, contexts, native evidence, independent
+   reviewers, import plan, and connected audit are all qualified.
 9. After apply, run `make connected-audit` and compare its machine-readable evidence with the plan
    summary. A denied endpoint is an evidence failure.
 

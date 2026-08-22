@@ -5,9 +5,9 @@
 ---
 schema_version: 1
 organization: mindclade
-observed_at: "2026-08-20"
+observed_at: "2026-08-22"
 qualification: blocked
-evidence_scope: Read-only GitHub API inventory; Terraform state was not accessible in this review.
+evidence_scope: Read-only GitHub API inventory refreshed for repositories, environments, branch protection, and effective rulesets; organization-ruleset administration and Terraform state remained inaccessible.
 known_existing:
   - kind: organization
     name: mindclade
@@ -110,11 +110,95 @@ known_existing:
     terraform_address: module.rulesets.github_repository_ruleset.merge_queue["mindclade-internal-monorepo"]
     import_id: mindclade-internal-monorepo:21096177
     state_id: "21096177"
+  - kind: repository_environment
+    name: bootstrap/bootstrap
+    terraform_address: module.repositories.github_repository_environment.this["bootstrap:bootstrap"]
+    import_id: bootstrap:bootstrap
+    connected_id: "20246842666"
+  - kind: repository_environment
+    name: bootstrap/bootstrap-recovery-read
+    terraform_address: module.repositories.github_repository_environment.this["bootstrap:bootstrap-recovery-read"]
+    import_id: bootstrap:bootstrap-recovery-read
+    connected_id: "20246729409"
+  - kind: repository_environment
+    name: bootstrap/break-glass
+    terraform_address: module.repositories.github_repository_environment.this["bootstrap:break-glass"]
+    import_id: bootstrap:break-glass
+    connected_id: "20246853347"
+  - kind: repository_environment
+    name: bootstrap/plan
+    terraform_address: module.repositories.github_repository_environment.this["bootstrap:plan"]
+    import_id: bootstrap:plan
+    connected_id: "20240293361"
+  - kind: repository_environment
+    name: github-config/governance
+    terraform_address: module.repositories.github_repository_environment.this["github-config:governance"]
+    import_id: github-config:governance
+    connected_id: "20261026294"
+  - kind: repository_environment
+    name: github-config/plan
+    terraform_address: module.repositories.github_repository_environment.this["github-config:plan"]
+    import_id: github-config:plan
+    connected_id: "20236284780"
+  - kind: repository_environment
+    name: gitops/break-glass
+    terraform_address: module.repositories.github_repository_environment.this["gitops:break-glass"]
+    import_id: gitops:break-glass
+    connected_id: "20261014059"
+  - kind: repository_environment
+    name: gitops/development
+    terraform_address: module.repositories.github_repository_environment.this["gitops:development"]
+    import_id: gitops:development
+    connected_id: "20261030637"
+  - kind: repository_environment
+    name: gitops/production
+    terraform_address: module.repositories.github_repository_environment.this["gitops:production"]
+    import_id: gitops:production
+    connected_id: "20261010916"
+  - kind: repository_environment
+    name: gitops/staging
+    terraform_address: module.repositories.github_repository_environment.this["gitops:staging"]
+    import_id: gitops:staging
+    connected_id: "20261032127"
+  - kind: repository_environment
+    name: infrastructure-live/break-glass
+    terraform_address: module.repositories.github_repository_environment.this["infrastructure-live:break-glass"]
+    import_id: infrastructure-live:break-glass
+    connected_id: "20261079194"
+  - kind: repository_environment
+    name: infrastructure-live/development
+    terraform_address: module.repositories.github_repository_environment.this["infrastructure-live:development"]
+    import_id: infrastructure-live:development
+    connected_id: "20261021447"
+  - kind: repository_environment
+    name: infrastructure-live/plan
+    terraform_address: module.repositories.github_repository_environment.this["infrastructure-live:plan"]
+    import_id: infrastructure-live:plan
+    connected_id: "20236655663"
+  - kind: repository_environment
+    name: infrastructure-live/production
+    terraform_address: module.repositories.github_repository_environment.this["infrastructure-live:production"]
+    import_id: infrastructure-live:production
+    connected_id: "20261088750"
+  - kind: repository_environment
+    name: infrastructure-live/staging
+    terraform_address: module.repositories.github_repository_environment.this["infrastructure-live:staging"]
+    import_id: infrastructure-live:staging
+    connected_id: "20261060361"
+  - kind: repository_environment
+    name: mindclade-internal-monorepo/release
+    terraform_address: module.repositories.github_repository_environment.this["mindclade-internal-monorepo:release"]
+    import_id: mindclade-internal-monorepo:release
+    connected_id: "20261023008"
 unresolved_discovery:
   - resource_class: terraform_state
     reason: The remote state address inventory was not readable; every known-existing address must be proven imported before activation.
   - resource_class: organization_rulesets
-    reason: The connected credential could not enumerate organization rulesets; absence of the other twelve desired rulesets is not proven.
+    reason: The connected credential lacks admin:org and cannot enumerate organization rulesets directly; repository-effective reads show only push-blocklist and tag-protection, so absence of the other desired rulesets is not proven.
+  - resource_class: unmanaged_environments
+    reason: Read-only inventory found auto-created copilot environments outside the governed catalog; ownership and disposition require separate review, and this change neither imports nor deletes them.
+  - resource_class: workflow_release_environments
+    reason: The .github repository has zero live environments; workflow-release-platform and workflow-release-security remain desired create operations blocked on independent reviewer staffing and exact-plan review.
   - resource_class: github_app_installations
     reason: The read-only inventory found zero installations; all four App contracts require creation and connected permission/selection qualification.
   - resource_class: runner_groups
