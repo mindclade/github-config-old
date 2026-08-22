@@ -219,7 +219,7 @@ def audit_repository_tags(
                     exception = tag_exceptions.get(key)
                     if exception is None:
                         errors.append(
-                            f"{repository}: non-SemVer tag {tag!r} is forbidden; "
+                            f"{repository}: non-stable-SemVer tag {tag!r} is forbidden; "
                             "integrate or remove rescue, reconcile, backup, and temporary refs"
                         )
                         continue
