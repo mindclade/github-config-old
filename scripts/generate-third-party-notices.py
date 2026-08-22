@@ -67,6 +67,19 @@ def load_contract(path: Path) -> dict[str, Any]:
     return value
 
 
+def repository_identity(root: Path) -> str:
+    """Resolve repository identity from the governed contract, not its checkout path."""
+    path = root / "contracts" / "repository.yaml"
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise NoticeError(f"cannot load repository contract {path}: {exc}") from exc
+    matches = re.findall(r"^repository:\s*([A-Za-z0-9._-]+)\s*$", text, re.MULTILINE)
+    if len(matches) != 1:
+        raise NoticeError("repository contract must declare exactly one repository identity")
+    return f"mindclade/{matches[0]}"
+
+
 def validate_contract(contract: dict[str, Any], root: Path) -> list[dict[str, Any]]:
     sources: set[str] = set()
     for index, source in enumerate(contract["inventorySources"]):
@@ -243,7 +256,7 @@ def main() -> int:
         manifest_path = args.manifest if args.manifest.is_absolute() else root / args.manifest
         output_path = args.output if args.output.is_absolute() else root / args.output
         contract = load_contract(manifest_path)
-        if contract["repository"] != f"mindclade/{root.name}":
+        if contract["repository"] != repository_identity(root):
             raise NoticeError("notice contract repository does not match the target root")
         materials = validate_contract(contract, root)
         spdx_paths = [path if path.is_absolute() else root / path for path in args.spdx]
