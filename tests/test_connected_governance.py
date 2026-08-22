@@ -96,10 +96,10 @@ class ConnectedGovernanceTest(unittest.TestCase):
                     {
                         "type": "tag_name_pattern",
                         "parameters": {
-                            "name": "semver-only",
+                            "name": "stable-semver-only",
                             "negate": False,
                             "operator": "regex",
-                            "pattern": "^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$",
+                            "pattern": "^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
                         },
                     },
                 ],
@@ -150,10 +150,10 @@ class ConnectedGovernanceTest(unittest.TestCase):
                     {"type": "non_fast_forward"},
                     {
                         "parameters": {
-                            "name": "semver-only",
+                            "name": "stable-semver-only",
                             "negate": False,
                             "operator": "regex",
-                            "pattern": "^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$",
+                            "pattern": "^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
                         },
                         "type": "tag_name_pattern",
                     },
@@ -179,7 +179,7 @@ class ConnectedGovernanceTest(unittest.TestCase):
         with self.assertRaises(AUDIT.AuditError):
             AUDIT.object_items({"total_count": 2, "repositories": [{"name": "one"}]}, "repositories")
 
-    def test_release_tag_inventory_accepts_only_semver(self) -> None:
+    def test_release_tag_inventory_accepts_only_stable_semver(self) -> None:
         errors: list[str] = []
         api = mock.Mock()
         api.get.side_effect = [
@@ -207,7 +207,9 @@ class ConnectedGovernanceTest(unittest.TestCase):
         self.assertEqual(
             errors,
             [
-                "beta: non-SemVer tag 'rescue/pre-rebase' is forbidden; integrate or "
+                "alpha: non-stable-SemVer tag 'v5.0.0-rc.1' is forbidden; integrate or "
+                "remove rescue, reconcile, backup, and temporary refs",
+                "beta: non-stable-SemVer tag 'rescue/pre-rebase' is forbidden; integrate or "
                 "remove rescue, reconcile, backup, and temporary refs"
             ],
         )

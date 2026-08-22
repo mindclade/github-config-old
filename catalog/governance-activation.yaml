@@ -12,6 +12,7 @@ gates:
   v5_release_published: blocked
   release_environments_qualified: blocked
   release_tag_creation_control_qualified: blocked
+  release_signer_identity_qualified: blocked
   bootstrap_verdict_observed: blocked
   github_config_verdict_observed: blocked
   nix_estate_qualified: blocked
@@ -20,7 +21,7 @@ gates:
 ruleset_enforcement:
   baseline-all: active
   protected-paths: active
-  required-checks-github-config: active
+  required-checks-github-config: evaluate
   release-tag-creation: evaluate
   required-checks-bootstrap: evaluate
   required-checks-nix: evaluate

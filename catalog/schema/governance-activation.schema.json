@@ -12,6 +12,7 @@
         "nix_estate_qualified": {"enum": ["blocked", "qualified"]},
         "release_environments_qualified": {"enum": ["blocked", "qualified"]},
         "release_tag_creation_control_qualified": {"enum": ["blocked", "qualified"]},
+        "release_signer_identity_qualified": {"enum": ["blocked", "qualified"]},
         "rulesets_connected_audit": {"enum": ["blocked", "qualified"]},
         "v5_release_published": {"enum": ["blocked", "qualified"]}
       },
@@ -20,6 +21,7 @@
         "v5_release_published",
         "release_environments_qualified",
         "release_tag_creation_control_qualified",
+        "release_signer_identity_qualified",
         "bootstrap_verdict_observed",
         "github_config_verdict_observed",
         "nix_estate_qualified",

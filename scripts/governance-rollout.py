@@ -18,7 +18,6 @@ ACTIVE_BRANCH_RULESETS = (
     "merge-queue",
     "protected-paths",
     "release-authority-paths",
-    "required-checks-github-config",
     "required-checks-gitops",
     "required-checks-tf",
     "required-checks-tf-static",

@@ -62,8 +62,8 @@ not reconstructed or relabeled here.
 ### Security
 
 - Add an always-present, path-aware `plan / verdict` contract for github-config and a dedicated
-  required-check ruleset that remains evaluate-only during connected adoption. Active enforcement
-  is now machine-blocked until both credential-free and protected-plan paths are observed.
+  evaluate-mode required-check ruleset. Active enforcement is machine-blocked until both
+  credential-free and protected-plan paths are observed.
 - Record the zero-review, pre-qualification merge incidents through github-config PRs #35–#39 and
   infrastructure-live PR #25, `.github` PRs #22–#23, and bootstrap PR #30 as connected
   branch-protection activation blockers. Audit evidence attributes them to an interactive browser
@@ -74,6 +74,9 @@ not reconstructed or relabeled here.
   unlawful conduct.
 
 ### Removed
+
+- Retired the temporary monorepo rescue-tag exception after its durable GKE qualification work
+  moved to a governed pull request and the obsolete Buildkite path remained intentionally retired.
 
 ## 2026-08-21 — Common-document governance baseline
 

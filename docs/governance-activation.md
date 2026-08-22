@@ -20,19 +20,13 @@ or retrospective closeout.
   prevent anyone—including Release—from moving or deleting an existing version tag.
 - `required-checks-bootstrap` expects `plan / verdict` but remains `evaluate` until both its
   connected-plan and credential-free paths are observed.
-- `required-checks-github-config` defines the resting active contract around the always-present
-  `plan / verdict` context. Its first connected creation remains evaluate-only through the
-  rollout override, and normal active enforcement is blocked until both documentation-only and
-  connected-plan paths are observed at exact merged revisions.
+- `required-checks-github-config` remains `evaluate` around the always-present `plan / verdict`
+  context. Active enforcement is blocked until both documentation-only and connected-plan paths
+  are observed at exact merged revisions.
 - `required-checks-nix` remains `evaluate` until all seven repositories have native and rebuild
   evidence from the published v5 workflow.
 - `.github` declares the two protected workflow-release environments, but the connected inventory
   found neither environment live.
-- `rescue/uncommitted-work-20260820` is temporarily accepted only in
-  `mindclade-internal-monorepo`, only at object
-  `2ad2af73670fa993fd00c2208a30bd84a5fe8f88`, through 2026-09-21. Platform owns the
-  integrate-then-delete disposition; moving it, adding another rescue tag, or passing expiry is a
-  connected-audit failure.
 - The exact observed `copilot` environments are GitHub-platform-managed exceptions, not Terraform
   resources. The audit requires zero secrets, variables, reviewers, timers, and custom protection
   rules and rejects any additional unmanaged environment.

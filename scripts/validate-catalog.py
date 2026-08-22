@@ -84,7 +84,7 @@ EXPECTED_RULESET_ENFORCEMENT = {
     "required-checks-bootstrap": "evaluate",
     "required-checks-gitops": "active",
     "required-checks-go": "evaluate",
-    "required-checks-github-config": "active",
+    "required-checks-github-config": "evaluate",
     "required-checks-infra-static": "evaluate",
     "required-checks-mixed": "evaluate",
     "required-checks-nix": "evaluate",
@@ -306,24 +306,8 @@ if any(repository not in repos for repository, _ in copilot_keys):
     err("connected resource exception names an unmanaged repository")
 
 tag_exceptions = connected_exceptions.get("tag_refs", [])
-if len(tag_exceptions) == 1:
-    exception = tag_exceptions[0]
-    expected_tag_exception = {
-        "repository": "mindclade-internal-monorepo",
-        "ref": "refs/tags/rescue/uncommitted-work-20260820",
-        "object_sha": "2ad2af73670fa993fd00c2208a30bd84a5fe8f88",
-        "owner_team": "platform",
-        "disposition": "integrate-then-delete",
-        "expires_on": "2026-09-21",
-    }
-    for field, expected in expected_tag_exception.items():
-        if exception.get(field) != expected:
-            err(f"temporary rescue-tag exception {field} must remain {expected!r}")
-    try:
-        if date.fromisoformat(str(exception.get("expires_on"))) < date.today():
-            err("temporary rescue-tag exception has expired")
-    except ValueError:
-        err("temporary rescue-tag exception expiry is not an ISO date")
+if tag_exceptions:
+    err("connected resource tag exceptions must be empty after rescue-tag cleanup")
 
 activation_enforcement = governance_activation.get("ruleset_enforcement", {})
 for name in (
@@ -923,6 +907,7 @@ for fragment in (
     "creation = true",
     'local.enforcement["release-tag-creation"] != "active"',
     "var.release_tag_creation_control_qualified",
+    "var.release_signer_identity_qualified",
     'local.enforcement["tag-protection"] == "active"',
 ):
     if fragment not in release_tag_creation_ruleset:

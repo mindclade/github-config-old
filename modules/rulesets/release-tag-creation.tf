@@ -41,10 +41,11 @@ resource "github_organization_ruleset" "release_tag_creation" {
         local.enforcement["release-tag-creation"] != "active" ||
         (
           var.release_tag_creation_control_qualified &&
+          var.release_signer_identity_qualified &&
           local.enforcement["tag-protection"] == "active"
         )
       )
-      error_message = "release-tag-creation cannot become active before its connected qualification gate is qualified and no-bypass tag-protection is active."
+      error_message = "release-tag-creation cannot become active before its connected control and authorized signer gates are qualified and no-bypass tag-protection is active."
     }
   }
 }

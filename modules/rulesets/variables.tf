@@ -33,6 +33,12 @@ variable "release_tag_creation_control_qualified" {
   default     = false
 }
 
+variable "release_signer_identity_qualified" {
+  description = "Whether connected evidence binds the approved Release member to a valid registered signing identity."
+  type        = bool
+  default     = false
+}
+
 variable "github_config_verdict_observed" {
   description = "Whether both connected and credential-free github-config plan verdict paths have been observed."
   type        = bool
