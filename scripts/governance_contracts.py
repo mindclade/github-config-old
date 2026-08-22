@@ -10,7 +10,16 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 
-PROMOTABLE_MONOREPO_RULESET_GATES = {
+EVIDENCE_GATED_RULESET_GATES = {
+    "release-tag-creation": ("release_tag_creation_control_qualified",),
+    "required-checks-bootstrap": ("bootstrap_verdict_observed",),
+    "required-checks-github-config": ("github_config_verdict_observed",),
+    "required-checks-go": (
+        "monorepo_bazel_verdict_observed",
+        "monorepo_merge_group_full_graph_observed",
+        "monorepo_affected_latency_qualified",
+        "rulesets_connected_audit",
+    ),
     "required-checks-mixed": (
         "monorepo_bazel_verdict_observed",
         "monorepo_merge_group_full_graph_observed",
@@ -21,17 +30,42 @@ PROMOTABLE_MONOREPO_RULESET_GATES = {
         "monorepo_merge_group_full_graph_observed",
         "rulesets_connected_audit",
     ),
+    "required-checks-nix": ("nix_estate_qualified",),
+    "ruleset-workflows": (
+        "independent_reviewer_available",
+        "v5_release_published",
+        "release_environments_qualified",
+    ),
 }
 
 
-def promotable_ruleset_errors(
+def resting_ruleset_errors(
+    rulesets: Mapping[str, Mapping[str, Any]],
+    expected_enforcement: Mapping[str, str],
+) -> list[str]:
+    """Require fixed rules to match their resting state without freezing gated rules."""
+
+    errors: list[str] = []
+    for ruleset_name, expected in expected_enforcement.items():
+        if ruleset_name in EVIDENCE_GATED_RULESET_GATES:
+            continue
+        actual = rulesets.get(ruleset_name, {}).get("enforcement")
+        if actual != expected:
+            errors.append(
+                f"ruleset {ruleset_name}: resting enforcement must be {expected}; "
+                "use the reviewed enforcement override only for a time-bounded rollout"
+            )
+    return errors
+
+
+def evidence_gated_ruleset_errors(
     rulesets: Mapping[str, Mapping[str, Any]],
     activation_gates: Mapping[str, Any],
 ) -> list[str]:
     """Return fail-closed errors for evidence-gated ruleset promotion."""
 
     errors: list[str] = []
-    for ruleset_name, required_gates in PROMOTABLE_MONOREPO_RULESET_GATES.items():
+    for ruleset_name, required_gates in EVIDENCE_GATED_RULESET_GATES.items():
         enforcement = rulesets.get(ruleset_name, {}).get("enforcement")
         if enforcement not in {"evaluate", "active"}:
             errors.append(

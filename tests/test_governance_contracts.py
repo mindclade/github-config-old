@@ -36,22 +36,22 @@ class PromotionContractTest(unittest.TestCase):
     @staticmethod
     def rulesets(enforcement: str = "evaluate") -> dict[str, dict[str, str]]:
         return {
-            "required-checks-mixed": {"enforcement": enforcement},
-            "required-checks-infra-static": {"enforcement": enforcement},
+            ruleset: {"enforcement": enforcement}
+            for ruleset in GOVERNANCE.EVIDENCE_GATED_RULESET_GATES
         }
 
     @staticmethod
     def gates(value: str = "blocked") -> dict[str, str]:
         names = {
             gate
-            for gates in GOVERNANCE.PROMOTABLE_MONOREPO_RULESET_GATES.values()
+            for gates in GOVERNANCE.EVIDENCE_GATED_RULESET_GATES.values()
             for gate in gates
         }
         return {name: value for name in names}
 
     def test_evaluate_is_valid_while_evidence_is_blocked(self) -> None:
         self.assertEqual(
-            GOVERNANCE.promotable_ruleset_errors(
+            GOVERNANCE.evidence_gated_ruleset_errors(
                 self.rulesets(),
                 self.gates(),
             ),
@@ -60,26 +60,49 @@ class PromotionContractTest(unittest.TestCase):
 
     def test_active_is_valid_only_after_every_ruleset_gate_is_qualified(self) -> None:
         self.assertEqual(
-            GOVERNANCE.promotable_ruleset_errors(
+            GOVERNANCE.evidence_gated_ruleset_errors(
                 self.rulesets("active"),
                 self.gates("qualified"),
             ),
             [],
         )
-        errors = GOVERNANCE.promotable_ruleset_errors(
+        errors = GOVERNANCE.evidence_gated_ruleset_errors(
             self.rulesets("active"),
             self.gates(),
         )
-        self.assertEqual(len(errors), 2)
+        self.assertEqual(
+            len(errors), len(GOVERNANCE.EVIDENCE_GATED_RULESET_GATES)
+        )
         self.assertTrue(all("requires qualified gates" in message for message in errors))
 
     def test_disabled_is_not_a_valid_promotion_state(self) -> None:
-        errors = GOVERNANCE.promotable_ruleset_errors(
+        errors = GOVERNANCE.evidence_gated_ruleset_errors(
             self.rulesets("disabled"),
             self.gates(),
         )
-        self.assertEqual(len(errors), 2)
+        self.assertEqual(
+            len(errors), len(GOVERNANCE.EVIDENCE_GATED_RULESET_GATES)
+        )
         self.assertTrue(all("evaluate or active" in message for message in errors))
+
+    def test_fixed_resting_state_does_not_freeze_qualified_rules(self) -> None:
+        expected = {
+            "baseline-all": "active",
+            "required-checks-mixed": "evaluate",
+        }
+        rulesets = {
+            "baseline-all": {"enforcement": "active"},
+            "required-checks-mixed": {"enforcement": "active"},
+        }
+        self.assertEqual(
+            GOVERNANCE.resting_ruleset_errors(rulesets, expected),
+            [],
+        )
+        rulesets["baseline-all"]["enforcement"] = "evaluate"
+        self.assertEqual(
+            len(GOVERNANCE.resting_ruleset_errors(rulesets, expected)),
+            1,
+        )
 
 
 class RequiredCheckReadinessTest(unittest.TestCase):
