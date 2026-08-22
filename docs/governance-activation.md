@@ -42,7 +42,10 @@ or retrospective closeout.
   #35–#39 were merged by the repository administrator with zero reviews while `plan` was waiting.
   Infrastructure-live PR #25 was also merged with zero reviews while protected `plan` and
   `infracost` jobs were waiting, before dependency and terminal CI qualification; later review
-  found additional fail-closed gaps requiring correction.
+  found additional fail-closed gaps requiring correction. `.github` PRs #22 and #23 and bootstrap
+  PR #30 were also merged by the interactive administrator session without independent review.
+  The audit evidence identifies a browser session, not an App or Actions workflow; this remains a
+  governance failure requiring retrospective review, not evidence of credential compromise.
 
 ## Required order
 
@@ -84,8 +87,11 @@ or retrospective closeout.
 9. Update the remaining gate evidence to `qualified`, run the exact merged-SHA plan, and only then promote
    `ruleset-workflows`, `required-checks-bootstrap`, and `required-checks-nix` to active in a
    separate reviewed change.
-10. Complete the independent retrospective for
-   [bootstrap PR #25](https://github.com/mindclade/github-config/issues/33).
+10. Complete the independent retrospective in
+   [issue #33](https://github.com/mindclade/github-config/issues/33) for infrastructure-live PR
+   #25, `.github` PRs #22–#23, bootstrap PR #30, and github-config PRs #35–#39. Assign it to the
+   independent Security reviewer after that human joins; a second founder-controlled account does
+   not satisfy the review boundary.
 
 ## Stop conditions
 

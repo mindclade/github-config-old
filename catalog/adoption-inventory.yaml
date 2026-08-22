@@ -199,7 +199,9 @@ unresolved_discovery:
       through 39 were merged by the repository administrator with zero reviews while their
       protected plan jobs were waiting. Infrastructure-live PR 25 was likewise merged with zero
       reviews while protected plan and Infracost jobs were waiting, before dependency and terminal
-      CI qualification; post-merge review found additional fail-closed gaps requiring correction.
+      CI qualification. The same interactive administrator session merged .github PRs 22 and 23
+      and bootstrap PR 30 without independent review; post-merge review found additional
+      fail-closed gaps requiring correction.
   - resource_class: terraform_state
     reason: The remote state address inventory was not readable; every known-existing address must be proven imported before activation.
   - resource_class: organization_rulesets
