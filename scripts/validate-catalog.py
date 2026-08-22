@@ -867,19 +867,29 @@ for fragment in (
     "creation = true",
     'local.enforcement["release-tag-creation"] != "active"',
     "var.release_tag_creation_control_qualified",
+    'local.enforcement["tag-protection"] == "active"',
 ):
     if fragment not in release_tag_creation_ruleset:
         err(f"release-tag-creation implementation omits {fragment}")
 release_tag_bypass = (ROOT / "modules" / "rulesets" / "bypass.tf").read_text(
     encoding="utf-8"
 )
+release_tag_bypass_match = re.search(
+    r"bypass_release_tag_creation\s*=\s*\[(?P<body>.*?)\n\s*\]",
+    release_tag_bypass,
+    re.DOTALL,
+)
+release_tag_bypass_body = (
+    release_tag_bypass_match.group("body") if release_tag_bypass_match else ""
+)
+if not release_tag_bypass_match or release_tag_bypass_body.count("actor_id") != 1:
+    err("release-tag creation bypass must contain exactly one actor")
 for fragment in (
-    "bypass_release_tag_creation",
     "actor_id    = var.release_team_id",
     'actor_type  = "Team"',
     'bypass_mode = "always"',
 ):
-    if fragment not in release_tag_bypass:
+    if fragment not in release_tag_bypass_body:
         err(f"release-tag creation bypass implementation omits {fragment}")
 tag_protection_ruleset = (
     ROOT / "modules" / "rulesets" / "tag-protection.tf"
