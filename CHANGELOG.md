@@ -10,6 +10,8 @@ not reconstructed or relabeled here.
 
 ### Added
 
+- Added the source-only bootstrap `1.5.0` Bazel-cache WIF handoff and exact applied `1.4.0`
+  provider/reader/writer governance contract, with all cache client activation remaining blocked.
 - Added selected-repository estate-observer and ref-janitor Apps, separate read/delete
   environments, and a dry-run-first retention policy for the exact seven-repository estate.
 - Added a machine-validated governance activation gate and the mandatory independent

@@ -55,6 +55,22 @@ that environment gate is passed.
 Default subjects preserve environment identity. Separately mapped immutable repository IDs,
 workflow/ref claims, explicit audiences, and provider conditions supply defense in depth.
 
+## Bazel cache trust
+
+Bootstrap contract `1.5.0` defines a dedicated `gh-bazel-cache` provider for
+`mindclade-internal-monorepo`; it is not a broader repository provider. Its exact route contract
+allows pull-request merge refs to use only the cache reader and allows only protected-main pushes,
+merge-group refs for main, and the main-branch nightly schedule to use the cache writer. Manual
+dispatch, feature branches, tags, alternate workflows, and substituted immutable IDs remain
+outside the contract.
+
+`github-config` publishes the route JSON to `infrastructure-live` as a bootstrap-derived source
+input. It publishes `WIF_PROVIDER_BAZEL_CACHE`, `SA_BAZEL_CACHE_READER`, and
+`SA_BAZEL_CACHE_WRITER` to the monorepo only from exact applied handoff `1.4.0`, after checking the
+provider byte-for-byte and the distinct common-CI account names. Those variables alone do not
+activate a cache client or prove connected token exchange; endpoint publication and positive and
+negative route qualification remain separate protected steps.
+
 `idp-sync.yml` has two explicit cloud-authentication paths. Internal pull requests use the
 protected `plan` environment subject. Schedule and main-branch dispatch runs use the exact
 `idp-sync.yml@refs/heads/main` workflow identity bootstrap allowlists, with no environment, so a

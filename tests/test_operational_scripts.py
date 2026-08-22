@@ -112,6 +112,183 @@ class ExportSafetyTest(unittest.TestCase):
             "automation_secret": {"project_id": "mc-b-seed-fb7649"},
         }
 
+    @classmethod
+    def staged_v15_contract(cls) -> dict[str, object]:
+        platform = cls.deployed_v12_contract()
+        platform["contract_version"] = "1.5.0"
+        github = platform["github"]
+        pool = github["workload_identity_pool"]
+        monorepo_identity = github["repository_identities"][
+            "mindclade-internal-monorepo"
+        ]
+        owner_id = monorepo_identity["repository_owner_id"]
+        repository_id = monorepo_identity["repository_id"]
+        subject_prefix = (
+            f"repo:mindclade@{owner_id}/"
+            f"mindclade-internal-monorepo@{repository_id}"
+        )
+        workflows = {
+            "canary": "reusable-arc-wif-canary.yml",
+            "builder": "reusable-arc-oci-build.yml",
+            "qualification-reader": "reusable-arc-oci-qualify.yml",
+            "qualifier": "reusable-arc-qualification-attest.yml",
+            "signer": "reusable-binauthz-sign.yml",
+            "promoter": "reusable-gitops-promote.yml",
+        }
+        release_identities = {}
+        for capability, workflow in workflows.items():
+            subject = subject_prefix + (
+                ":environment:release"
+                if capability in {"signer", "promoter"}
+                else ":ref:refs/heads/main"
+            )
+            provider_id = (
+                "gh-mindclade-internal-monorepo"
+                if capability == "signer"
+                else f"gh-arc-{capability}"
+            )
+            mapped_subject = (
+                subject
+                if capability == "signer"
+                else f"arc-{capability}:{subject}"
+            )
+            release_identities[capability] = {
+                "workload_identity_provider": f"{pool}/providers/{provider_id}",
+                "principal": (
+                    f"principal://iam.googleapis.com/{pool}/subject/{mapped_subject}"
+                ),
+                "subject": subject,
+                "workflow_ref": (
+                    "mindclade/mindclade-internal-monorepo/.github/workflows/"
+                    "release.yml@refs/heads/main"
+                ),
+                "job_workflow_ref": (
+                    f"mindclade/.github/.github/workflows/{workflow}"
+                    "@refs/tags/v5.0.0"
+                ),
+            }
+        github["artifact_release_identities"] = release_identities
+        github["artifact_signer"] = {
+            field: release_identities["signer"][field]
+            for field in (
+                "workload_identity_provider",
+                "principal",
+                "job_workflow_ref",
+            )
+        }
+        production_subject = (
+            "repo:mindclade@316676129/gitops@1003:environment:production"
+        )
+        github["production_qualification_identity"] = {
+            "workload_identity_provider": (
+                f"{pool}/providers/gh-production-qualification"
+            ),
+            "principal": (
+                f"principal://iam.googleapis.com/{pool}/subject/"
+                f"production-qualification:{production_subject}"
+            ),
+            "subject": production_subject,
+            "workflow_ref": (
+                "mindclade/gitops/.github/workflows/"
+                "production-qualification-evidence.yml@refs/heads/main"
+            ),
+        }
+        github["dr_evidence_identity"] = {
+            "workload_identity_provider": f"{pool}/providers/gh-dr-evidence",
+            "job_workflow_ref": (
+                "mindclade/.github/.github/workflows/"
+                "reusable-dr-evidence.yml@refs/tags/v5.0.0"
+            ),
+            "principals": {
+                f"{repository}:{environment}": (
+                    f"principal://iam.googleapis.com/{pool}/subject/dr-evidence:"
+                    f"repo:mindclade@316676129/{repository}@1000:"
+                    f"environment:{environment}"
+                )
+                for repository in (
+                    "bootstrap",
+                    "github-config",
+                    "infrastructure-live",
+                    "gitops",
+                )
+                for environment in ("scratch", "staging")
+            },
+        }
+        repository = "mindclade/mindclade-internal-monorepo"
+        routes = {
+            "pull-request-read": (
+                "read",
+                "pull_request",
+                "pull-request-merge",
+                f"{repository}/.github/workflows/presubmit.yml",
+            ),
+            "trusted-main-write": (
+                "write",
+                "push",
+                "protected-main",
+                f"{repository}/.github/workflows/presubmit.yml",
+            ),
+            "merge-group-write": (
+                "write",
+                "merge_group",
+                "protected-merge-queue",
+                f"{repository}/.github/workflows/presubmit.yml",
+            ),
+            "nightly-write": (
+                "write",
+                "schedule",
+                "protected-main",
+                f"{repository}/.github/workflows/nightly.yml",
+            ),
+        }
+        github["bazel_cache_identity"] = {
+            "workload_identity_provider": f"{pool}/providers/gh-bazel-cache",
+            "repository": repository,
+            "repository_owner_id": owner_id,
+            "repository_id": repository_id,
+            "routes": {
+                route: {
+                    "access": access,
+                    "event_name": event_name,
+                    "principal": (
+                        f"principal://iam.googleapis.com/{pool}/subject/"
+                        f"bazel-cache:{route}"
+                    ),
+                    "ref_policy": ref_policy,
+                    "workflow_path": workflow_path,
+                }
+                for route, (
+                    access,
+                    event_name,
+                    ref_policy,
+                    workflow_path,
+                ) in routes.items()
+            },
+        }
+        return platform
+
+    @staticmethod
+    def staged_v14_handoff(platform: dict[str, object]) -> object:
+        variables = {
+            name: f"value-{name.lower()}"
+            for name in CI.APPLIED_HANDOFF_VARIABLES_BY_VERSION["1.4.0"]
+        }
+        variables.update(
+            {
+                "CI_PROJECT_ID": "mc-common-ci",
+                "WIF_PROVIDER_BAZEL_CACHE": platform["github"][
+                    "bazel_cache_identity"
+                ]["workload_identity_provider"],
+                "SA_BAZEL_CACHE_READER": (
+                    "bazel-cache-reader@mc-common-ci.iam.gserviceaccount.com"
+                ),
+                "SA_BAZEL_CACHE_WRITER": (
+                    "bazel-cache-writer@mc-common-ci.iam.gserviceaccount.com"
+                ),
+            }
+        )
+        return CI.AppliedHandoff(contract_version="1.4.0", variables=variables)
+
     def test_deployed_v12_contract_keeps_arc_authority_inactive(self) -> None:
         catalog = {
             ".github": {},
@@ -314,16 +491,21 @@ class ExportSafetyTest(unittest.TestCase):
 
     def test_applied_handoff_inventory_and_catalog_projection_are_exact(self) -> None:
         variables = {
-            name: f"value-{name.lower()}" for name in CI.APPLIED_HANDOFF_VARIABLES
+            name: f"value-{name.lower()}"
+            for name in CI.APPLIED_HANDOFF_VARIABLES_BY_VERSION["1.3.0"]
         }
         config = {
             "gitops": {"SA_GITOPS_RENDER": "env:SA_GITOPS_RENDER"},
             "other": {
                 name: f"env:{name}"
-                for name in CI.APPLIED_HANDOFF_VARIABLES - {"SA_GITOPS_RENDER"}
+                for name in CI.APPLIED_HANDOFF_VARIABLES_BY_VERSION["1.3.0"]
+                - {"SA_GITOPS_RENDER"}
             },
         }
-        CI.apply_applied_handoff(config, variables)
+        handoff = CI.AppliedHandoff(
+            contract_version="1.3.0", variables=variables
+        )
+        CI.apply_applied_handoff(config, handoff)
         self.assertEqual(
             config["gitops"]["SA_GITOPS_RENDER"], variables["SA_GITOPS_RENDER"]
         )
@@ -335,16 +517,230 @@ class ExportSafetyTest(unittest.TestCase):
                 "producer": "mindclade/infrastructure-live",
                 "source_commit": "a" * 40,
                 "environment": "production",
-                "source_units": {},
+                "source_units": CI.APPLIED_HANDOFF_SOURCE_UNITS,
                 "variables": variables,
                 "credential_material_included": False,
             }
             path.write_text(json.dumps(payload), encoding="utf-8")
-            self.assertEqual(CI.load_applied_handoff(path), variables)
+            self.assertEqual(CI.load_applied_handoff(path), handoff)
+
+            v14_variables = {
+                name: f"value-{name.lower()}"
+                for name in CI.APPLIED_HANDOFF_VARIABLES_BY_VERSION["1.4.0"]
+            }
+            v14_handoff = CI.AppliedHandoff(
+                contract_version="1.4.0", variables=v14_variables
+            )
+            payload["contract_version"] = "1.4.0"
+            payload["variables"] = v14_variables
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            self.assertEqual(CI.load_applied_handoff(path), v14_handoff)
+
             payload["variables"].pop("SA_GITOPS_RENDER")
             path.write_text(json.dumps(payload), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "inventory"):
                 CI.load_applied_handoff(path)
+
+    def test_bazel_cache_contract_and_applied_handoff_are_exact(self) -> None:
+        platform = self.staged_v15_contract()
+        github = platform["github"]
+        pool = github["workload_identity_pool"]
+        identity = github["bazel_cache_identity"]
+
+        self.assertEqual(
+            CI.bazel_cache_identity_contract(github, pool, "mindclade"),
+            identity,
+        )
+        handoff = self.staged_v14_handoff(platform)
+        CI.validate_applied_bazel_cache_handoff(handoff, identity)
+
+        identity["routes"]["pull-request-read"]["access"] = "write"
+        with self.assertRaisesRegex(ValueError, "route differs: pull-request-read"):
+            CI.bazel_cache_identity_contract(github, pool, "mindclade")
+
+    def test_bazel_cache_handoff_rejects_provider_or_account_substitution(self) -> None:
+        platform = self.staged_v15_contract()
+        identity = platform["github"]["bazel_cache_identity"]
+        handoff = self.staged_v14_handoff(platform)
+        handoff.variables["WIF_PROVIDER_BAZEL_CACHE"] = (
+            "projects/123456789/locations/global/workloadIdentityPools/github/"
+            "providers/gh-mindclade-internal-monorepo"
+        )
+        with self.assertRaisesRegex(ValueError, "provider differs"):
+            CI.validate_applied_bazel_cache_handoff(handoff, identity)
+
+        handoff = self.staged_v14_handoff(platform)
+        handoff.variables["SA_BAZEL_CACHE_WRITER"] = handoff.variables[
+            "SA_BAZEL_CACHE_READER"
+        ]
+        with self.assertRaisesRegex(ValueError, "SA_BAZEL_CACHE_WRITER"):
+            CI.validate_applied_bazel_cache_handoff(handoff, identity)
+
+    def test_bootstrap_v15_full_export_requires_applied_v14_handoff(self) -> None:
+        platform = self.staged_v15_contract()
+        catalog = {
+            repository: {}
+            for repository in (
+                ".github",
+                ".github-private",
+                "github-config",
+                "bootstrap",
+                "infrastructure-live",
+                "gitops",
+                "mindclade-internal-monorepo",
+            )
+        }
+        catalog["bootstrap"]["ENABLE_BUILDKITE_WIF"] = "false"
+        outputs = {"platform_contract": {"value": platform}}
+        with mock.patch.object(CI, "run_json", side_effect=[catalog, outputs]):
+            with self.assertRaisesRegex(ValueError, "requires applied handoff 1.4.0"):
+                CI.compile_payload(ROOT, stage="full")
+
+    def test_bootstrap_v15_exports_source_contract_and_applied_cache_identities(
+        self,
+    ) -> None:
+        platform = self.staged_v15_contract()
+        handoff = self.staged_v14_handoff(platform)
+        catalog = {
+            repository: {}
+            for repository in (
+                ".github",
+                ".github-private",
+                "github-config",
+                "bootstrap",
+                "infrastructure-live",
+                "gitops",
+                "mindclade-internal-monorepo",
+            )
+        }
+        catalog["bootstrap"]["ENABLE_BUILDKITE_WIF"] = "false"
+        catalog["infrastructure-live"]["BAZEL_CACHE_IDENTITY_JSON"] = "{}"
+        catalog["mindclade-internal-monorepo"].update(
+            {
+                name: f"env:{name}"
+                for name in CI.APPLIED_HANDOFF_VARIABLES_BY_VERSION["1.4.0"]
+            }
+        )
+        outputs = {"platform_contract": {"value": platform}}
+        with (
+            mock.patch.object(CI, "run_json", side_effect=[catalog, outputs]),
+            mock.patch.object(
+                CI, "resolve_environment", side_effect=lambda value: value
+            ),
+            mock.patch.object(
+                CI, "dr_evidence_environment_contract", return_value={}
+            ),
+        ):
+            payload = CI.compile_payload(
+                ROOT, stage="full", applied_handoff=handoff
+            )
+
+        self.assertEqual(
+            json.loads(payload["infrastructure-live"]["BAZEL_CACHE_IDENTITY_JSON"]),
+            platform["github"]["bazel_cache_identity"],
+        )
+        for name in CI.BAZEL_CACHE_APPLIED_HANDOFF_VARIABLES:
+            self.assertEqual(
+                payload["mindclade-internal-monorepo"][name],
+                handoff.variables[name],
+            )
+
+    def test_bootstrap_v15_stage_exports_only_the_cache_source_contract(self) -> None:
+        platform = self.staged_v15_contract()
+        catalog = {
+            repository: {}
+            for repository in (
+                ".github",
+                ".github-private",
+                "github-config",
+                "bootstrap",
+                "infrastructure-live",
+                "gitops",
+                "mindclade-internal-monorepo",
+            )
+        }
+        catalog["bootstrap"]["ENABLE_BUILDKITE_WIF"] = "false"
+        catalog["infrastructure-live"]["BAZEL_CACHE_IDENTITY_JSON"] = "{}"
+        catalog["mindclade-internal-monorepo"].update(
+            {
+                name: f"env:{name}"
+                for name in CI.BAZEL_CACHE_APPLIED_HANDOFF_VARIABLES
+            }
+        )
+        outputs = {"platform_contract": {"value": platform}}
+        with (
+            mock.patch.object(CI, "run_json", side_effect=[catalog, outputs]),
+            mock.patch.object(
+                CI, "resolve_environment", side_effect=lambda value: value
+            ),
+        ):
+            payload = CI.compile_payload(ROOT, stage="bootstrap")
+
+        self.assertEqual(
+            json.loads(payload["infrastructure-live"]["BAZEL_CACHE_IDENTITY_JSON"]),
+            platform["github"]["bazel_cache_identity"],
+        )
+        for name in CI.BAZEL_CACHE_APPLIED_HANDOFF_VARIABLES:
+            self.assertNotIn(name, payload["mindclade-internal-monorepo"])
+
+    def test_legacy_platform_prunes_cache_fields_and_rejects_v14_handoff(self) -> None:
+        platform = self.deployed_v12_contract()
+        variables = {
+            name: f"value-{name.lower()}"
+            for name in CI.APPLIED_HANDOFF_VARIABLES_BY_VERSION["1.3.0"]
+        }
+        handoff = CI.AppliedHandoff(
+            contract_version="1.3.0", variables=variables
+        )
+        catalog = {
+            repository: {}
+            for repository in (
+                ".github",
+                ".github-private",
+                "github-config",
+                "bootstrap",
+                "infrastructure-live",
+                "gitops",
+                "mindclade-internal-monorepo",
+            )
+        }
+        catalog["bootstrap"]["ENABLE_BUILDKITE_WIF"] = "false"
+        catalog["infrastructure-live"]["BAZEL_CACHE_IDENTITY_JSON"] = "{}"
+        catalog["mindclade-internal-monorepo"].update(
+            {
+                name: f"env:{name}"
+                for name in (
+                    CI.APPLIED_HANDOFF_VARIABLES_BY_VERSION["1.3.0"]
+                    | CI.BAZEL_CACHE_APPLIED_HANDOFF_VARIABLES
+                )
+            }
+        )
+        outputs = {"platform_contract": {"value": platform}}
+        with (
+            mock.patch.object(CI, "run_json", side_effect=[catalog, outputs]),
+            mock.patch.object(
+                CI, "resolve_environment", side_effect=lambda value: value
+            ),
+        ):
+            payload = CI.compile_payload(
+                ROOT, stage="full", applied_handoff=handoff
+            )
+        self.assertNotIn("BAZEL_CACHE_IDENTITY_JSON", payload["infrastructure-live"])
+        for name in CI.BAZEL_CACHE_APPLIED_HANDOFF_VARIABLES:
+            self.assertNotIn(name, payload["mindclade-internal-monorepo"])
+
+        v14_handoff = CI.AppliedHandoff(
+            contract_version="1.4.0",
+            variables={
+                name: f"value-{name.lower()}"
+                for name in CI.APPLIED_HANDOFF_VARIABLES_BY_VERSION["1.4.0"]
+            },
+        )
+        with mock.patch.object(CI, "run_json", side_effect=[catalog, outputs]):
+            with self.assertRaisesRegex(ValueError, "requires applied handoff 1.3.0"):
+                CI.compile_payload(
+                    ROOT, stage="full", applied_handoff=v14_handoff
+                )
 
     def test_dr_evidence_environment_handoff_is_exact_and_applied(self) -> None:
         pool = "projects/123456789/locations/global/workloadIdentityPools/github"

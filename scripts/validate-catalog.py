@@ -153,6 +153,7 @@ REQUIRED_CI_VARIABLES = {
         "STATE_REPLICA_KMS_LOCATION": "us-east4",
     },
     "infrastructure-live": {
+        "BAZEL_CACHE_IDENTITY_JSON": "{}",
         "CLOUD_IDENTITY_CUSTOMER_ID": "env:CLOUD_IDENTITY_CUSTOMER_ID",
         "DR_GPU_ZONE": "us-east4-b",
         "DR_REGION": "us-east4",
@@ -175,6 +176,9 @@ REQUIRED_CI_VARIABLES = {
         "ARTIFACT_REGISTRY_DR_HOST": "us-east4-docker.pkg.dev",
         "ARTIFACT_REGISTRY_HOST": "us-central1-docker.pkg.dev",
         "CI_PROJECT_ID": "env:CI_PROJECT_ID",
+        "WIF_PROVIDER_BAZEL_CACHE": "env:WIF_PROVIDER_BAZEL_CACHE",
+        "SA_BAZEL_CACHE_READER": "env:SA_BAZEL_CACHE_READER",
+        "SA_BAZEL_CACHE_WRITER": "env:SA_BAZEL_CACHE_WRITER",
         "SA_ARC_CANARY": "env:SA_ARC_CANARY",
         "SA_ARTIFACT_BUILDER": "env:SA_ARTIFACT_BUILDER",
         "SA_ARTIFACT_QUALIFICATION_READER": "env:SA_ARTIFACT_QUALIFICATION_READER",
@@ -1340,6 +1344,25 @@ for repository, variables in ci_variables.items():
             f"ci-variables: {repository} retains Buildkite authority variables: "
             f"{sorted(forbidden_buildkite)}"
         )
+bazel_cache_variables = {
+    repository: {name for name in variables if "BAZEL_CACHE" in name}
+    for repository, variables in ci_variables.items()
+}
+expected_bazel_cache_variables = {
+    ".github": set(),
+    ".github-private": set(),
+    "github-config": set(),
+    "bootstrap": set(),
+    "infrastructure-live": {"BAZEL_CACHE_IDENTITY_JSON"},
+    "gitops": set(),
+    "mindclade-internal-monorepo": {
+        "WIF_PROVIDER_BAZEL_CACHE",
+        "SA_BAZEL_CACHE_READER",
+        "SA_BAZEL_CACHE_WRITER",
+    },
+}
+if bazel_cache_variables != expected_bazel_cache_variables:
+    err("ci-variables: Bazel cache variable inventory is not exact")
 
 ci_variable_exporter = (ROOT / "scripts" / "export-ci-variables.py").read_text(
     encoding="utf-8"
@@ -1352,6 +1375,7 @@ required_export_fragments = {
     "infrastructure-live/ARTIFACT_SIGNER_PRINCIPAL": '"ARTIFACT_SIGNER_PRINCIPAL"',
     "infrastructure-live/ARTIFACT_SIGNER_JOB_WORKFLOW_REF": '"ARTIFACT_SIGNER_JOB_WORKFLOW_REF"',
     "infrastructure-live/PRODUCTION_QUALIFICATION_IDENTITY_JSON": '"PRODUCTION_QUALIFICATION_IDENTITY_JSON"',
+    "infrastructure-live/BAZEL_CACHE_IDENTITY_JSON": '"BAZEL_CACHE_IDENTITY_JSON"',
     "github-config/DR_EVIDENCE_ENVIRONMENT_VARIABLES": '"DR_EVIDENCE_ENVIRONMENT_VARIABLES"',
     "monorepo/WIF_PROVIDER_SIGNER": '"WIF_PROVIDER_SIGNER"',
     "monorepo/WIF_PROVIDER_ARC_CANARY": '"WIF_PROVIDER_ARC_CANARY"',
@@ -1359,6 +1383,9 @@ required_export_fragments = {
     "monorepo/WIF_PROVIDER_ARC_QUALIFICATION_READER": '"WIF_PROVIDER_ARC_QUALIFICATION_READER"',
     "monorepo/WIF_PROVIDER_ARC_QUALIFIER": '"WIF_PROVIDER_ARC_QUALIFIER"',
     "monorepo/WIF_PROVIDER_ARC_PROMOTER": '"WIF_PROVIDER_ARC_PROMOTER"',
+    "monorepo/WIF_PROVIDER_BAZEL_CACHE": '"WIF_PROVIDER_BAZEL_CACHE"',
+    "monorepo/SA_BAZEL_CACHE_READER": '"SA_BAZEL_CACHE_READER"',
+    "monorepo/SA_BAZEL_CACHE_WRITER": '"SA_BAZEL_CACHE_WRITER"',
 }
 for name, fragment in required_export_fragments.items():
     if fragment not in ci_variable_exporter:
@@ -1366,7 +1393,7 @@ for name, fragment in required_export_fragments.items():
 if '"platform_contract"' not in ci_variable_exporter:
     err("ci-variable exporter must source bootstrap/platform_contract")
 for fragment in (
-    'contract_version not in {"1.2.0", "1.4.0"}',
+    'SUPPORTED_BOOTSTRAP_CONTRACT_VERSIONS = {"1.2.0", "1.4.0", "1.5.0"}',
     '"replica_buckets"',
     'if enabled or buildkite.get("workload_identity_pool") is not None',
     '"workload_identity_pool"',
@@ -1377,9 +1404,13 @@ for fragment in (
     "artifact_release_contract(",
     "dr_evidence_environment_contract(",
     "production_qualification_identity_contract(",
+    "bazel_cache_identity_contract(",
+    "validate_applied_bazel_cache_handoff(",
     "load_applied_handoff(",
     "apply_applied_handoff(",
-    '"contract_version"] != "1.3.0"',
+    '"1.3.0": APPLIED_HANDOFF_V13_VARIABLES',
+    '"1.4.0": APPLIED_HANDOFF_V13_VARIABLES',
+    'applied_handoff.contract_version != "1.4.0"',
     'choices=("bootstrap", "full")',
 ):
     if fragment not in ci_variable_exporter:
@@ -1394,6 +1425,21 @@ if '"BOOTSTRAP_FOLDER_ID"' in ci_variable_exporter:
     err("ci-variable exporter must not publish the bootstrap adopt-existing folder input")
 if '"AUTOMATION_SECRET_LOCATION"' in ci_variable_exporter:
     err("ci-variable exporter must not publish an unused bootstrap default as a repository variable")
+
+ci_variable_contract = (ROOT / "modules" / "repositories" / "ci-variables.tf").read_text(
+    encoding="utf-8"
+)
+for fragment in (
+    'check "bazel_cache_source_contract_is_exact"',
+    'check "bazel_cache_handoff_is_exact"',
+    "can(jsondecode(local.bazel_cache_source_contract_raw))",
+    '"workload_identity_provider", "repository", "repository_owner_id", "repository_id", "routes"',
+    'local.bazel_cache_handoff.provider == try(local.bazel_cache_source_contract.workload_identity_provider, "")',
+    '"bazel-cache-reader@${try(var.ci_variables["mindclade-internal-monorepo"]["CI_PROJECT_ID"], "")}.iam.gserviceaccount.com"',
+    '"bazel-cache-writer@${try(var.ci_variables["mindclade-internal-monorepo"]["CI_PROJECT_ID"], "")}.iam.gserviceaccount.com"',
+):
+    if fragment not in ci_variable_contract:
+        err(f"repository CI-variable contract omits Bazel cache guard: {fragment}")
 
 imports = (ROOT / "imports.tf").read_text(encoding="utf-8")
 for fragment in (

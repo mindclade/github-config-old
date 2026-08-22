@@ -149,6 +149,8 @@ locals {
     for k, v in local.ci_variable_pairs : k => v
     if startswith(v.name, "WIF_PROVIDER") && !(
       v.repository == "infrastructure-live" && v.name == "WIF_PROVIDER_SIGNER"
+      ) && !(
+      v.repository == "mindclade-internal-monorepo" && v.name == "WIF_PROVIDER_BAZEL_CACHE"
     )
   }
 }
@@ -175,6 +177,107 @@ check "service_accounts_are_not_shared_across_repositories" {
       if startswith(v.name, "SA_")
     ])
     error_message = "The same SA_* value appears twice within one repository's variables. Plan and apply identities must be different service accounts — that separation is what keeps apply credentials unreachable from a pull request."
+  }
+}
+
+locals {
+  bazel_cache_source_contract_raw = try(
+    var.ci_variables["infrastructure-live"]["BAZEL_CACHE_IDENTITY_JSON"],
+    ""
+  )
+  bazel_cache_source_contract = try(
+    jsondecode(local.bazel_cache_source_contract_raw),
+    {}
+  )
+  bazel_cache_expected_routes = {
+    pull-request-read = {
+      access        = "read"
+      event_name    = "pull_request"
+      ref_policy    = "pull-request-merge"
+      workflow_path = "mindclade/mindclade-internal-monorepo/.github/workflows/presubmit.yml"
+    }
+    trusted-main-write = {
+      access        = "write"
+      event_name    = "push"
+      ref_policy    = "protected-main"
+      workflow_path = "mindclade/mindclade-internal-monorepo/.github/workflows/presubmit.yml"
+    }
+    merge-group-write = {
+      access        = "write"
+      event_name    = "merge_group"
+      ref_policy    = "protected-merge-queue"
+      workflow_path = "mindclade/mindclade-internal-monorepo/.github/workflows/presubmit.yml"
+    }
+    nightly-write = {
+      access        = "write"
+      event_name    = "schedule"
+      ref_policy    = "protected-main"
+      workflow_path = "mindclade/mindclade-internal-monorepo/.github/workflows/nightly.yml"
+    }
+  }
+  bazel_cache_handoff = {
+    provider = try(var.ci_variables["mindclade-internal-monorepo"]["WIF_PROVIDER_BAZEL_CACHE"], "")
+    reader   = try(var.ci_variables["mindclade-internal-monorepo"]["SA_BAZEL_CACHE_READER"], "")
+    writer   = try(var.ci_variables["mindclade-internal-monorepo"]["SA_BAZEL_CACHE_WRITER"], "")
+  }
+  bazel_cache_handoff_values = values(local.bazel_cache_handoff)
+}
+
+check "bazel_cache_source_contract_is_exact" {
+  assert {
+    condition = contains(["", "{}"], local.bazel_cache_source_contract_raw) || try(
+      can(jsondecode(local.bazel_cache_source_contract_raw)) &&
+      toset(keys(local.bazel_cache_source_contract)) == toset([
+        "workload_identity_provider", "repository", "repository_owner_id", "repository_id", "routes",
+      ]) &&
+      can(regex(
+        "^projects/[0-9]+/locations/global/workloadIdentityPools/github/providers/gh-bazel-cache$",
+        local.bazel_cache_source_contract.workload_identity_provider
+      )) &&
+      local.bazel_cache_source_contract.repository == "mindclade/mindclade-internal-monorepo" &&
+      can(regex("^[0-9]+$", local.bazel_cache_source_contract.repository_owner_id)) &&
+      can(regex("^[0-9]+$", local.bazel_cache_source_contract.repository_id)) &&
+      toset(keys(local.bazel_cache_source_contract.routes)) == toset(keys(local.bazel_cache_expected_routes)) &&
+      alltrue([
+        for route, expected in local.bazel_cache_expected_routes :
+        toset(keys(local.bazel_cache_source_contract.routes[route])) == toset([
+          "access", "event_name", "principal", "ref_policy", "workflow_path",
+        ]) &&
+        local.bazel_cache_source_contract.routes[route].access == expected.access &&
+        local.bazel_cache_source_contract.routes[route].event_name == expected.event_name &&
+        local.bazel_cache_source_contract.routes[route].ref_policy == expected.ref_policy &&
+        local.bazel_cache_source_contract.routes[route].workflow_path == expected.workflow_path &&
+        local.bazel_cache_source_contract.routes[route].principal == "principal://iam.googleapis.com/${trimsuffix(local.bazel_cache_source_contract.workload_identity_provider, "/providers/gh-bazel-cache")}/subject/bazel-cache:${route}"
+      ]),
+      false,
+    )
+    error_message = "BAZEL_CACHE_IDENTITY_JSON must be absent before bootstrap 1.5 or contain its exact provider, immutable repository IDs, and read/write route contract."
+  }
+}
+
+# Bootstrap-stage governance omits the whole cache handoff. Once present, the dedicated provider
+# and separate reader/writer accounts must be the exact applied common-CI identities; an operator
+# cannot reuse a repository provider or collapse read and write authority into one account.
+check "bazel_cache_handoff_is_exact" {
+  assert {
+    condition = alltrue([
+      for value in local.bazel_cache_handoff_values : value == ""
+      ]) || (
+      alltrue([for value in local.bazel_cache_handoff_values : value != ""]) &&
+      can(regex(
+        "^projects/[0-9]+/locations/global/workloadIdentityPools/github/providers/gh-bazel-cache$",
+        local.bazel_cache_handoff.provider
+      )) &&
+      local.bazel_cache_handoff.provider == try(local.bazel_cache_source_contract.workload_identity_provider, "") &&
+      can(regex(
+        "^[a-z][a-z0-9-]{0,18}[a-z0-9]-common-ci$",
+        try(var.ci_variables["mindclade-internal-monorepo"]["CI_PROJECT_ID"], "")
+      )) &&
+      local.bazel_cache_handoff.reader == "bazel-cache-reader@${try(var.ci_variables["mindclade-internal-monorepo"]["CI_PROJECT_ID"], "")}.iam.gserviceaccount.com" &&
+      local.bazel_cache_handoff.writer == "bazel-cache-writer@${try(var.ci_variables["mindclade-internal-monorepo"]["CI_PROJECT_ID"], "")}.iam.gserviceaccount.com" &&
+      local.bazel_cache_handoff.reader != local.bazel_cache_handoff.writer
+    )
+    error_message = "The Bazel cache handoff must be wholly absent before activation or contain the exact dedicated provider and distinct applied common-CI reader/writer identities."
   }
 }
 
