@@ -70,7 +70,7 @@
     {
       "name": "repository-home-validator",
       "source": "actions/validate-repository-home/validate.py",
-      "sha256": "04400d7b57327cf7852e947be20a4dc788b19fc5d1211ae8e1c627e45312da10",
+      "sha256": "9ddbdca8a7076252f9214e5a4f6077ce7f8a09d45d364e3f1c3143e0330b013b",
       "mediaType": "text/x-python",
       "distributions": [
         {"repository": ".github-private", "path": "scripts/validate-repository-home.py"},
@@ -93,6 +93,20 @@
       "sha256": "c5b8695b8e0b31ec5dcba0c25fd7e1cd14d48b7cd394f9182322235aa14c85bd",
       "mediaType": "application/json",
       "distributions": []
+    },
+    {
+      "name": "third-party-notice-validator",
+      "source": "tools/third_party_notices.py",
+      "sha256": "9fb75b9b5223604b8c7c597428cc798c47c2f7b3e642d5948c6fdecd2986066b",
+      "mediaType": "text/x-python",
+      "distributions": [
+        {"repository": ".github-private", "path": "scripts/generate-third-party-notices.py"},
+        {"repository": "bootstrap", "path": "scripts/generate-third-party-notices.py"},
+        {"repository": "github-config", "path": "scripts/generate-third-party-notices.py"},
+        {"repository": "gitops", "path": "scripts/generate-third-party-notices.py"},
+        {"repository": "infrastructure-live", "path": "scripts/generate-third-party-notices.py"},
+        {"repository": "mindclade-internal-monorepo", "path": "scripts/generate-third-party-notices.py"}
+      ]
     },
     {
       "name": "policy-bundle-validator",
