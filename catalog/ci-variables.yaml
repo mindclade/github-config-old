@@ -22,7 +22,7 @@ github-config:
   # Initial governance creates and protects environments before infrastructure-live exists.
   # Promote this to env:ENVIRONMENT_PROJECT_IDS only with exact applied infrastructure outputs.
   ENVIRONMENT_PROJECT_IDS: '{}'
-  # A v1.4 full export supplies this exact JSON object from bootstrap and the applied
+  # A v1.4+ full export supplies this exact JSON object from bootstrap and the applied
   # infrastructure-live DR evidence outputs. Under the deployed v1.2 contract it remains
   # empty, so no future DR authority is activated early.
   DR_EVIDENCE_ENVIRONMENT_VARIABLES: '{}'
@@ -31,7 +31,7 @@ github-config:
 
 bootstrap:
   # export-ci-variables.py augments this catalog from the deployed bootstrap contract (v1.2)
-  # and also accepts the reviewed v1.4 successor after its Ring-0 activation. In
+  # and also accepts the reviewed v1.4 and v1.5 successors after Ring-0 activation. In
   # particular, organization/billing/GitHub immutable IDs and state buckets come directly from
   # that machine contract; operators cannot substitute free-form copies of those identifiers.
   RESOURCE_PREFIX: mc
@@ -62,6 +62,9 @@ infrastructure-live:
   DOMAIN: mindclade.com
   # The full exporter replaces this fail-closed sentinel from bootstrap/platform_contract.
   PRODUCTION_QUALIFICATION_IDENTITY_JSON: '{}'
+  # Bootstrap 1.5 replaces this inert sentinel with the exact dedicated provider and route
+  # contract. It is an infrastructure input only; it does not activate a cache client.
+  BAZEL_CACHE_IDENTITY_JSON: '{}'
 
 gitops:
   RENDER_APP_ID: env:RENDER_APP_ID
@@ -89,6 +92,11 @@ mindclade-internal-monorepo:
   ARTIFACT_REGISTRY_HOST: us-central1-docker.pkg.dev
   ARTIFACT_REGISTRY_DR_HOST: us-east4-docker.pkg.dev
   CI_PROJECT_ID: env:CI_PROJECT_ID
+  # These values may come only from applied handoff 1.4.0 after bootstrap 1.5 and the
+  # authoritative automation IAM unit have both been applied. Raw operator values are rejected.
+  WIF_PROVIDER_BAZEL_CACHE: env:WIF_PROVIDER_BAZEL_CACHE
+  SA_BAZEL_CACHE_READER: env:SA_BAZEL_CACHE_READER
+  SA_BAZEL_CACHE_WRITER: env:SA_BAZEL_CACHE_WRITER
   SA_ARC_CANARY: env:SA_ARC_CANARY
   SA_ARTIFACT_BUILDER: env:SA_ARTIFACT_BUILDER
   SA_ARTIFACT_QUALIFICATION_READER: env:SA_ARTIFACT_QUALIFICATION_READER

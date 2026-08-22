@@ -15,12 +15,14 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 
 ROOT = Path(__file__).resolve().parent.parent
 
-APPLIED_HANDOFF_VARIABLES = {
+SUPPORTED_BOOTSTRAP_CONTRACT_VERSIONS = {"1.2.0", "1.4.0", "1.5.0"}
+
+APPLIED_HANDOFF_V13_VARIABLES = {
     "CI_PROJECT_ID",
     "SA_ARC_CANARY",
     "SA_ARTIFACT_BUILDER",
@@ -47,6 +49,26 @@ APPLIED_HANDOFF_VARIABLES = {
     "BINAUTHZ_DEPLOYMENT_ATTESTOR",
     "BINAUTHZ_DEPLOYMENT_ATTESTOR_KEY_VERSION",
 }
+BAZEL_CACHE_APPLIED_HANDOFF_VARIABLES = {
+    "WIF_PROVIDER_BAZEL_CACHE",
+    "SA_BAZEL_CACHE_READER",
+    "SA_BAZEL_CACHE_WRITER",
+}
+APPLIED_HANDOFF_VARIABLES_BY_VERSION = {
+    "1.3.0": APPLIED_HANDOFF_V13_VARIABLES,
+    "1.4.0": APPLIED_HANDOFF_V13_VARIABLES | BAZEL_CACHE_APPLIED_HANDOFF_VARIABLES,
+}
+APPLIED_HANDOFF_SOURCE_UNITS = {
+    "automation_iam": "1-org/automation-iam",
+    "gitops_identities": "5-workloads/shared/control-plane-identities",
+    "binary_authorization": "5-workloads/production/binary-authorization",
+    "qualification_evidence": "5-workloads/shared/production-qualification-evidence",
+}
+
+
+class AppliedHandoff(NamedTuple):
+    contract_version: str
+    variables: dict[str, str]
 
 BUILDKITE_DEFERRED_VARIABLES: dict[str, set[str]] = {}
 
@@ -137,7 +159,7 @@ def resolve_environment(value: Any) -> Any:
     return value
 
 
-def load_applied_handoff(path: Path) -> dict[str, str]:
+def load_applied_handoff(path: Path) -> AppliedHandoff:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
@@ -153,35 +175,43 @@ def load_applied_handoff(path: Path) -> dict[str, str]:
     }
     if not isinstance(payload, dict) or set(payload) != required:
         raise ValueError("applied control-plane handoff field inventory is not exact")
+    contract_version = payload["contract_version"]
+    expected_variables = (
+        APPLIED_HANDOFF_VARIABLES_BY_VERSION.get(contract_version)
+        if isinstance(contract_version, str)
+        else None
+    )
     if (
-        payload["contract_version"] != "1.3.0"
+        expected_variables is None
         or payload["producer"] != "mindclade/infrastructure-live"
         or payload["environment"] != "production"
         or payload["credential_material_included"] is not False
         or re.fullmatch(r"[0-9a-f]{40}", str(payload["source_commit"])) is None
+        or payload["source_units"] != APPLIED_HANDOFF_SOURCE_UNITS
     ):
         raise ValueError("applied control-plane handoff authority is invalid")
     variables = payload["variables"]
-    if not isinstance(variables, dict) or set(variables) != APPLIED_HANDOFF_VARIABLES:
+    if not isinstance(variables, dict) or set(variables) != expected_variables:
         raise ValueError("applied control-plane handoff variable inventory is not exact")
     for name, value in variables.items():
         if not isinstance(value, str) or not value or re.search(
             r"(?i)(mock|unknown|placeholder|example|changeme|known after apply)", value
         ):
             raise ValueError(f"applied control-plane handoff value is invalid: {name}")
-    return variables
+    return AppliedHandoff(contract_version=contract_version, variables=variables)
 
 
 def apply_applied_handoff(
-    config: dict[str, dict[str, Any]], variables: dict[str, str]
+    config: dict[str, dict[str, Any]], handoff: AppliedHandoff
 ) -> None:
+    variables = handoff.variables
     consumed: set[str] = set()
     for repository, values in config.items():
         for name, value in values.items():
             if value == f"env:{name}" and name in variables:
                 config[repository][name] = variables[name]
                 consumed.add(name)
-    expected_consumed = APPLIED_HANDOFF_VARIABLES
+    expected_consumed = APPLIED_HANDOFF_VARIABLES_BY_VERSION[handoff.contract_version]
     if consumed != expected_consumed:
         difference = sorted(consumed ^ expected_consumed)
         raise ValueError(
@@ -406,6 +436,116 @@ def production_qualification_identity_contract(
     return identity
 
 
+def bazel_cache_identity_contract(
+    github_contract: dict[str, Any], github_pool: str, organization: str
+) -> dict[str, Any]:
+    identity = require(
+        github_contract, "bazel_cache_identity", "platform_contract.github"
+    )
+    fields = {
+        "workload_identity_provider",
+        "repository",
+        "repository_owner_id",
+        "repository_id",
+        "routes",
+    }
+    if not isinstance(identity, dict) or set(identity) != fields:
+        raise ValueError("platform_contract Bazel cache identity is not exact")
+
+    repository = f"{organization}/mindclade-internal-monorepo"
+    if identity["workload_identity_provider"] != (
+        f"{github_pool}/providers/gh-bazel-cache"
+    ):
+        raise ValueError("platform_contract Bazel cache provider differs")
+    if identity["repository"] != repository:
+        raise ValueError("platform_contract Bazel cache repository differs")
+
+    repository_identities = require(
+        github_contract, "repository_identities", "platform_contract.github"
+    )
+    monorepo_identity = require(
+        repository_identities,
+        "mindclade-internal-monorepo",
+        "platform_contract.github.repository_identities",
+    )
+    if not isinstance(monorepo_identity, dict) or (
+        identity["repository_owner_id"] != monorepo_identity.get("repository_owner_id")
+        or identity["repository_id"] != monorepo_identity.get("repository_id")
+    ):
+        raise ValueError("platform_contract Bazel cache immutable IDs differ")
+
+    presubmit = f"{repository}/.github/workflows/presubmit.yml"
+    nightly = f"{repository}/.github/workflows/nightly.yml"
+    expected_routes = {
+        "pull-request-read": {
+            "access": "read",
+            "event_name": "pull_request",
+            "ref_policy": "pull-request-merge",
+            "workflow_path": presubmit,
+        },
+        "trusted-main-write": {
+            "access": "write",
+            "event_name": "push",
+            "ref_policy": "protected-main",
+            "workflow_path": presubmit,
+        },
+        "merge-group-write": {
+            "access": "write",
+            "event_name": "merge_group",
+            "ref_policy": "protected-merge-queue",
+            "workflow_path": presubmit,
+        },
+        "nightly-write": {
+            "access": "write",
+            "event_name": "schedule",
+            "ref_policy": "protected-main",
+            "workflow_path": nightly,
+        },
+    }
+    routes = identity["routes"]
+    route_fields = {
+        "access",
+        "event_name",
+        "principal",
+        "ref_policy",
+        "workflow_path",
+    }
+    if not isinstance(routes, dict) or set(routes) != set(expected_routes):
+        raise ValueError("platform_contract Bazel cache route inventory is not exact")
+    for route, expected in expected_routes.items():
+        value = routes[route]
+        if not isinstance(value, dict) or set(value) != route_fields:
+            raise ValueError(f"platform_contract Bazel cache route is not exact: {route}")
+        if any(value.get(name) != expected_value for name, expected_value in expected.items()):
+            raise ValueError(f"platform_contract Bazel cache route differs: {route}")
+        if value["principal"] != (
+            f"principal://iam.googleapis.com/{github_pool}/subject/bazel-cache:{route}"
+        ):
+            raise ValueError(f"platform_contract Bazel cache principal differs: {route}")
+    return identity
+
+
+def validate_applied_bazel_cache_handoff(
+    handoff: AppliedHandoff, identity: dict[str, Any]
+) -> None:
+    variables = handoff.variables
+    provider = variables["WIF_PROVIDER_BAZEL_CACHE"]
+    if provider != identity["workload_identity_provider"]:
+        raise ValueError("applied Bazel cache provider differs from bootstrap")
+    project = variables["CI_PROJECT_ID"]
+    expected_accounts = {
+        "SA_BAZEL_CACHE_READER": (
+            f"bazel-cache-reader@{project}.iam.gserviceaccount.com"
+        ),
+        "SA_BAZEL_CACHE_WRITER": (
+            f"bazel-cache-writer@{project}.iam.gserviceaccount.com"
+        ),
+    }
+    for name, expected in expected_accounts.items():
+        if variables[name] != expected:
+            raise ValueError(f"applied Bazel cache service account differs: {name}")
+
+
 def dr_evidence_environment_contract(
     github_contract: dict[str, Any], github_pool: str, organization: str
 ) -> dict[str, str]:
@@ -480,7 +620,7 @@ def compile_payload(
     bootstrap: Path,
     *,
     stage: str = "full",
-    applied_handoff: dict[str, str] | None = None,
+    applied_handoff: AppliedHandoff | None = None,
 ) -> dict[str, dict[str, Any]]:
     config = run_json(
         ["yq", "-o=json", ".", str(ROOT / "catalog/ci-variables.yaml")]
@@ -494,7 +634,7 @@ def compile_payload(
     if not isinstance(platform, dict):
         raise ValueError("bootstrap output platform_contract is not an object")
     contract_version = platform.get("contract_version")
-    if contract_version not in {"1.2.0", "1.4.0"}:
+    if contract_version not in SUPPORTED_BOOTSTRAP_CONTRACT_VERSIONS:
         raise ValueError(
             f"unsupported bootstrap platform_contract version: {contract_version or 'missing'}"
         )
@@ -503,12 +643,29 @@ def compile_payload(
         raise ValueError("platform_contract.buildkite is not an object")
     buildkite_pool = configure_buildkite_phase(config, buildkite)
     if stage == "bootstrap":
+        if applied_handoff is not None:
+            raise ValueError("applied handoff is only valid for the full export stage")
         config = select_bootstrap_stage(config)
-    elif stage != "full":
+    elif stage == "full":
+        if contract_version == "1.5.0":
+            if applied_handoff is None or applied_handoff.contract_version != "1.4.0":
+                raise ValueError(
+                    "bootstrap 1.5.0 full export requires applied handoff 1.4.0"
+                )
+        else:
+            for name in BAZEL_CACHE_APPLIED_HANDOFF_VARIABLES:
+                config["mindclade-internal-monorepo"].pop(name, None)
+            config["infrastructure-live"].pop("BAZEL_CACHE_IDENTITY_JSON", None)
+            if (
+                applied_handoff is not None
+                and applied_handoff.contract_version != "1.3.0"
+            ):
+                raise ValueError(
+                    "bootstrap 1.2.0/1.4.0 full export requires applied handoff 1.3.0"
+                )
+    else:
         raise ValueError(f"unsupported CI variable export stage: {stage}")
     if applied_handoff is not None:
-        if stage != "full":
-            raise ValueError("applied handoff is only valid for the full export stage")
         apply_applied_handoff(config, applied_handoff)
     config = resolve_environment(config)
 
@@ -535,7 +692,8 @@ def compile_payload(
         )
     release_identities: dict[str, dict[str, str]] | None = None
     production_qualification_identity: dict[str, str] | None = None
-    if contract_version == "1.4.0":
+    bazel_cache_identity: dict[str, Any] | None = None
+    if contract_version in {"1.4.0", "1.5.0"}:
         release_identities = artifact_release_contract(
             github_contract, str(github_pool), github_organization
         )
@@ -571,7 +729,17 @@ def compile_payload(
             principal,
         ) is None:
             raise ValueError("legacy artifact signer principal differs")
-    if stage == "full" and contract_version == "1.4.0":
+    if contract_version == "1.5.0":
+        bazel_cache_identity = bazel_cache_identity_contract(
+            github_contract, str(github_pool), github_organization
+        )
+        if stage == "full":
+            if applied_handoff is None:
+                raise ValueError("applied Bazel cache handoff is missing")
+            validate_applied_bazel_cache_handoff(
+                applied_handoff, bazel_cache_identity
+            )
+    if stage == "full" and contract_version in {"1.4.0", "1.5.0"}:
         config["github-config"]["DR_EVIDENCE_ENVIRONMENT_VARIABLES"] = json.dumps(
             dr_evidence_environment_contract(
                 github_contract, str(github_pool), github_organization
@@ -706,6 +874,10 @@ def compile_payload(
             production_qualification_identity,
             sort_keys=True,
             separators=(",", ":"),
+        )
+    if bazel_cache_identity is not None:
+        infrastructure_live_values["BAZEL_CACHE_IDENTITY_JSON"] = json.dumps(
+            bazel_cache_identity, sort_keys=True, separators=(",", ":")
         )
     config["infrastructure-live"].update(infrastructure_live_values)
     config["gitops"]["WIF_PROVIDER_PLAN"] = need(

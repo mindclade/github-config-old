@@ -130,13 +130,23 @@ python3 scripts/export-ci-variables.py \
   --applied-handoff /protected/evidence/infrastructure-control-plane-handoff.json
 ```
 
-The exporter requires handoff contract `1.3.0`, an exact 25-variable inventory, a full immutable
-source commit, and an explicit assertion that credential material is absent. Bootstrap supplies
-`PRODUCTION_QUALIFICATION_IDENTITY_JSON` directly from `platform_contract`; an operator cannot
-substitute it. Supply only exact applied values for remaining non-handoff `env:` inputs and reapply
-`github-config`. Full mode remains fail-closed on every unresolved normal-plane input.
+The exporter requires a full immutable source commit and an explicit assertion that credential
+material is absent. Bootstrap contracts `1.2.0` and `1.4.0` consume applied handoff `1.3.0` with
+its exact 25-variable production-eligibility inventory. Bootstrap contract `1.5.0` instead
+requires applied handoff `1.4.0`, whose exact 28-variable inventory is the `1.3.0` contract plus
+`WIF_PROVIDER_BAZEL_CACHE`, `SA_BAZEL_CACHE_READER`, and `SA_BAZEL_CACHE_WRITER`. Versions are not
+interchangeable and stale, partial, or extra fields fail before GitHub can be changed.
 
-The same export requires bootstrap `platform_contract` version `1.4.0`, reads
+Bootstrap supplies `PRODUCTION_QUALIFICATION_IDENTITY_JSON` and, under contract `1.5.0`,
+`BAZEL_CACHE_IDENTITY_JSON` directly from `platform_contract`; an operator cannot substitute
+either value. The cache JSON is only the exact infrastructure source contract. The exporter does
+not publish the monorepo provider or its separate reader/writer service accounts until the applied
+`1.4.0` handoff matches the bootstrap provider and common-CI account identities. It does not
+publish a cache endpoint, enable a client, or claim that the provider, accounts, IAM bindings, or
+bucket are live. Supply only exact applied values for remaining non-handoff `env:` inputs and
+reapply `github-config`. Full mode remains fail-closed on every unresolved normal-plane input.
+
+The same export accepts bootstrap `platform_contract` version `1.4.0` or `1.5.0`, reads
 `state.replica_buckets.bootstrap`, and publishes it as the managed
 `bootstrap/TFSTATE_REPLICA_BUCKET` Actions variable. The protected
 `bootstrap-recovery-read` environment is catalog-managed; never allow the recovery workflow to
@@ -150,6 +160,9 @@ qualification-reader and promotion workflows before publishing any release varia
 It also validates the exact eight-principal DR evidence provider and compiles the applied writer,
 project, and bucket outputs into environment variables on only the protected `scratch` and
 `staging` environments of `bootstrap`, `github-config`, `infrastructure-live`, and `gitops`.
+Under bootstrap `1.5.0`, it additionally validates the dedicated `gh-bazel-cache` provider, exact
+immutable monorepo IDs, pull-request read route, and protected main, merge-group, and nightly write
+routes before exporting any cache-related value.
 
 The ARC catalog is desired-state and preflight evidence, not proof of a live GitHub App
 installation. Before enabling the canary provider, create or verify both exact installations:
