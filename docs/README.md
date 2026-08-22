@@ -59,6 +59,8 @@
 - [Enterprise reference module](../modules/enterprise/README.md) — deliberately inactive
   enterprise-account resource boundary.
 - [Repository production blueprint](../BLUEPRINT.md) — compact authority and exclusion contract.
+- [Governance validation](governance-validation.md) — semantic catalog, Terraform, and workflow
+  checks plus deferred required-context readiness.
 - [Enterprise platform blueprint](MINDCLADE_ENTERPRISE_PLATFORM_FOUNDATION_BLUEPRINT.md) —
   stable pointer to the canonical estate-wide contract.
 

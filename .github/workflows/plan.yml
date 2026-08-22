@@ -233,14 +233,20 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
+      - uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342  # v31.11.0
+        with:
+          extra_nix_config: experimental-features = nix-command flakes
       - name: Validate catalog, access policy, and local tooling
         run: |
           set -euo pipefail
-          python3 scripts/validate-catalog.py
-          python3 scripts/check-access-expiry.py
-          python3 -m unittest -v \
-            tests/test_configure_workspace_remotes.py \
-            tests/test_operational_scripts.py
+          nix develop .#ci --command bash -euo pipefail -c '
+            python3 scripts/validate-catalog.py
+            python3 scripts/check-access-expiry.py
+            python3 -m unittest -v \
+              tests/test_configure_workspace_remotes.py \
+              tests/test_governance_contracts.py \
+              tests/test_operational_scripts.py
+          '
 
       - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd  # v3
         with:

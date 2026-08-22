@@ -1,0 +1,23 @@
+# Copyright © 2026 Mindclade, LLC. All Rights Reserved.
+# Mindclade Proprietary and Confidential.
+# SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
+
+---
+schema_version: 1
+contexts:
+  infrastructure-cost:
+    repository: infrastructure-live
+    producer_workflow: .github/workflows/cost.yml
+    candidate_context: infracost / verdict
+    required_events:
+      - pull_request
+      - merge_group
+    observed_events: []
+    intentional_negative_observed: false
+    target_ruleset: required-checks-tf
+    activation_gate: infrastructure_cost_verdict_ready
+    status: blocked
+    qualified_context: null
+    blocker: >-
+      The source workflow defines one merge-group-capable, always-present verdict, but connected
+      positive and intentional-negative evidence has not been reviewed for both required events.

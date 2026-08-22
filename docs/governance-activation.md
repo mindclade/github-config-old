@@ -28,7 +28,13 @@ or retrospective closeout.
 - The monorepo Go, mixed-language, and infra-static rules remain `evaluate`. The mixed rule
   includes the exact `bazel / verdict` context, whose pull-request, intentional-negative,
   merge-group full-graph, and 28-day latency evidence is tracked by
-  [the monorepo rollout](monorepo-required-check-rollout.md).
+  [the monorepo rollout](monorepo-required-check-rollout.md). The validator permits mixed and
+  infra-static promotion only when their cataloged evidence gates are qualified; it no longer
+  requires a validator-code edit to promote a qualified rule.
+- `required-checks-tf` remains active with only `fmt`, `validate`, and `plan`. Infracost is not a
+  required context: its current workflow runs only on pull requests and cannot satisfy merge
+  groups. The schema-backed readiness contract stays blocked until one stable cost verdict reports
+  on both event types.
 - `.github` declares the two protected workflow-release environments, but the connected inventory
   found neither environment live.
 - The exact observed `copilot` environments are GitHub-platform-managed exceptions, not Terraform
@@ -85,7 +91,10 @@ or retrospective closeout.
 9. Update the remaining gate evidence to `qualified`, run the exact merged-SHA plan, and only then promote
    `ruleset-workflows`, `required-checks-bootstrap`, and `required-checks-nix` to active in a
    separate reviewed change.
-10. Complete the independent retrospective in
+10. Before adding cost policy to `required-checks-tf`, complete the four-step readiness sequence in
+    [governance validation](governance-validation.md#deferred-cost-verdict). Never require the
+    existing pull-request-only `infracost` or `comment` contexts.
+11. Complete the independent retrospective in
    [issue #33](https://github.com/mindclade/github-config/issues/33) for infrastructure-live PR
    #25, `.github` PRs #22–#23, bootstrap PR #30, and github-config PRs #35–#39. Assign it to the
    independent Security reviewer after that human joins; a second founder-controlled account does

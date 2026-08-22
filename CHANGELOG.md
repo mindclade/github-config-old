@@ -12,6 +12,12 @@ not reconstructed or relabeled here.
 
 - Added the source-only bootstrap `1.5.0` Bazel-cache WIF handoff and exact applied `1.4.0`
   provider/reader/writer governance contract, with all cache client activation remaining blocked.
+- Added structural HCL validation for required-check rulesets, release-tag controls, adoption
+  imports, environment handoff, and repository OIDC behavior, with mutation tests proving comments
+  cannot satisfy implementation contracts.
+- Added a schema-backed readiness contract for the deferred infrastructure cost verdict; the
+  candidate context remains explicitly non-required until positive and intentional-negative
+  evidence is reviewed for both pull requests and merge groups.
 - Added selected-repository estate-observer and ref-janitor Apps, separate read/delete
   environments, and a dry-run-first retention policy for the exact seven-repository estate.
 - Added a machine-validated governance activation gate and the mandatory independent
@@ -38,6 +44,11 @@ not reconstructed or relabeled here.
 
 ### Changed
 
+- Replaced hard-coded evaluate-only clamps for the mixed and infra-static rulesets with
+  fail-closed promotion gates that accept active enforcement only after their connected evidence
+  is qualified; the resting catalog remains evaluate.
+- Changed nightly access-expiry validation from whole-file substring matching to parsed workflow
+  job and step validation.
 - Refreshed connected environment imports, including every observed desired environment, while
   recording auto-created `copilot` environments as explicit platform-managed exceptions and
   absent `.github` release environments as unresolved rather than mutating them.

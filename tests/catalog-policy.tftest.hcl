@@ -105,21 +105,54 @@ run "policy_catalog_is_production_grade" {
 
   assert {
     condition = (
-      output.rulesets["required-checks-infra-static"].enforcement == "evaluate" &&
+      contains(
+        ["evaluate", "active"],
+        output.rulesets["required-checks-infra-static"].enforcement,
+      ) &&
+      (
+        output.rulesets["required-checks-infra-static"].enforcement != "active" ||
+        (
+          output.governance_activation.gates.monorepo_merge_group_full_graph_observed == "qualified" &&
+          output.governance_activation.gates.rulesets_connected_audit == "qualified"
+        )
+      ) &&
       output.rulesets["required-checks-infra-static"].repositories == ["mindclade-internal-monorepo"]
     )
-    error_message = "infra-static must remain an evaluate-mode, canonical-monorepo-only source contract until observed on pull_request and merge_group."
+    error_message = "infra-static may become active only for the canonical monorepo after merge-group and connected ruleset evidence is qualified."
   }
 
   assert {
     condition = (
-      output.rulesets["required-checks-mixed"].enforcement == "evaluate" &&
+      contains(
+        ["evaluate", "active"],
+        output.rulesets["required-checks-mixed"].enforcement,
+      ) &&
       output.rulesets["required-checks-mixed"].language_profiles == ["mixed"] &&
-      output.governance_activation.gates.monorepo_bazel_verdict_observed == "blocked" &&
-      output.governance_activation.gates.monorepo_merge_group_full_graph_observed == "blocked" &&
-      output.governance_activation.gates.monorepo_affected_latency_qualified == "blocked"
+      (
+        output.rulesets["required-checks-mixed"].enforcement != "active" ||
+        (
+          output.governance_activation.gates.monorepo_bazel_verdict_observed == "qualified" &&
+          output.governance_activation.gates.monorepo_merge_group_full_graph_observed == "qualified" &&
+          output.governance_activation.gates.monorepo_affected_latency_qualified == "qualified" &&
+          output.governance_activation.gates.rulesets_connected_audit == "qualified"
+        )
+      )
     )
-    error_message = "Mixed-language checks must remain evaluate-mode and target only the mixed profile until every context is observed."
+    error_message = "Mixed-language checks may become active only for the mixed profile after every activation gate is qualified."
+  }
+
+  assert {
+    condition = (
+      output.governance_activation.gates.infrastructure_cost_verdict_ready == "blocked" &&
+      output.required_check_readiness.contexts["infrastructure-cost"].status == "blocked" &&
+      output.required_check_readiness.contexts["infrastructure-cost"].qualified_context == null &&
+      output.required_check_readiness.contexts["infrastructure-cost"].target_ruleset == "required-checks-tf" &&
+      toset(output.required_check_readiness.contexts["infrastructure-cost"].required_events) == toset([
+        "pull_request",
+        "merge_group",
+      ])
+    )
+    error_message = "Infrastructure cost enforcement must remain blocked until one stable verdict reports on pull requests and merge groups."
   }
 
   assert {
