@@ -219,6 +219,37 @@ class TerraformSemanticContractTest(unittest.TestCase):
             ):
                 TERRAFORM.validate_bazel_cache_ci_variable_contract(temporary_root)
 
+    def test_bazel_cache_activation_requires_complete_applied_handoff(self) -> None:
+        source = (ROOT / "modules/repositories/ci-variables.tf").read_text(
+            encoding="utf-8"
+        )
+        safe_expression = (
+            "alltrue([for value in local.bazel_cache_handoff_values : value != \"\"])"
+        )
+        activation_expression = (
+            'local.bazel_remote_cache_state == "blocked" || (\n'
+            f"          {safe_expression}"
+        )
+        source = source.replace(
+            activation_expression,
+            'local.bazel_remote_cache_state == "blocked" || (\n'
+            "          true &&\n"
+            f"          # {safe_expression}",
+            1,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            temporary_root = Path(directory)
+            target = temporary_root / "modules/repositories/ci-variables.tf"
+            target.parent.mkdir(parents=True)
+            target.write_text(source, encoding="utf-8")
+            with self.assertRaisesRegex(
+                TERRAFORM.TerraformContractError,
+                "activation: assertion omits required terms",
+            ):
+                TERRAFORM.validate_bazel_cache_ci_variable_contract(
+                    temporary_root
+                )
+
     def test_access_expiry_checks_the_parsed_job_not_comments(self) -> None:
         workflow = yaml.safe_load(
             (ROOT / ".github/workflows/drift.yml").read_text(encoding="utf-8")

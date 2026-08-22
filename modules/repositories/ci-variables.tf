@@ -221,6 +221,10 @@ locals {
     writer   = try(var.ci_variables["mindclade-internal-monorepo"]["SA_BAZEL_CACHE_WRITER"], "")
   }
   bazel_cache_handoff_values = values(local.bazel_cache_handoff)
+  bazel_remote_cache_state = try(
+    var.ci_variables["mindclade-internal-monorepo"]["BAZEL_REMOTE_CACHE_STATE"],
+    "blocked"
+  )
 }
 
 check "bazel_cache_source_contract_is_exact" {
@@ -278,6 +282,24 @@ check "bazel_cache_handoff_is_exact" {
       local.bazel_cache_handoff.reader != local.bazel_cache_handoff.writer
     )
     error_message = "The Bazel cache handoff must be wholly absent before activation or contain the exact dedicated provider and distinct applied common-CI reader/writer identities."
+  }
+}
+
+# Source activation is independently reviewed in the monorepo. Governance accepts only its two
+# explicit states, and a qualified server-side value is impossible until the complete applied
+# provider/account handoff is present. This does not infer connected evidence from resource names.
+check "bazel_remote_cache_activation_is_safe" {
+  assert {
+    condition = (
+      contains(["blocked", "qualified-v1"], local.bazel_remote_cache_state) &&
+      (
+        local.bazel_remote_cache_state == "blocked" || (
+          alltrue([for value in local.bazel_cache_handoff_values : value != ""]) &&
+          !contains(["", "{}"], local.bazel_cache_source_contract_raw)
+        )
+      )
+    )
+    error_message = "BAZEL_REMOTE_CACHE_STATE must remain blocked until the exact applied provider, route contract, and distinct reader/writer identities exist."
   }
 }
 

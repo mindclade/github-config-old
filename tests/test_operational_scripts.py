@@ -667,6 +667,9 @@ class ExportSafetyTest(unittest.TestCase):
                 for name in CI.BAZEL_CACHE_APPLIED_HANDOFF_VARIABLES
             }
         )
+        catalog["mindclade-internal-monorepo"]["BAZEL_REMOTE_CACHE_STATE"] = (
+            "blocked"
+        )
         outputs = {"platform_contract": {"value": platform}}
         with (
             mock.patch.object(CI, "run_json", side_effect=[catalog, outputs]),
@@ -682,6 +685,10 @@ class ExportSafetyTest(unittest.TestCase):
         )
         for name in CI.BAZEL_CACHE_APPLIED_HANDOFF_VARIABLES:
             self.assertNotIn(name, payload["mindclade-internal-monorepo"])
+        self.assertEqual(
+            payload["mindclade-internal-monorepo"]["BAZEL_REMOTE_CACHE_STATE"],
+            "blocked",
+        )
 
     def test_legacy_platform_prunes_cache_fields_and_rejects_v14_handoff(self) -> None:
         platform = self.deployed_v12_contract()
