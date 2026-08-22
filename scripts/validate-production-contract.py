@@ -11,6 +11,7 @@ This check intentionally uses only the Python standard library.
 """
 
 from __future__ import annotations
+import hashlib
 import json
 import re
 import subprocess
@@ -22,6 +23,8 @@ REPOSITORY = "github-config"
 CONTRACT = json.loads(
     '{"authority": ["github-enterprise-governance", "repositories", "teams", "access", "rulesets", "environments", "actions-policy", "oidc-policy"], "forbidden_authority": ["google-cloud-resources", "service-accounts", "gke-clusters", "cloud-sql", "cloud-storage-buckets[any-region]", "cloud-kms", "secret-manager[any-region]", "vertex-ai", "cloud-armor", "beyondcorp", "vpcsc[non-us]", "gcs-cors", "ci-systems[non-immutable]"], "required_paths": [".github/workflows", "catalog/repositories.yaml", "catalog/teams.yaml", "catalog/access.yaml", "catalog/rulesets.yaml", "contracts/repository.yaml", "contracts/oidc-policy.yaml", "modules/repositories", "modules/teams", "modules/rulesets", "scripts/validate-production-contract.py", "scripts/validate-catalog.py"], "forbidden_paths": [".env", ".env.local", "**/.tfstate", "**/.tfstate.backup", ".terraform", ".terraform.lock.hcl", "*.tfplan", ".terragrunt-cache", ".cache", ".direnv", ".venv", "venv", "node_modules", "**/*.key", "**/*.pem", ".ssh"]}'
 )
+# Expected digest of the enhanced validate-repository-home.py with legal claims, common documents, and SPDX validation.
+EXPECTED_VALIDATOR_DIGEST = "ed27899568297dd371dabd9e24f62ece1f3aacdc295197964c48339f40dff223"
 ERRORS = []
 
 
@@ -244,6 +247,14 @@ elif REPOSITORY == "github-config":
         residency_catalog,
     ):
         error("CI-variable contract contains a non-U.S. deployable location")
+    # Policy bundle sync: accept enhanced validator with legal/document/SPDX controls
+    validator_path = ROOT / "scripts/validate-repository-home.py"
+    if validator_path.is_file():
+        actual_digest = hashlib.sha256(validator_path.read_bytes()).hexdigest()
+        if actual_digest != EXPECTED_VALIDATOR_DIGEST:
+            error(
+                f"validator digest mismatch: expected {EXPECTED_VALIDATOR_DIGEST}, got {actual_digest}"
+            )
 elif REPOSITORY == "gitops":
     for p in list((ROOT / "applications").glob("*.yaml")) + list(
         (ROOT / "projects").glob("*.yaml")
