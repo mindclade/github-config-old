@@ -63,6 +63,7 @@ EXPECTED_RULESETS = {
     "required-checks-bootstrap",
     "required-checks-gitops",
     "required-checks-go",
+    "required-checks-github-config",
     "required-checks-infra-static",
     "required-checks-mixed",
     "required-checks-nix",
@@ -83,6 +84,7 @@ EXPECTED_RULESET_ENFORCEMENT = {
     "required-checks-bootstrap": "evaluate",
     "required-checks-gitops": "active",
     "required-checks-go": "evaluate",
+    "required-checks-github-config": "active",
     "required-checks-infra-static": "evaluate",
     "required-checks-mixed": "evaluate",
     "required-checks-nix": "evaluate",
@@ -211,6 +213,7 @@ for stem in (
     "adoption-inventory",
     "environments",
     "control-plane-apps",
+    "connected-resource-exceptions",
     "governance-activation",
 ):
     data = load_yaml(f"{stem}.yaml")
@@ -241,6 +244,7 @@ exceptions = load_yaml("access-exceptions.yaml") or []
 ci_variables = load_yaml("ci-variables.yaml") or {}
 governance_activation = load_yaml("governance-activation.yaml") or {}
 adoption_inventory = load_yaml("adoption-inventory.yaml") or {}
+connected_exceptions = load_yaml("connected-resource-exceptions.yaml") or {}
 
 idp_mappings_path = ROOT / "idp" / "mappings.yaml"
 try:
@@ -281,12 +285,53 @@ for name, enforcement in EXPECTED_RULESET_ENFORCEMENT.items():
             "reviewed enforcement override only for a time-bounded rollout"
         )
 
+expected_copilot_exception_repositories = {
+    ".github",
+    "github-config",
+    "infrastructure-live",
+    "gitops",
+    "mindclade-internal-monorepo",
+}
+copilot_exceptions = connected_exceptions.get("repository_environments", [])
+copilot_keys = [
+    (item.get("repository"), item.get("name"))
+    for item in copilot_exceptions
+    if isinstance(item, dict)
+]
+if len(copilot_keys) != len(set(copilot_keys)):
+    err("connected resource exceptions contain duplicate repository environments")
+if {repository for repository, name in copilot_keys if name == "copilot"} != expected_copilot_exception_repositories:
+    err("Copilot platform-managed environment exceptions must cover the exact observed estate")
+if any(repository not in repos for repository, _ in copilot_keys):
+    err("connected resource exception names an unmanaged repository")
+
+tag_exceptions = connected_exceptions.get("tag_refs", [])
+if len(tag_exceptions) == 1:
+    exception = tag_exceptions[0]
+    expected_tag_exception = {
+        "repository": "mindclade-internal-monorepo",
+        "ref": "refs/tags/rescue/uncommitted-work-20260820",
+        "object_sha": "2ad2af73670fa993fd00c2208a30bd84a5fe8f88",
+        "owner_team": "platform",
+        "disposition": "integrate-then-delete",
+        "expires_on": "2026-09-21",
+    }
+    for field, expected in expected_tag_exception.items():
+        if exception.get(field) != expected:
+            err(f"temporary rescue-tag exception {field} must remain {expected!r}")
+    try:
+        if date.fromisoformat(str(exception.get("expires_on"))) < date.today():
+            err("temporary rescue-tag exception has expired")
+    except ValueError:
+        err("temporary rescue-tag exception expiry is not an ISO date")
+
 activation_enforcement = governance_activation.get("ruleset_enforcement", {})
 for name in (
     "baseline-all",
     "protected-paths",
     "release-tag-creation",
     "required-checks-bootstrap",
+    "required-checks-github-config",
     "required-checks-nix",
     "ruleset-workflows",
 ):
@@ -315,6 +360,17 @@ if rulesets.get("required-checks-bootstrap", {}).get("enforcement") == "active" 
     activation_gates.get("bootstrap_verdict_observed") != "qualified"
 ):
     err("bootstrap plan / verdict cannot be active before connected observation")
+github_config_ruleset = (
+    ROOT / "modules" / "rulesets" / "required-checks-github-config.tf"
+).read_text(encoding="utf-8")
+for fragment in (
+    'include = ["github-config"]',
+    'context = "plan / verdict"',
+    'local.enforcement["required-checks-github-config"] != "active"',
+    "var.github_config_verdict_observed",
+):
+    if fragment not in github_config_ruleset:
+        err(f"required-checks-github-config implementation omits {fragment}")
 if rulesets.get("required-checks-nix", {}).get("enforcement") == "active" and (
     activation_gates.get("nix_estate_qualified") != "qualified"
 ):
@@ -1346,8 +1402,11 @@ for fragment in (
     "github-config/main has no branch protection",
     "effective rulesets are exactly active push-blocklist and tag-protection",
     "no-bypass baseline",
+    "PRs 35 through 39",
+    "Infrastructure-live PR 25",
     "zero reviews",
     "protected plan jobs were waiting",
+    "before dependency and terminal CI qualification",
 ):
     if fragment not in branch_merge_protection_gap:
         err(f"branch merge-protection adoption blocker omits {fragment}")

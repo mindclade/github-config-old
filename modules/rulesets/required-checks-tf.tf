@@ -2,7 +2,8 @@
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
 
-# Required status checks for Terraform and Terragrunt repositories.
+# Required status checks for infrastructure-live. github-config has a dedicated ruleset because
+# its path-aware workflow reports `plan / verdict`, while infrastructure-live reports `plan`.
 #
 # The plan check is the important one. Everything else here catches a class of mistake; the
 # plan catches THIS mistake, on this PR, against real state — and it is the only check whose
@@ -26,8 +27,8 @@ resource "github_organization_ruleset" "required_checks_tf" {
   # this file: a required-check context is coupled to how a repository STRUCTURES its CI, not
   # to what language it contains.
   #
-  # github-config and infrastructure-live each define their own plan.yml with top-level jobs,
-  # so they report bare contexts: `fmt`, `validate`, `plan`.
+  # infrastructure-live defines plan.yml with top-level jobs, so it reports bare contexts:
+  # `fmt`, `validate`, `plan`.
   #
   # A repository using the terraform-module starter workflow instead CALLS
   # reusable-tf-plan.yml, and a called workflow reports as `<caller job id> / <called job id>`
@@ -42,14 +43,14 @@ resource "github_organization_ruleset" "required_checks_tf" {
       exclude = []
     }
     repository_name {
-      include = ["github-config", "infrastructure-live"]
+      include = ["infrastructure-live"]
       exclude = []
     }
   }
 
   rules {
     required_status_checks {
-      # These strings must equal the JOB IDS in each repo's .github/workflows/plan.yml.
+      # These strings must equal the JOB IDS in infrastructure-live's plan workflow.
       # GitHub reports one check per job; a step produces nothing, so naming a step here
       # creates a check that is required and never satisfied — merges block forever with a
       # permanently pending status.

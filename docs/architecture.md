@@ -85,21 +85,23 @@ flowchart TD
 | Catalog | Organization intent and assignments | `catalog/*.yaml` |
 | Catalog module | Schema, reference, and invariant checks | `modules/catalog/` |
 | Resource modules | Compile normalized intent into provider resources | `modules/` |
-| Plan workflow | Static gates and read-oriented speculative plan | `.github/workflows/plan.yml` |
+| Plan workflow | Static gates, base-branch scope classification, stable verdict, and read-oriented speculative plan | `.github/workflows/plan.yml` |
 | Apply workflow | Exact post-merge plan, approval, integrity check, apply | `.github/workflows/apply.yml` |
 
 ## Change flow
 
 1. A pull request changes catalog intent and, only when necessary, compiler code.
 2. CI lints workflows and YAML, validates catalog references and access expiry, checks
-   Terraform, runs tests, and produces a speculative plan.
+   Terraform, and runs tests. A base-branch classifier requests the protected speculative plan
+   only for Terraform, state, trust, or plan-control changes; `plan / verdict` remains present for
+   both outcomes.
 3. Required rulesets and reviewers gate the merge.
 4. The push to `main` creates a fresh saved plan for that exact commit.
-5. The plan artifact records its checksum, repository, run, commit, delete count, and
-   replacement count and is retained for one day.
+5. The plan artifact records its checksum, repository, run, commit, rollout phase, exact
+   enforcement override map, delete count, and replacement count and is retained for one day.
 6. The protected `governance` environment gates the separately credentialed apply job.
-7. The apply job verifies artifact integrity and commit provenance before applying the saved
-   plan.
+7. The apply job verifies artifact integrity, commit provenance, and a freshly compiled match for
+   the recorded rollout phase and overrides before applying the saved plan.
 
 ## Trust and security boundaries
 
@@ -119,6 +121,7 @@ pull-request scoped; it does not grant an invisible direct-push path.
 | --- | --- | --- |
 | Invalid catalog reference | Provider-free validation fails | Correct catalog source and rerun validation |
 | Speculative-plan failure | Pull request cannot merge | Diagnose without requesting mutation credentials |
+| Documentation-only pull request | Stable verdict succeeds without a protected environment | Review static checks; no connected plan is expected |
 | Post-merge plan failure | No apply job receives an artifact | Submit a reviewed forward fix |
 | Apply failure | Workflow opens an incident issue | Inspect state lock and plan evidence; prefer forward recovery |
 | Destructive plan on push | Apply fails before approval | Review the diff and manually dispatch only when deletion is intentional |
@@ -130,6 +133,9 @@ pull-request scoped; it does not grant an invisible direct-push path.
 - Repository classes and custom properties drive policy targeting; names are not policy.
 - Plan and apply identities remain separate.
 - Apply consumes the checksummed plan produced for the exact checked-out commit.
+- Rollout phases compile to exact reviewed overrides; unknown or altered phase metadata fails.
+- Connected exceptions are schema-backed, exact, read-only audit inputs—not hidden Terraform
+  lifecycle ignores.
 - Secret material never appears in catalog, tfvars, state outputs, plan summaries, or docs.
 - Manual controls are recorded in [enterprise manual controls](enterprise-manual-controls.md).
 

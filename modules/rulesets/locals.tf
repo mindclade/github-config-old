@@ -30,6 +30,7 @@ check "catalog_matches_implemented_rulesets" {
       "required-checks-bootstrap",
       "required-checks-gitops",
       "required-checks-go",
+      "required-checks-github-config",
       "required-checks-infra-static",
       "required-checks-mixed",
       "required-checks-nix",

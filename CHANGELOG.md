@@ -25,18 +25,23 @@ not reconstructed or relabeled here.
   creation bypass, plus a Terraform precondition that rejects activation before connected
   qualification or without active no-bypass immutability protection.
 - Recorded the connected `github-config/main` merge-protection gap as a machine-enforced adoption
-  blocker after three administrator merges completed with no review while protected plans waited.
+  blocker after five administrator merges completed with no review while protected plans waited.
 - Added a GET-only estate tag inventory that reports SemVer releases and fails closed on temporary
   refs or potentially truncated connected evidence.
+- Added a schema-backed, SHA-bound rescue-tag exception expiring 2026-09-21 and exact
+  platform-managed dispositions for empty GitHub Copilot environments. Movement, expiry,
+  additional temporary tags, or added environment authority fails the connected audit.
 
 ### Changed
 
 - Refreshed connected environment imports, including every observed desired environment, while
-  recording auto-created `copilot` environments and absent `.github` release environments as
-  unresolved rather than mutating them.
+  recording auto-created `copilot` environments as explicit platform-managed exceptions and
+  absent `.github` release environments as unresolved rather than mutating them.
 - Staged `ruleset-workflows` and the bootstrap `plan / verdict` gate in evaluate mode until their
   release and connected-context evidence exists; baseline and protected-path desired enforcement
   remain active.
+- Added explicit `adopt-evaluate`, `promote-core`, and `normal` apply phases whose exact
+  enforcement overrides are recorded in and re-verified from the saved-plan artifact.
 - Documented that repository deletion/transfer and visibility-change member privileges are
   enterprise-owner-only writes with no REST or provider path, including the exact GraphQL
   mutations and the required read-back verification.
@@ -55,6 +60,14 @@ not reconstructed or relabeled here.
   committed Terraform dependency lock needed for reproducible provider resolution.
 
 ### Security
+
+- Add an always-present, path-aware `plan / verdict` contract for github-config and a dedicated
+  required-check ruleset that remains evaluate-only during connected adoption. Active enforcement
+  is now machine-blocked until both credential-free and protected-plan paths are observed.
+- Record the zero-review, pre-qualification merge incidents through github-config PRs #35–#39 and
+  infrastructure-live PR #25, `.github` PRs #22–#23, and bootstrap PR #30 as connected
+  branch-protection activation blockers. Audit evidence attributes them to an interactive browser
+  administrator session rather than an App or Actions workflow.
 
 - Clarified that security response times are non-contractual operational
   targets and that safe harbor cannot authorize third-party systems or
