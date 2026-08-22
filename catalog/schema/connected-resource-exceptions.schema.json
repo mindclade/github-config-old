@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "repository_environments": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "allowed_protection_rules": {"const": 0},
+          "allowed_secrets": {"const": 0},
+          "allowed_variables": {"const": 0},
+          "disposition": {"const": "platform-managed"},
+          "name": {"const": "copilot"},
+          "provider": {"const": "github-copilot"},
+          "reason": {"minLength": 1, "type": "string"},
+          "repository": {"minLength": 1, "type": "string"}
+        },
+        "required": [
+          "repository", "name", "provider", "disposition", "allowed_secrets",
+          "allowed_variables", "allowed_protection_rules", "reason"
+        ],
+        "type": "object"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "schema_version": {"const": 1},
+    "tag_refs": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "disposition": {"const": "integrate-then-delete"},
+          "expires_on": {"format": "date", "type": "string"},
+          "object_sha": {"pattern": "^[0-9a-f]{40}$", "type": "string"},
+          "owner_team": {"const": "platform"},
+          "reason": {"minLength": 1, "type": "string"},
+          "ref": {"pattern": "^refs/tags/rescue/[A-Za-z0-9._/-]+$", "type": "string"},
+          "repository": {"minLength": 1, "type": "string"}
+        },
+        "required": [
+          "repository", "ref", "object_sha", "owner_team", "disposition",
+          "expires_on", "reason"
+        ],
+        "type": "object"
+      },
+      "maxItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    }
+  },
+  "required": ["schema_version", "tag_refs", "repository_environments"],
+  "type": "object"
+}

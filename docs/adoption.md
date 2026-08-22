@@ -27,8 +27,10 @@ Adoption is a reviewed migration, not an ordinary first apply.
    Apply only the matching declarative imports in `imports.tf`; never translate a name into an ID
    by convention.
    The 2026-08-22 refresh added every observed desired repository environment to `imports.tf`.
-   Auto-created `copilot` environments remain unresolved and unmanaged; do not import or delete
-   them as part of this rollout.
+   Auto-created `copilot` environments have an explicit platform-managed disposition in
+   `catalog/connected-resource-exceptions.yaml`; Terraform must neither import nor delete them.
+   The connected audit accepts only the exact five-repository inventory and requires every such
+   environment to contain zero secrets, variables, reviewers, timers, or custom protection rules.
 3. Import any other pre-existing teams, environments, rulesets, custom-property definitions, App
    scopes, or variables before enabling the corresponding resources. Use addresses and provider
    import IDs from a speculative plan and the provider documentation; never guess either one. Do

@@ -1,0 +1,58 @@
+# Copyright © 2026 Mindclade, LLC. All Rights Reserved.
+# Mindclade Proprietary and Confidential.
+# SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
+
+---
+schema_version: 1
+tag_refs:
+  - repository: mindclade-internal-monorepo
+    ref: refs/tags/rescue/uncommitted-work-20260820
+    object_sha: 2ad2af73670fa993fd00c2208a30bd84a5fe8f88
+    owner_team: platform
+    disposition: integrate-then-delete
+    expires_on: "2026-09-21"
+    reason: >-
+      Temporary recovery evidence is 42 commits ahead and 3 behind main. Platform must
+      integrate the unique work, verify its replacement on governed refs, and then delete
+      this exact tag before expiry. Moving the tag or creating another rescue ref is forbidden.
+repository_environments:
+  - repository: .github
+    name: copilot
+    provider: github-copilot
+    disposition: platform-managed
+    allowed_secrets: 0
+    allowed_variables: 0
+    allowed_protection_rules: 0
+    reason: GitHub Copilot platform environment; intentionally outside Terraform authority.
+  - repository: github-config
+    name: copilot
+    provider: github-copilot
+    disposition: platform-managed
+    allowed_secrets: 0
+    allowed_variables: 0
+    allowed_protection_rules: 0
+    reason: GitHub Copilot platform environment; intentionally outside Terraform authority.
+  - repository: infrastructure-live
+    name: copilot
+    provider: github-copilot
+    disposition: platform-managed
+    allowed_secrets: 0
+    allowed_variables: 0
+    allowed_protection_rules: 0
+    reason: GitHub Copilot platform environment; intentionally outside Terraform authority.
+  - repository: gitops
+    name: copilot
+    provider: github-copilot
+    disposition: platform-managed
+    allowed_secrets: 0
+    allowed_variables: 0
+    allowed_protection_rules: 0
+    reason: GitHub Copilot platform environment; intentionally outside Terraform authority.
+  - repository: mindclade-internal-monorepo
+    name: copilot
+    provider: github-copilot
+    disposition: platform-managed
+    allowed_secrets: 0
+    allowed_variables: 0
+    allowed_protection_rules: 0
+    reason: GitHub Copilot platform environment; intentionally outside Terraform authority.

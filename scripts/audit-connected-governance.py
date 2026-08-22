@@ -13,9 +13,10 @@ import os
 import re
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 import yaml
 
@@ -176,10 +177,19 @@ def audit_repository_tags(
     org: str,
     repositories: dict[str, Any],
     errors: list[str],
+    exceptions: dict[str, Any] | None = None,
+    today: date | None = None,
 ) -> dict[str, list[str]]:
-    """Inventory live tag refs and reject non-release identities without mutating them."""
+    """Inventory tags and allow only exact, unexpired recovery exceptions."""
 
     inventory: dict[str, list[str]] = {}
+    current_date = today or datetime.now(timezone.utc).date()
+    tag_exceptions = {
+        (str(item.get("repository")), str(item.get("ref"))): item
+        for item in (exceptions or {}).get("tag_refs", [])
+        if isinstance(item, dict)
+    }
+    observed_exceptions: set[tuple[str, str]] = set()
     for repository in sorted(repositories):
         tags: list[str] = []
         seen_tags: set[str] = set()
@@ -205,14 +215,48 @@ def audit_repository_tags(
                 seen_tags.add(tag)
                 tags.append(tag)
                 if not SEMVER_TAG.fullmatch(tag):
-                    errors.append(
-                        f"{repository}: non-SemVer tag {tag!r} is forbidden; "
-                        "integrate or remove rescue, reconcile, backup, and temporary refs"
+                    ref = f"refs/tags/{tag}"
+                    key = (repository, ref)
+                    exception = tag_exceptions.get(key)
+                    if exception is None:
+                        errors.append(
+                            f"{repository}: non-SemVer tag {tag!r} is forbidden; "
+                            "integrate or remove rescue, reconcile, backup, and temporary refs"
+                        )
+                        continue
+                    observed_exceptions.add(key)
+                    try:
+                        expires_on = date.fromisoformat(str(exception.get("expires_on")))
+                    except ValueError:
+                        errors.append(f"{repository}: {ref} exception expiry is invalid")
+                        continue
+                    if current_date > expires_on:
+                        errors.append(
+                            f"{repository}: {ref} exception expired on {expires_on.isoformat()}"
+                        )
+                    ref_evidence = api.get(
+                        f"/repos/{org}/{repository}/git/ref/tags/{quote(tag, safe='')}"
+                    )
+                    ref_object = (
+                        ref_evidence.get("object")
+                        if isinstance(ref_evidence, dict)
+                        else None
+                    )
+                    actual_sha = (
+                        ref_object.get("sha") if isinstance(ref_object, dict) else None
+                    )
+                    exact(
+                        f"{repository} temporary tag {ref} object",
+                        actual_sha,
+                        exception.get("object_sha"),
+                        errors,
                     )
             if len(response) < 100:
                 break
             page += 1
         inventory[repository] = sorted(tags)
+    for key in sorted(set(tag_exceptions) - observed_exceptions):
+        errors.append(f"temporary tag exception was not observed: {key[0]} {key[1]}")
     return inventory
 
 
@@ -558,14 +602,24 @@ def audit_environments(
     environments: dict[str, Any],
     team_ids: dict[str, int],
     errors: list[str],
+    exceptions: dict[str, Any] | None = None,
 ) -> None:
+    environment_exceptions = {
+        (str(item.get("repository")), str(item.get("name"))): item
+        for item in (exceptions or {}).get("repository_environments", [])
+        if isinstance(item, dict)
+    }
     for repository, config in repositories.items():
         response = api.get(f"/repos/{org}/{repository}/environments?per_page=100")
         actual = object_items(response, "environments")
         by_name = {item.get("name"): item for item in actual}
-        expected_names = config.get("environments", [])
+        expected_names = list(config.get("environments", [])) + [
+            name
+            for exception_repository, name in environment_exceptions
+            if exception_repository == repository
+        ]
         exact(f"{repository} environments", sorted(by_name), sorted(expected_names), errors)
-        for name in expected_names:
+        for name in config.get("environments", []):
             expected = environments[name]
             environment = by_name.get(name, {})
             exact(f"{repository}/{name} wait timer", environment.get("wait_timer", 0), expected.get("wait_timer"), errors)
@@ -599,6 +653,52 @@ def audit_environments(
                 f"{repository}/{name} custom branch policies",
                 branch.get("custom_branch_policies", False),
                 expected.get("custom_branch_policies"),
+                errors,
+            )
+        for (exception_repository, name), contract in environment_exceptions.items():
+            if exception_repository != repository or name not in by_name:
+                continue
+            environment = api.get(f"/repos/{org}/{repository}/environments/{name}")
+            exact(
+                f"{repository}/{name} platform protection rules",
+                len(environment.get("protection_rules", [])),
+                contract.get("allowed_protection_rules"),
+                errors,
+            )
+            exact(
+                f"{repository}/{name} platform wait timer",
+                environment.get("wait_timer", 0),
+                0,
+                errors,
+            )
+            exact(
+                f"{repository}/{name} platform self review",
+                environment.get("prevent_self_review", False),
+                False,
+                errors,
+            )
+            secrets = object_items(
+                api.get(
+                    f"/repos/{org}/{repository}/environments/{name}/secrets?per_page=100"
+                ),
+                "secrets",
+            )
+            variables = object_items(
+                api.get(
+                    f"/repos/{org}/{repository}/environments/{name}/variables?per_page=100"
+                ),
+                "variables",
+            )
+            exact(
+                f"{repository}/{name} platform secrets",
+                len(secrets),
+                contract.get("allowed_secrets"),
+                errors,
+            )
+            exact(
+                f"{repository}/{name} platform variables",
+                len(variables),
+                contract.get("allowed_variables"),
                 errors,
             )
 
@@ -709,11 +809,14 @@ def main() -> int:
         properties = load_yaml(ROOT / "catalog/custom-properties.yaml")
         oidc = load_yaml(ROOT / "catalog/oidc-policy.yaml")
         adoption = load_yaml(ROOT / "catalog/adoption-inventory.yaml")
+        connected_exceptions = load_yaml(
+            ROOT / "catalog/connected-resource-exceptions.yaml"
+        )
         apps = runtime_app_contracts(load_yaml(ROOT / "catalog/github-apps.yaml"))
         apps.update(control_app_contracts(load_yaml(ROOT / "catalog/control-plane-apps.yaml")))
     except AuditError as error:
         errors.append(str(error))
-        repositories = teams = environments = actions = rulesets = runner_groups = properties = oidc = adoption = apps = {}
+        repositories = teams = environments = actions = rulesets = runner_groups = properties = oidc = adoption = connected_exceptions = apps = {}
 
     known = adoption.get("known_existing", [])
     repository_ids = {
@@ -734,7 +837,13 @@ def main() -> int:
         run_check("repositories", lambda: audit_repositories(api, args.organization, repositories, repository_ids, errors), errors)
         tag_inventory = run_check(
             "release tags",
-            lambda: audit_repository_tags(api, args.organization, repositories, errors),
+            lambda: audit_repository_tags(
+                api,
+                args.organization,
+                repositories,
+                errors,
+                connected_exceptions,
+            ),
             errors,
         ) or {}
         team_ids = run_check("teams", lambda: audit_teams(api, args.organization, teams, errors), errors) or {}
@@ -750,7 +859,15 @@ def main() -> int:
         run_check("runner groups", lambda: audit_runner_groups(api, args.organization, runner_groups, errors), errors)
         run_check(
             "environments",
-            lambda: audit_environments(api, args.organization, repositories, environments, team_ids, errors),
+            lambda: audit_environments(
+                api,
+                args.organization,
+                repositories,
+                environments,
+                team_ids,
+                errors,
+                connected_exceptions,
+            ),
             errors,
         )
         run_check("custom properties", lambda: audit_custom_properties(api, args.organization, properties, errors), errors)
@@ -769,6 +886,7 @@ def main() -> int:
         "observed_at": datetime.now(timezone.utc).isoformat(),
         "qualified": not errors,
         "release_tags": tag_inventory,
+        "connected_resource_exceptions": connected_exceptions,
         "errors": errors,
     }
     rendered = json.dumps(evidence, indent=2, sort_keys=True) + "\n"

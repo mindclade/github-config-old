@@ -10,6 +10,7 @@ from __future__ import annotations
 import importlib.util
 import subprocess
 import unittest
+from datetime import date
 from pathlib import Path
 from unittest import mock
 
@@ -211,6 +212,90 @@ class ConnectedGovernanceTest(unittest.TestCase):
             ],
         )
 
+    def test_exact_unexpired_rescue_tag_exception_is_accepted(self) -> None:
+        errors: list[str] = []
+        api = mock.Mock()
+        api.get.side_effect = [
+            [{"name": "rescue/uncommitted-work-20260820"}],
+            {"object": {"sha": "2ad2af73670fa993fd00c2208a30bd84a5fe8f88"}},
+        ]
+        exceptions = {
+            "tag_refs": [
+                {
+                    "repository": "monorepo",
+                    "ref": "refs/tags/rescue/uncommitted-work-20260820",
+                    "object_sha": "2ad2af73670fa993fd00c2208a30bd84a5fe8f88",
+                    "expires_on": "2026-09-21",
+                }
+            ]
+        }
+
+        AUDIT.audit_repository_tags(
+            api,
+            "mindclade",
+            {"monorepo": {}},
+            errors,
+            exceptions,
+            date(2026, 8, 22),
+        )
+        self.assertEqual(errors, [])
+
+    def test_rescue_tag_exception_rejects_movement_and_expiry(self) -> None:
+        errors: list[str] = []
+        api = mock.Mock()
+        api.get.side_effect = [
+            [{"name": "rescue/uncommitted-work-20260820"}],
+            {"object": {"sha": "f" * 40}},
+        ]
+        exceptions = {
+            "tag_refs": [
+                {
+                    "repository": "monorepo",
+                    "ref": "refs/tags/rescue/uncommitted-work-20260820",
+                    "object_sha": "2ad2af73670fa993fd00c2208a30bd84a5fe8f88",
+                    "expires_on": "2026-09-21",
+                }
+            ]
+        }
+
+        AUDIT.audit_repository_tags(
+            api,
+            "mindclade",
+            {"monorepo": {}},
+            errors,
+            exceptions,
+            date(2026, 9, 22),
+        )
+        self.assertTrue(any("expired on 2026-09-21" in error for error in errors))
+        self.assertTrue(any("temporary tag" in error and "object" in error for error in errors))
+
+    def test_declared_rescue_tag_must_remain_observable_until_disposed(self) -> None:
+        errors: list[str] = []
+        api = mock.Mock()
+        api.get.return_value = []
+        exceptions = {
+            "tag_refs": [
+                {
+                    "repository": "monorepo",
+                    "ref": "refs/tags/rescue/required",
+                    "object_sha": "a" * 40,
+                    "expires_on": "2026-09-21",
+                }
+            ]
+        }
+        AUDIT.audit_repository_tags(
+            api,
+            "mindclade",
+            {"monorepo": {}},
+            errors,
+            exceptions,
+            date(2026, 8, 22),
+        )
+        self.assertEqual(
+            errors,
+            ["temporary tag exception was not observed: monorepo refs/tags/rescue/required"],
+        )
+
     def test_release_tag_inventory_paginates_without_truncation(self) -> None:
         api = mock.Mock()
         api.get.side_effect = [
@@ -244,6 +329,79 @@ class ConnectedGovernanceTest(unittest.TestCase):
         ):
             with self.assertRaises(AUDIT.AuditTransportError):
                 AUDIT.GitHubApi().get("/orgs/mindclade")
+
+    def test_platform_managed_copilot_environment_must_remain_empty(self) -> None:
+        errors: list[str] = []
+        api = mock.Mock()
+        api.get.side_effect = [
+            {"total_count": 1, "environments": [{"name": "copilot"}]},
+            {
+                "name": "copilot",
+                "protection_rules": [],
+                "wait_timer": 0,
+                "prevent_self_review": False,
+            },
+            {"total_count": 0, "secrets": []},
+            {"total_count": 0, "variables": []},
+        ]
+        exceptions = {
+            "repository_environments": [
+                {
+                    "repository": "alpha",
+                    "name": "copilot",
+                    "allowed_protection_rules": 0,
+                    "allowed_secrets": 0,
+                    "allowed_variables": 0,
+                }
+            ]
+        }
+        AUDIT.audit_environments(
+            api,
+            "mindclade",
+            {"alpha": {"environments": []}},
+            {},
+            {},
+            errors,
+            exceptions,
+        )
+        self.assertEqual(errors, [])
+
+    def test_platform_managed_copilot_environment_rejects_authority(self) -> None:
+        errors: list[str] = []
+        api = mock.Mock()
+        api.get.side_effect = [
+            {"total_count": 1, "environments": [{"name": "copilot"}]},
+            {
+                "name": "copilot",
+                "protection_rules": [{"type": "required_reviewers"}],
+                "wait_timer": 0,
+                "prevent_self_review": False,
+            },
+            {"total_count": 1, "secrets": [{"name": "TOKEN"}]},
+            {"total_count": 0, "variables": []},
+        ]
+        exceptions = {
+            "repository_environments": [
+                {
+                    "repository": "alpha",
+                    "name": "copilot",
+                    "allowed_protection_rules": 0,
+                    "allowed_secrets": 0,
+                    "allowed_variables": 0,
+                }
+            ]
+        }
+        AUDIT.audit_environments(
+            api,
+            "mindclade",
+            {"alpha": {"environments": []}},
+            {},
+            {},
+            errors,
+            exceptions,
+        )
+        self.assertTrue(any("platform protection rules" in error for error in errors))
+        self.assertTrue(any("platform secrets" in error for error in errors))
 
 
     def test_member_repository_ceiling_is_audited(self) -> None:

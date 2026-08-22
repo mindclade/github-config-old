@@ -14,6 +14,14 @@ on:
         description: Permit explicitly reviewed destructive or replacement actions.
         type: boolean
         default: false
+      rollout_phase:
+        description: Exact staged enforcement phase for this reviewed run.
+        type: choice
+        default: normal
+        options:
+          - normal
+          - adopt-evaluate
+          - promote-core
 
 permissions:
   contents: read
@@ -50,6 +58,15 @@ jobs:
           set -euo pipefail
           python3 scripts/validate-catalog.py
           python3 scripts/check-access-expiry.py
+
+      - name: Compile exact rollout overrides
+        env:
+          ROLLOUT_PHASE: ${{ github.event_name == 'workflow_dispatch' && inputs.rollout_phase || 'normal' }}
+        run: |
+          set -euo pipefail
+          overrides="$(python3 scripts/governance-rollout.py --phase "$ROLLOUT_PHASE")"
+          printf '%s\n' "$overrides" > rollout-overrides.json
+          echo "TF_VAR_ruleset_enforcement_overrides=$overrides" >> "$GITHUB_ENV"
 
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093  # v3
         with:
@@ -99,6 +116,7 @@ jobs:
         name: Create exact merged-SHA plan
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          ROLLOUT_PHASE: ${{ github.event_name == 'workflow_dispatch' && inputs.rollout_phase || 'normal' }}
           TF_VAR_billing_email: ${{ vars.BILLING_EMAIL }}
           TF_VAR_wif_pool_project_number: ${{ vars.WIF_POOL_PROJECT_NUMBER }}
           TF_VAR_environment_project_ids: ${{ vars.ENVIRONMENT_PROJECT_IDS }}
@@ -132,9 +150,11 @@ jobs:
             --arg repository "$GITHUB_REPOSITORY" \
             --arg run_id "$GITHUB_RUN_ID" \
             --arg artifact_name "$artifact_name" \
+            --arg rollout_phase "$ROLLOUT_PHASE" \
+            --slurpfile rollout_overrides rollout-overrides.json \
             --argjson destroy_count "$destroy_count" \
             --argjson replace_count "$replace_count" \
-            '{commit_sha:$commit_sha,repository:$repository,run_id:$run_id,artifact_name:$artifact_name,destroy_count:$destroy_count,replace_count:$replace_count}' \
+            '{commit_sha:$commit_sha,repository:$repository,run_id:$run_id,artifact_name:$artifact_name,rollout_phase:$rollout_phase,rollout_overrides:$rollout_overrides[0],destroy_count:$destroy_count,replace_count:$replace_count}' \
             > plan-metadata.json
           echo "commit_sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
           echo "artifact_name=$artifact_name" >> "$GITHUB_OUTPUT"
@@ -142,6 +162,7 @@ jobs:
           {
             echo "### Exact post-merge plan"
             echo "- Commit: \`$GITHUB_SHA\`"
+            echo "- Rollout phase: \`$ROLLOUT_PHASE\`"
             echo "- Deletes: $destroy_count"
             echo "- Replacements: $replace_count"
             echo '```terraform'
@@ -159,6 +180,7 @@ jobs:
             plan.json
             state-list.txt
             plan-metadata.json
+            rollout-overrides.json
           if-no-files-found: error
           retention-days: 1
 
@@ -223,6 +245,10 @@ jobs:
           test "$(jq -r '.commit_sha' plan-metadata.json)" = "$EXPECTED_SHA"
           test "$(jq -r '.repository' plan-metadata.json)" = "$GITHUB_REPOSITORY"
           test "$EXPECTED_SHA" = "$(git -C .. rev-parse HEAD)"
+          rollout_phase="$(jq -r '.rollout_phase' plan-metadata.json)"
+          expected_overrides="$(python3 ../scripts/governance-rollout.py --phase "$rollout_phase")"
+          jq -e --argjson expected "$expected_overrides" '.rollout_overrides == $expected' plan-metadata.json >/dev/null
+          jq -e --argjson expected "$expected_overrides" '. == $expected' rollout-overrides.json >/dev/null
 
       - name: Apply reviewed plan
         env:
@@ -245,6 +271,7 @@ jobs:
             echo "### Applied GitHub governance"
             echo "- Commit: \`${{ needs.plan.outputs.commit_sha }}\`"
             echo "- Plan artifact: \`${{ needs.plan.outputs.artifact_name }}\`"
+            echo "- Rollout phase: \`$(jq -r '.rollout_phase' plan-artifact/plan-metadata.json)\`"
             echo "- Protected environment: \`governance\`"
           } >> "$GITHUB_STEP_SUMMARY"
 

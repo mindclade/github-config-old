@@ -95,6 +95,15 @@ run "policy_catalog_is_production_grade" {
 
   assert {
     condition = (
+      output.rulesets["required-checks-github-config"].enforcement == "active" &&
+      output.rulesets["required-checks-github-config"].repositories == ["github-config"] &&
+      output.rulesets["required-checks-tf"].repositories == ["infrastructure-live"]
+    )
+    error_message = "github-config's path-aware verdict and infrastructure-live's raw plan must remain in separate rulesets."
+  }
+
+  assert {
+    condition = (
       output.rulesets["required-checks-infra-static"].enforcement == "evaluate" &&
       output.rulesets["required-checks-infra-static"].repositories == ["mindclade-internal-monorepo"]
     )

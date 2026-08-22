@@ -7,6 +7,7 @@
       "properties": {
         "bootstrap_verdict_observed": {"enum": ["blocked", "qualified"]},
         "exact_import_plan_reviewed": {"enum": ["blocked", "qualified"]},
+        "github_config_verdict_observed": {"enum": ["blocked", "qualified"]},
         "independent_reviewer_available": {"enum": ["blocked", "qualified"]},
         "nix_estate_qualified": {"enum": ["blocked", "qualified"]},
         "release_environments_qualified": {"enum": ["blocked", "qualified"]},
@@ -20,6 +21,7 @@
         "release_environments_qualified",
         "release_tag_creation_control_qualified",
         "bootstrap_verdict_observed",
+        "github_config_verdict_observed",
         "nix_estate_qualified",
         "exact_import_plan_reviewed",
         "rulesets_connected_audit"
@@ -38,6 +40,7 @@
         "protected-paths": {"enum": ["active", "evaluate", "disabled"]},
         "release-tag-creation": {"enum": ["active", "evaluate", "disabled"]},
         "required-checks-bootstrap": {"enum": ["active", "evaluate", "disabled"]},
+        "required-checks-github-config": {"enum": ["active", "evaluate", "disabled"]},
         "required-checks-nix": {"enum": ["active", "evaluate", "disabled"]},
         "ruleset-workflows": {"enum": ["active", "evaluate", "disabled"]}
       },
@@ -46,6 +49,7 @@
         "protected-paths",
         "release-tag-creation",
         "required-checks-bootstrap",
+        "required-checks-github-config",
         "required-checks-nix",
         "ruleset-workflows"
       ],

@@ -48,6 +48,12 @@ required-checks-go:
     - mixed
   # Promote to active only after the real monorepo reports these exact contexts.
   enforcement: evaluate
+required-checks-github-config:
+  repositories:
+    - github-config
+  # The source workflow now provides this always-present context. Keep the resting contract
+  # active; rollout-phase overrides stage its first connected creation in evaluate mode.
+  enforcement: active
 required-checks-infra-static:
   repositories:
     - mindclade-internal-monorepo
@@ -80,7 +86,6 @@ required-checks-nix:
   enforcement: evaluate
 required-checks-tf:
   repositories:
-    - github-config
     - infrastructure-live
   enforcement: active
 required-checks-tf-static:

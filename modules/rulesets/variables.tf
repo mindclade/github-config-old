@@ -33,6 +33,12 @@ variable "release_tag_creation_control_qualified" {
   default     = false
 }
 
+variable "github_config_verdict_observed" {
+  description = "Whether both connected and credential-free github-config plan verdict paths have been observed."
+  type        = bool
+  default     = false
+}
+
 variable "dot_github_repo_id" {
   description = "Numeric id of the .github repository holding mandatory workflows."
   type        = number

@@ -3,7 +3,9 @@
 # Mindclade Proprietary and Confidential.
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
 
-# Five jobs, not one, for two reasons.
+# Static jobs remain unconditional for an active pull request; only the protected connected plan
+# is path-aware. Close and draft-conversion events run only detection plus the stable verdict so
+# they cancel stale protected waits without spending the static matrix again.
 #
 # Status checks. A ruleset can only require a check that GitHub reports, and GitHub reports
 # one check per JOB — steps produce nothing. A single `plan` job with tflint and checkov as
@@ -14,14 +16,16 @@
 # checkov run with no cloud identity at all, so the blast radius of a malicious PR editing
 # this file is four jobs that can do nothing.
 #
-# Job ids here ARE the required-check contexts in github-config/rulesets/required-checks-tf.tf.
-# Renaming a job is a breaking change to that ruleset. Change both together.
+# Job ids here ARE required-check contexts in the dedicated github-config rulesets. Renaming a
+# job is a breaking change to those rulesets. Change both together.
 #
-# DO NOT add `paths:` or `paths-ignore:` filters to this workflow.
+# DO NOT add `paths:` or `paths-ignore:` filters to this workflow. The always-present
+# `plan / verdict` job is the required context. The base-branch classifier decides whether
+# that verdict must propagate a protected connected plan or can succeed credential-free.
 #
-# Only the Terraform-context jobs above (`fmt`, `validate`, `tflint`, `checkov`, `test`, `plan`)
-# are required checks. Additional security jobs below are optional hardening and may be
-# required by repo policy outside this workflow if desired.
+# `fmt`, `validate`, `tflint`, `checkov`, `test`, and `plan / verdict` are required contexts.
+# The protected raw `plan` job is intentionally not required: the verdict propagates its result
+# when connected scope changes and remains present when the raw job is safely skipped.
 #
 # If PR latency becomes a problem, make the jobs faster (the provider cache below is most of
 # it). Do not make them conditional.
@@ -29,13 +33,14 @@ name: plan
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, closed]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: plan-${{ github.ref }}
+  group: github-config-plan-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -46,6 +51,62 @@ env:
   TF_PLUGIN_CACHE_DIR: /home/runner/.terraform.d/plugin-cache
 
 jobs:
+  detect:
+    name: detect connected-plan scope
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      should-run: ${{ steps.classify.outputs.should-run }}
+    steps:
+      - name: Check out credential-free source for change detection
+        if: >-
+          github.event_name != 'pull_request' ||
+          (github.event.action != 'closed' && github.event.action != 'converted_to_draft')
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - id: classify
+        name: Classify connected-plan scope from the base branch
+        env:
+          EVENT_ACTION: ${{ github.event.action || '' }}
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || '' }}
+          IS_DRAFT: ${{ github.event.pull_request.draft || false }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = pull_request ] && { [ "$EVENT_ACTION" = closed ] || [ "$EVENT_ACTION" = converted_to_draft ] || [ "$IS_DRAFT" = true ]; }; then
+            should_run=false
+          elif [ "$EVENT_NAME" = pull_request ]; then
+            changed_files="${RUNNER_TEMP}/github-config-plan-changed-files.txt"
+            git diff --name-only --no-renames "${BASE_SHA}...${HEAD_SHA}" > "$changed_files"
+            if grep -Eq '^(\.github/workflows/plan\.yml|scripts/classify-plan-change\.py)$' "$changed_files"; then
+              # A pull request may not execute its modified classifier to exempt itself.
+              should_run=true
+            else
+              classifier="${RUNNER_TEMP}/classify-plan-change.py"
+              git show "${BASE_SHA}:scripts/classify-plan-change.py" > "$classifier"
+              should_run="$(python3 "$classifier" \
+                --event-name "$EVENT_NAME" \
+                --event-action "$EVENT_ACTION" \
+                --base "$BASE_SHA" \
+                --head "$HEAD_SHA")"
+            fi
+          else
+            should_run="$(python3 scripts/classify-plan-change.py \
+              --event-name "$EVENT_NAME" \
+              --event-action "$EVENT_ACTION" \
+              --base "$BASE_SHA" \
+              --head "$HEAD_SHA")"
+          fi
+          case "$should_run" in
+            true|false) ;;
+            *) echo "::error::change classifier returned an invalid decision"; exit 1 ;;
+          esac
+          echo "should-run=$should_run" >> "$GITHUB_OUTPUT"
+
   # ---------------------------------------------------------------------------------------
   # Lint
   # ---------------------------------------------------------------------------------------
@@ -53,12 +114,10 @@ jobs:
   # either of them, and no flake to supply the binaries if anything had. Both are fixed
   # together; see flake.nix.
   #
-  # NOT a required check. `fmt`, `validate`, `tflint`, `checkov`, `test` and `plan` are the
-  # contexts required-checks-tf* names, and adding a seventh means editing that ruleset in the
-  # same PR — see the note at the top of this file about job ids being load-bearing. This one
-  # is advisory until the ruleset moves with it.
+  # NOT a required check. This remains advisory unless its dedicated ruleset moves with it.
   lint:
     name: actionlint + yamllint
+    if: github.event_name != 'pull_request' || (github.event.action != 'closed' && github.event.action != 'converted_to_draft')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -86,6 +145,7 @@ jobs:
         run: nix develop .#ci --command yamllint --strict .
 
   fmt:
+    if: github.event_name != 'pull_request' || (github.event.action != 'closed' && github.event.action != 'converted_to_draft')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -99,6 +159,7 @@ jobs:
       - run: terraform fmt -check -recursive -diff
 
   validate:
+    if: github.event_name != 'pull_request' || (github.event.action != 'closed' && github.event.action != 'converted_to_draft')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -127,6 +188,7 @@ jobs:
           terraform validate -no-color
 
   tflint:
+    if: github.event_name != 'pull_request' || (github.event.action != 'closed' && github.event.action != 'converted_to_draft')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -141,6 +203,7 @@ jobs:
           tflint --format=compact --recursive
 
   checkov:
+    if: github.event_name != 'pull_request' || (github.event.action != 'closed' && github.event.action != 'converted_to_draft')
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -156,6 +219,7 @@ jobs:
           soft_fail: false
 
   test:
+    if: github.event_name != 'pull_request' || (github.event.action != 'closed' && github.event.action != 'converted_to_draft')
     # `terraform test` against modules/catalog, which declares no resources and needs no
     # provider — so this job holds no cloud identity and no GitHub credential at all.
     #
@@ -202,6 +266,7 @@ jobs:
 
   pre-commit:
     name: pre-commit
+    if: github.event_name != 'pull_request' || (github.event.action != 'closed' && github.event.action != 'converted_to_draft')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -219,7 +284,7 @@ jobs:
     name: dependency-review
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && github.event.action != 'closed' && github.event.action != 'converted_to_draft'
     permissions:
       contents: read
     steps:
@@ -230,6 +295,7 @@ jobs:
 
   trivy:
     name: trivy fs
+    if: github.event_name != 'pull_request' || (github.event.action != 'closed' && github.event.action != 'converted_to_draft')
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -249,7 +315,7 @@ jobs:
 
   osv:
     name: osv-scanner
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && github.event.action != 'closed' && github.event.action != 'converted_to_draft'
     permissions:
       contents: read
       actions: read
@@ -264,9 +330,11 @@ jobs:
         ./
 
   plan:
+    needs: detect
     if: >-
-      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
-      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+      needs.detect.outputs.should-run == 'true' &&
+      ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository))
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     environment: plan
@@ -429,3 +497,35 @@ jobs:
             echo "Plan text artifact missing."
           fi
           test -f artifacts/plan.json || { echo 'Plan JSON artifact missing.'; exit 1; }
+
+  verdict:
+    name: plan / verdict
+    if: always()
+    needs: [detect, plan]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Resolve stable connected-plan verdict
+        env:
+          DETECT_RESULT: ${{ needs.detect.result }}
+          PLAN_RESULT: ${{ needs.plan.result }}
+          SHOULD_RUN: ${{ needs.detect.outputs.should-run }}
+        run: |
+          set -euo pipefail
+          if [ "$DETECT_RESULT" != success ]; then
+            echo "::error::connected-plan scope detection did not succeed"
+            exit 1
+          fi
+          if [ "$SHOULD_RUN" = false ]; then
+            echo "No Terraform, state, trust, or connected-plan control path changed."
+            exit 0
+          fi
+          if [ "$SHOULD_RUN" != true ]; then
+            echo "::error::connected-plan scope decision is absent or malformed"
+            exit 1
+          fi
+          if [ "$PLAN_RESULT" != success ]; then
+            echo "::error::connected speculative plan did not succeed: ${PLAN_RESULT}"
+            exit 1
+          fi
+          echo "Connected speculative plan succeeded."

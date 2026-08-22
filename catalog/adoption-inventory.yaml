@@ -196,16 +196,16 @@ unresolved_discovery:
       Read-only connected evidence proves github-config/main has no branch protection and its
       effective rulesets are exactly active push-blocklist and tag-protection, so the desired
       no-bypass baseline, protected-path review, and required-check rules are not live; PRs 35
-      through 37 were merged by the repository administrator with zero reviews while their
-      protected plan jobs were waiting.
+      through 39 were merged by the repository administrator with zero reviews while their
+      protected plan jobs were waiting. Infrastructure-live PR 25 was likewise merged with zero
+      reviews while protected plan and Infracost jobs were waiting, before dependency and terminal
+      CI qualification; post-merge review found additional fail-closed gaps requiring correction.
   - resource_class: terraform_state
     reason: The remote state address inventory was not readable; every known-existing address must be proven imported before activation.
   - resource_class: organization_rulesets
     reason: The connected credential lacks admin:org and cannot enumerate organization rulesets directly; repository-effective reads show only push-blocklist and tag-protection, so absence of the other desired rulesets is not proven.
   - resource_class: unmanaged_repository_rulesets
     reason: The .github repository still exposes redundant repository ruleset 21082865 (bootstrap-v3-tag-immutability); remove it only after the active organization tag-protection rule is independently re-verified.
-  - resource_class: unmanaged_environments
-    reason: Read-only inventory found auto-created copilot environments outside the governed catalog; ownership and disposition require separate review, and this change neither imports nor deletes them.
   - resource_class: workflow_release_environments
     reason: The .github repository has zero live environments; workflow-release-platform and workflow-release-security remain desired create operations blocked on independent reviewer staffing and exact-plan review.
   - resource_class: github_app_installations

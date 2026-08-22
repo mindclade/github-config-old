@@ -88,6 +88,9 @@ module "rulesets" {
   release_tag_creation_control_qualified = (
     module.catalog.governance_activation.gates.release_tag_creation_control_qualified == "qualified"
   )
+  github_config_verdict_observed = (
+    module.catalog.governance_activation.gates.github_config_verdict_observed == "qualified"
+  )
 
   # Custom-property-targeted rulesets must not race repository/property creation.
   depends_on = [module.repositories]
