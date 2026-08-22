@@ -8,9 +8,11 @@
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import hashlib
 import html
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -71,6 +73,197 @@ CANONICAL_DOCUMENT_DIGESTS = {
 }
 SOURCE_HEADER_PATH = ".github/MINDCLADE_PROPRIETARY_SOURCE_HEADER.txt"
 SOURCE_HEADER_DIGEST = "0f2b024dbf454c08d57b663d8ad8e469215984a7007ef66bd37d651e046e0029"
+THIRD_PARTY_NOTICE_TOOL_DIGEST = "5c344b342d487242b5ff96dec64cf2f22afe52a3bbf8d1b6b97922cb0151d28f"
+SPDX_LICENSE_TOOL_DIGEST = "c6e3077d817d7f9181f35e42a55944c65dc36acb28a2228ff5abbab90633f7bd"
+
+LEGAL_CLAIM_PATTERNS = (
+    (
+        "unqualified certification or compliance claim",
+        re.compile(
+            r"\b(?:fully|completely|100%)\s+compliant\b|"
+            r"\b(?:SOC\s*2|ISO\s*27001|HIPAA|GDPR|FedRAMP|PCI(?:[ -]DSS)?)\s+"
+            r"(?:certified|compliant)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "unqualified guarantee",
+        re.compile(
+            r"\bguarantee(?:d|s)?\s+(?:availability|uptime|results?|security|safety|"
+            r"compliance|response|recovery|performance)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "unqualified response-time promise",
+        re.compile(
+            r"\b(?:we|Mindclade|support|security)\s+will\s+(?:respond|acknowledge|resolve)\s+"
+            r"within\s+\d+\s+(?:minutes?|hours?|business\s+days?|days?)\b",
+            re.IGNORECASE,
+        ),
+    ),
+)
+LEGAL_CLAIM_ANNOTATION = re.compile(
+    r"^\s*<!--\s*mindclade-legal-claim:\s*(.*?)\s*-->\s*$", re.IGNORECASE
+)
+LEGAL_CLAIM_REQUIRED_FIELDS = {"owner", "evidence", "scope", "reviewed", "expires"}
+LEGAL_CLAIM_EXCLUDED_PARTS = {
+    ".git",
+    ".direnv",
+    ".venv",
+    "build",
+    "dist",
+    "node_modules",
+    "target",
+    "third_party",
+    "vendor",
+}
+
+
+def _legal_claim_annotation(
+    raw: str, path: Path, line_number: int
+) -> tuple[dict[str, str] | None, list[str]]:
+    """Parse and validate one legal-claim approval annotation."""
+    match = LEGAL_CLAIM_ANNOTATION.fullmatch(raw)
+    if not match:
+        return None, []
+    fields: dict[str, str] = {}
+    errors: list[str] = []
+    for item in match.group(1).split(";"):
+        key, separator, value = item.strip().partition("=")
+        if not separator or not key or not value:
+            errors.append(f"{path}:{line_number}: malformed legal-claim annotation field")
+            continue
+        if key in fields:
+            errors.append(f"{path}:{line_number}: duplicate legal-claim field: {key}")
+        fields[key] = value.strip()
+    if set(fields) != LEGAL_CLAIM_REQUIRED_FIELDS:
+        errors.append(
+            f"{path}:{line_number}: legal-claim fields must be exactly "
+            f"{', '.join(sorted(LEGAL_CLAIM_REQUIRED_FIELDS))}"
+        )
+        return fields, errors
+    if not re.fullmatch(r"[a-z0-9][a-z0-9._/-]*", fields["owner"], re.IGNORECASE):
+        errors.append(f"{path}:{line_number}: legal-claim owner is malformed")
+    if not re.fullmatch(r"(?:https://|[A-Z][A-Z0-9]+-)[^\s]+", fields["evidence"]):
+        errors.append(
+            f"{path}:{line_number}: legal-claim evidence must be an HTTPS URI or record id"
+        )
+    if len(fields["scope"]) < 3:
+        errors.append(f"{path}:{line_number}: legal-claim scope is too short")
+    dates: dict[str, dt.date] = {}
+    for name in ("reviewed", "expires"):
+        try:
+            dates[name] = dt.date.fromisoformat(fields[name])
+        except ValueError:
+            errors.append(f"{path}:{line_number}: legal-claim {name} must be YYYY-MM-DD")
+    if len(dates) == 2:
+        if dates["reviewed"] > dates["expires"]:
+            errors.append(f"{path}:{line_number}: legal-claim review occurs after expiry")
+        if dates["expires"] < dt.date.today():
+            errors.append(f"{path}:{line_number}: legal-claim approval is expired")
+    return fields, errors
+
+
+def validate_legal_claims(root: Path) -> list[str]:
+    """Reject risky legal/marketing claims without scoped, expiring approval evidence."""
+    errors: list[str] = []
+    for path in sorted(root.rglob("*.md")):
+        relative = path.relative_to(root)
+        if LEGAL_CLAIM_EXCLUDED_PARTS.intersection(relative.parts):
+            continue
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except (OSError, UnicodeDecodeError) as exc:
+            errors.append(f"{relative}: cannot lint legal claims: {exc}")
+            continue
+        in_fence = False
+        pending_annotation: tuple[int, bool] | None = None
+        for line_number, line in enumerate(lines, start=1):
+            if line.lstrip().startswith("```"):
+                in_fence = not in_fence
+                continue
+            if in_fence:
+                continue
+            annotation, annotation_errors = _legal_claim_annotation(
+                line, relative, line_number
+            )
+            errors.extend(annotation_errors)
+            if annotation is not None:
+                pending_annotation = (line_number, not annotation_errors)
+                continue
+            for label, pattern in LEGAL_CLAIM_PATTERNS:
+                if not pattern.search(line):
+                    continue
+                approved = (
+                    pending_annotation is not None
+                    and pending_annotation[1]
+                    and line_number - pending_annotation[0] <= 3
+                )
+                if not approved:
+                    errors.append(
+                        f"{relative}:{line_number}: {label}; add a current "
+                        "mindclade-legal-claim annotation with owner, evidence, scope, "
+                        "reviewed, and expires"
+                    )
+            if line.strip() and pending_annotation and line_number - pending_annotation[0] > 3:
+                pending_annotation = None
+    return errors
+
+
+def validate_third_party_notices(root: Path) -> list[str]:
+    """Require deterministic, complete notice generation from reviewed provenance."""
+    errors: list[str] = []
+    for required in ("contracts/third-party-materials.json", "THIRD_PARTY_NOTICES.md"):
+        if not (root / required).is_file():
+            errors.append(f"missing required third-party notice artifact: {required}")
+    tool = next(
+        (
+            candidate
+            for candidate in (
+                root / "scripts" / "generate-third-party-notices.py",
+                root / "tools" / "third_party_notices.py",
+            )
+            if candidate.is_file()
+        ),
+        None,
+    )
+    if tool is None:
+        errors.append("missing canonical third-party notice validator")
+        return errors
+    if hashlib.sha256(tool.read_bytes()).hexdigest() != THIRD_PARTY_NOTICE_TOOL_DIGEST:
+        errors.append("third-party notice validator differs from the policy bundle")
+        return errors
+    spdx_tool = next(
+        (
+            candidate
+            for candidate in (
+                root / "scripts" / "enrich-spdx-license.py",
+                root / "tools" / "enrich_spdx_license.py",
+            )
+            if candidate.is_file()
+        ),
+        None,
+    )
+    if spdx_tool is None:
+        errors.append("missing canonical SPDX proprietary-license enricher")
+        return errors
+    if hashlib.sha256(spdx_tool.read_bytes()).hexdigest() != SPDX_LICENSE_TOOL_DIGEST:
+        errors.append("SPDX proprietary-license enricher differs from the policy bundle")
+        return errors
+    if errors:
+        return errors
+    result = subprocess.run(
+        [sys.executable, str(tool), "--root", str(root)],
+        cwd=root,
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip()
+        errors.append(f"third-party notice validation failed: {detail}")
+    return errors
 
 
 def validate_common_documents(root: Path, repository: str) -> list[str]:
@@ -448,6 +641,8 @@ def validate(root: Path) -> list[str]:
                 errors.append(f"repository contract required path does not exist: {required}")
 
     errors.extend(validate_common_documents(root, repository))
+    errors.extend(validate_legal_claims(root))
+    errors.extend(validate_third_party_notices(root))
 
     for filename, label, key in CORE_BADGES:
         relative = f"docs/assets/badges/{filename}.svg"

@@ -33,6 +33,11 @@ It also means **an empty file is indistinguishable from an outage**, which is wh
 script refuses to write a document with zero org members. Writing one would remove every
 member on the next apply.
 
+The `legal`, `platform`, and `security` groups are independent approval functions. After all
+three directory mappings are verified, the exporter rejects an empty group or any GitHub login
+that occurs in more than one of those groups. This makes the three-approval legal-path ruleset a
+separation-of-duties control rather than three labels satisfied by one person.
+
 ## Which group feeds which team
 
 `mappings.yaml` is the only source for verified directory addresses. The export script derives its
@@ -44,8 +49,8 @@ The currently verified projections are `biosecurity`, `bootstrap-reviewers`, `da
 `engineering`, `platform`, `research`, and `security`. The dedicated reviewer projection is
 `github-bootstrap-reviewers@mindclade.com`; its membership is governed by the expiring
 solo-founder procedure in [`docs/solo-founder-reviewer.md`](../docs/solo-founder-reviewer.md).
-Directory addresses for `incident-command`, `infrastructure`, `model-serving`, `model-training`,
-`product`, and `release` have not been verified in source. The exporter warns and omits those teams
+Directory addresses for `incident-command`, `infrastructure`, `legal`, `model-serving`,
+`model-training`, `product`, and `release` have not been verified in source. The exporter warns and omits those teams
 rather than deriving privileged group names by convention. Change each entry from `deferred` to
 `mapped` and add its exact address in one reviewed change only after a read-only directory inventory
 confirms it. No human login belongs in `mappings.yaml`.

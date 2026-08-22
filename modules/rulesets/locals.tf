@@ -21,6 +21,7 @@ check "catalog_matches_implemented_rulesets" {
   assert {
     condition = toset(local.ruleset_names) == toset([
       "baseline-all",
+      "legal-policy-paths",
       "merge-queue",
       "protected-paths",
       "release-authority-paths",
