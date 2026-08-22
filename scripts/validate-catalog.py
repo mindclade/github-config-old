@@ -54,6 +54,7 @@ EXPECTED_ENVIRONMENTS = {
 }
 EXPECTED_RULESETS = {
     "baseline-all",
+    "legal-policy-paths",
     "merge-queue",
     "protected-paths",
     "release-authority-paths",
@@ -72,6 +73,7 @@ EXPECTED_RULESETS = {
 }
 EXPECTED_RULESET_ENFORCEMENT = {
     "baseline-all": "active",
+    "legal-policy-paths": "evaluate",
     "merge-queue": "active",
     "protected-paths": "active",
     "release-authority-paths": "active",
@@ -100,6 +102,7 @@ EXPECTED_IDP_GROUPS = {
 EXPECTED_DEFERRED_IDP_TEAMS = {
     "incident-command",
     "infrastructure",
+    "legal",
     "model-serving",
     "model-training",
     "product",
@@ -285,6 +288,7 @@ if runner_groups != {"mindclade-arc-artifact-authority": expected_runner_group}:
     err("ARC artifact-authority runner group contract is not exact")
 if set(github_apps) != {
     "mindclade-arc",
+    "mindclade-policy-sync",
     "mindclade-release-promoter",
     "mindclade-production-qualification-reader",
 }:
@@ -325,6 +329,17 @@ else:
         err("production qualification App has an unexpected repository permission contract")
     if qualification.get("organizationPermissions") != {}:
         err("production qualification App must not have organization permissions")
+    policy_sync = github_apps["mindclade-policy-sync"]
+    if set(policy_sync.get("repositories", [])) != EXPECTED_REPOS - {".github"}:
+        err("policy sync App must select exactly the six policy-consumer repositories")
+    if policy_sync.get("repositoryPermissions") != {
+        "contents": "write",
+        "metadata": "read",
+        "pullRequests": "write",
+    }:
+        err("policy sync App has an unexpected repository permission contract")
+    if policy_sync.get("organizationPermissions") != {}:
+        err("policy sync App must not have organization permissions")
 
 expected_control_repositories = sorted(EXPECTED_REPOS)
 expected_control_permissions = {
@@ -511,6 +526,23 @@ if idp_groups.get("bootstrap-reviewers") != {
         "idp/mappings.yaml must map bootstrap-reviewers exactly to its verified "
         "directory group"
     )
+
+legal_team = teams.get("legal", {})
+if legal_team.get("privacy") != "closed" or legal_team.get("parent") is not None:
+    err("team legal must remain closed and standalone")
+legal_access = {
+    repository: grants["legal"]
+    for repository, grants in access.items()
+    if "legal" in grants
+}
+if legal_access != {repository: "pull" for repository in EXPECTED_REPOS}:
+    err("legal access must be exactly read-only across the seven managed repositories")
+if idp_groups.get("legal") != {
+    "github_team": "legal",
+    "status": "deferred",
+    "directory_group": None,
+}:
+    err("legal must remain an explicit activation blocker until its IdP group is verified")
 
 # Repository cross references, visibility and owner access.
 for repo, cfg in repos.items():

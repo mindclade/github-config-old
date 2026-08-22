@@ -54,6 +54,7 @@ DEFERRED_TEAMS = {
     if config.get("status") == "deferred"
 }
 ORGANIZATION_ADMIN_GROUP = str(MAPPING_CONTRACT["organization_admin_group"])
+INDEPENDENT_REVIEW_TEAMS = {"legal", "platform", "security"}
 
 
 class ExportError(RuntimeError):
@@ -227,6 +228,7 @@ def build_document(
         raise ExportError(
             "the export contains no organization members; refusing a likely destructive projection"
         )
+    validate_independent_review_membership(document)
     return document, sorted(unmapped)
 
 
@@ -238,6 +240,34 @@ def empty_team_regressions(
         if members and not generated.get("team_members", {}).get(team, []):
             regressions.append(f"{team} (had {len(members)})")
     return regressions
+
+
+def validate_independent_review_membership(document: dict[str, Any]) -> None:
+    """Require independently staffed Legal, Platform, and Security approval groups."""
+    if not INDEPENDENT_REVIEW_TEAMS.issubset(TEAM_GROUPS):
+        # A deferred mapping is already a production-activation blocker. Do not guess the
+        # directory group or turn ordinary read-only exports into a substitute mapping.
+        return
+    team_members = document.get("team_members", {})
+    populations: dict[str, set[str]] = {}
+    for team in sorted(INDEPENDENT_REVIEW_TEAMS):
+        members = team_members.get(team, [])
+        populations[team] = {str(member.get("username", "")) for member in members}
+        populations[team].discard("")
+        if not populations[team]:
+            raise ExportError(
+                f"independent approval team {team} has no resolvable GitHub members"
+            )
+    for left in sorted(INDEPENDENT_REVIEW_TEAMS):
+        for right in sorted(INDEPENDENT_REVIEW_TEAMS):
+            if left >= right:
+                continue
+            overlap = populations[left] & populations[right]
+            if overlap:
+                raise ExportError(
+                    f"independent approval teams {left} and {right} overlap: "
+                    + ", ".join(sorted(overlap))
+                )
 
 
 def render(document: dict[str, Any]) -> str:

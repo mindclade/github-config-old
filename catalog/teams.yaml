@@ -23,6 +23,10 @@ security:
   description: Security, access governance, policy, trust, and incident oversight.
   privacy: closed
   parent: null
+legal:
+  description: Legal policy, intellectual property, contract, and regulatory review authority.
+  privacy: closed
+  parent: null
 data-platform:
   description: Data ingestion, storage, lineage, and lakehouse ownership.
   privacy: closed

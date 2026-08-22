@@ -16,6 +16,12 @@ protected-paths:
     - enterprise-control
     - production-control
   enforcement: active
+legal-policy-paths:
+  target: all
+  # Legal remains an explicitly deferred IdP mapping. Keep the new three-function reviewer
+  # contract in evaluate mode until Legal, Platform, and Security are independently staffed,
+  # connected rule insights are reviewed, and the signed policy bundle/App are qualified.
+  enforcement: evaluate
 release-authority-paths:
   repositories:
     - mindclade-internal-monorepo

@@ -47,7 +47,7 @@ module "teams" {
   source = "./modules/teams"
 
   teams                   = local.teams
-  review_assignment_teams = toset(["platform", "security"])
+  review_assignment_teams = toset(["legal", "platform", "security"])
   idp_export_path         = "${path.module}/idp/team-members.json"
 }
 
@@ -76,6 +76,7 @@ module "rulesets" {
   source = "./modules/rulesets"
 
   security_team_id       = tonumber(module.teams.team_ids["security"])
+  legal_team_id          = tonumber(module.teams.team_ids["legal"])
   platform_team_id       = tonumber(module.teams.team_ids["platform"])
   infrastructure_team_id = tonumber(module.teams.team_ids["infrastructure"])
   release_team_id        = tonumber(module.teams.team_ids["release"])

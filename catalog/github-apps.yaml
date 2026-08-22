@@ -36,3 +36,17 @@ mindclade-production-qualification-reader:
     actions: read
     contents: read
     metadata: read
+mindclade-policy-sync:
+  purpose: Open review-only pull requests that synchronize the signed central policy bundle.
+  repositories:
+    - .github-private
+    - bootstrap
+    - github-config
+    - gitops
+    - infrastructure-live
+    - mindclade-internal-monorepo
+  organizationPermissions: {}
+  repositoryPermissions:
+    contents: write
+    metadata: read
+    pullRequests: write
