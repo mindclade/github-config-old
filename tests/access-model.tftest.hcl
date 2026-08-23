@@ -174,6 +174,7 @@ run "deployment_gates_match_risk" {
       output.environments["bootstrap"].prevent_self_review &&
       output.environments["bootstrap-recovery-read"].prevent_self_review &&
       output.environments["nix-cache-publication"].prevent_self_review &&
+      output.environments["workstation-image-publication"].prevent_self_review &&
       output.environments["break-glass"].prevent_self_review
     )
     error_message = "Critical control-plane environments must prevent self-review."
@@ -288,5 +289,26 @@ run "deployment_gates_match_risk" {
       contains(output.environments["production"].reviewer_teams, "security")
     )
     error_message = "GitOps staging and production promotions require protected branches, independent review, and explicit production security approval."
+  }
+}
+
+run "workstation_image_environment_is_isolated" {
+  command = plan
+  module { source = "./modules/catalog" }
+
+  assert {
+    condition = (
+      contains(output.repositories["mindclade-internal-monorepo"].environments, "workstation-image-publication") &&
+      alltrue([
+        for repository, config in output.repositories :
+        repository == "mindclade-internal-monorepo" || !contains(config.environments, "workstation-image-publication")
+      ]) &&
+      toset(output.environments["workstation-image-publication"].reviewer_teams) == toset(["platform", "security"]) &&
+      output.environments["workstation-image-publication"].wait_timer >= 5 &&
+      output.environments["workstation-image-publication"].protected_branches &&
+      output.environments["workstation-image-publication"].prevent_self_review &&
+      !output.environments["workstation-image-publication"].custom_branch_policies
+    )
+    error_message = "Workstation image publication requires its exact protected monorepo-only environment."
   }
 }

@@ -32,7 +32,7 @@ github-config:
 
 bootstrap:
   # export-ci-variables.py augments this catalog from the deployed bootstrap contract (v1.2)
-  # and also accepts the reviewed v1.4 and v1.5 successors after Ring-0 activation. In
+  # and also accepts the reviewed v1.4, v1.5, and v1.6 successors after Ring-0 activation. In
   # particular, organization/billing/GitHub immutable IDs and state buckets come directly from
   # that machine contract; operators cannot substitute free-form copies of those identifiers.
   RESOURCE_PREFIX: mc
@@ -74,6 +74,17 @@ infrastructure-live:
   # Bootstrap 1.5 replaces this inert sentinel with the exact dedicated provider and route
   # contract. It is an infrastructure input only; it does not activate a cache client.
   BAZEL_CACHE_IDENTITY_JSON: '{}'
+  # Bootstrap 1.6 replaces this sentinel with the exact protected workstation-image publisher.
+  # It is an infrastructure input and cannot by itself publish an object or create an image.
+  WORKSTATION_IMAGE_IDENTITY_JSON: '{}'
+  # These five values form one reviewable publication-evidence transition. The blocked tuple is
+  # deliberately unusable by Terraform. A later evidence PR may change all five together only
+  # after the protected v5 workflow publishes and independently qualifies the exact object.
+  WORKSTATION_IMAGE_SOURCE_STATE: blocked
+  WORKSTATION_IMAGE_SOURCE_URI: unpublished
+  WORKSTATION_IMAGE_SOURCE_OBJECT_GENERATION: "0"
+  WORKSTATION_IMAGE_SOURCE_SHA256: "0000000000000000000000000000000000000000000000000000000000000000"
+  WORKSTATION_IMAGE_CONTRACT_SHA256: "0000000000000000000000000000000000000000000000000000000000000000"
 
 gitops:
   RENDER_APP_ID: env:RENDER_APP_ID
@@ -104,11 +115,16 @@ mindclade-internal-monorepo:
   # This server-side half of the dual gate remains inert until the monorepo source contract,
   # restricted evidence, module release, and job-scoped OIDC permission are reviewed together.
   BAZEL_REMOTE_CACHE_STATE: blocked
-  # These values may come only from applied handoff 1.4.0 after bootstrap 1.5 and the
+  # These values may come only from applied handoff 1.4.0+ after bootstrap 1.5+ and the
   # authoritative automation IAM unit have both been applied. Raw operator values are rejected.
   WIF_PROVIDER_BAZEL_CACHE: env:WIF_PROVIDER_BAZEL_CACHE
   SA_BAZEL_CACHE_READER: env:SA_BAZEL_CACHE_READER
   SA_BAZEL_CACHE_WRITER: env:SA_BAZEL_CACHE_WRITER
+  # Applied infrastructure handoff 1.5 supplies all three values together. The environment and
+  # WIF condition still gate use; these non-secret values are never constructed from names.
+  WIF_PROVIDER_WORKSTATION_IMAGE: env:WIF_PROVIDER_WORKSTATION_IMAGE
+  SA_WORKSTATION_IMAGE_BUILDER: env:SA_WORKSTATION_IMAGE_BUILDER
+  WORKSTATION_IMAGE_BUCKET: env:WORKSTATION_IMAGE_BUCKET
   SA_ARC_CANARY: env:SA_ARC_CANARY
   SA_ARTIFACT_BUILDER: env:SA_ARTIFACT_BUILDER
   SA_ARTIFACT_QUALIFICATION_READER: env:SA_ARTIFACT_QUALIFICATION_READER

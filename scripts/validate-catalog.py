@@ -75,6 +75,7 @@ EXPECTED_ENVIRONMENTS = {
     "bootstrap-recovery-read",
     "release",
     "nix-cache-publication",
+    "workstation-image-publication",
     "workflow-release-platform",
     "workflow-release-security",
     "repository-observability",
@@ -895,6 +896,7 @@ for name, cfg in environments.items():
         "production",
         "release",
         "nix-cache-publication",
+        "workstation-image-publication",
         "workflow-release-platform",
         "workflow-release-security",
         "repository-maintenance",
@@ -963,6 +965,25 @@ cache_environment_repositories = {
 }
 if cache_environment_repositories != {"mindclade-internal-monorepo"}:
     err("nix-cache-publication must be assigned only to mindclade-internal-monorepo")
+workstation_image_environment = environments.get("workstation-image-publication", {})
+if (
+    set(workstation_image_environment.get("reviewer_teams", [])) != {"platform", "security"}
+    or workstation_image_environment.get("wait_timer", 0) < 5
+    or not workstation_image_environment.get("protected_branches")
+    or workstation_image_environment.get("custom_branch_policies")
+    or not workstation_image_environment.get("prevent_self_review")
+):
+    err(
+        "environment workstation-image-publication requires protected main, platform and "
+        "security review, no self-review, and a wait timer"
+    )
+workstation_image_repositories = {
+    repository
+    for repository, config in repos.items()
+    if "workstation-image-publication" in config.get("environments", [])
+}
+if workstation_image_repositories != {"mindclade-internal-monorepo"}:
+    err("workstation-image-publication must be assigned only to mindclade-internal-monorepo")
 break_glass_environment = environments.get("break-glass", {})
 if set(break_glass_environment.get("reviewer_teams", [])) != {"security"}:
     err(
@@ -1427,6 +1448,74 @@ expected_bazel_cache_variables = {
 if bazel_cache_variables != expected_bazel_cache_variables:
     err("ci-variables: Bazel cache variable inventory is not exact")
 
+workstation_image_variables = {
+    repository: {name for name in variables if "WORKSTATION_IMAGE" in name}
+    for repository, variables in ci_variables.items()
+}
+expected_workstation_image_variables = {
+    ".github": set(),
+    ".github-private": set(),
+    "github-config": set(),
+    "bootstrap": set(),
+    "infrastructure-live": {
+        "WORKSTATION_IMAGE_IDENTITY_JSON",
+        "WORKSTATION_IMAGE_SOURCE_STATE",
+        "WORKSTATION_IMAGE_SOURCE_URI",
+        "WORKSTATION_IMAGE_SOURCE_OBJECT_GENERATION",
+        "WORKSTATION_IMAGE_SOURCE_SHA256",
+        "WORKSTATION_IMAGE_CONTRACT_SHA256",
+    },
+    "gitops": set(),
+    "mindclade-internal-monorepo": {
+        "WIF_PROVIDER_WORKSTATION_IMAGE",
+        "SA_WORKSTATION_IMAGE_BUILDER",
+        "WORKSTATION_IMAGE_BUCKET",
+    },
+}
+if workstation_image_variables != expected_workstation_image_variables:
+    err("ci-variables: workstation image variable inventory is not exact")
+
+blocked_digest = "0" * 64
+infrastructure_variables = ci_variables.get("infrastructure-live", {})
+blocked_workstation_source = {
+    "WORKSTATION_IMAGE_SOURCE_STATE": "blocked",
+    "WORKSTATION_IMAGE_SOURCE_URI": "unpublished",
+    "WORKSTATION_IMAGE_SOURCE_OBJECT_GENERATION": "0",
+    "WORKSTATION_IMAGE_SOURCE_SHA256": blocked_digest,
+    "WORKSTATION_IMAGE_CONTRACT_SHA256": blocked_digest,
+}
+workstation_source = {
+    name: str(infrastructure_variables.get(name, ""))
+    for name in blocked_workstation_source
+}
+if workstation_source["WORKSTATION_IMAGE_SOURCE_STATE"] == "blocked":
+    if workstation_source != blocked_workstation_source:
+        err("ci-variables: blocked workstation image source tuple differs")
+elif workstation_source["WORKSTATION_IMAGE_SOURCE_STATE"] == "qualified-v1":
+    source_sha256 = workstation_source["WORKSTATION_IMAGE_SOURCE_SHA256"]
+    if (
+        re.fullmatch(r"[1-9][0-9]{0,31}", workstation_source["WORKSTATION_IMAGE_SOURCE_OBJECT_GENERATION"])
+        is None
+        or re.fullmatch(r"[a-f0-9]{64}", source_sha256) is None
+        or source_sha256 == blocked_digest
+        or re.fullmatch(
+            r"[a-f0-9]{64}",
+            workstation_source["WORKSTATION_IMAGE_CONTRACT_SHA256"],
+        )
+        is None
+        or workstation_source["WORKSTATION_IMAGE_CONTRACT_SHA256"] == blocked_digest
+        or re.fullmatch(
+            rf"https://storage[.]googleapis[.]com/mc-common-ci-workstation-images/"
+            rf"workstation-images/mindclade-workstation-[a-f0-9]{{40,64}}-{source_sha256}"
+            rf"[.]tar[.]gz",
+            workstation_source["WORKSTATION_IMAGE_SOURCE_URI"],
+        )
+        is None
+    ):
+        err("ci-variables: qualified workstation image source evidence differs")
+else:
+    err("ci-variables: workstation image source state must be blocked or qualified-v1")
+
 ci_variable_exporter = (ROOT / "scripts" / "export-ci-variables.py").read_text(
     encoding="utf-8"
 )
@@ -1439,6 +1528,7 @@ required_export_fragments = {
     "infrastructure-live/ARTIFACT_SIGNER_JOB_WORKFLOW_REF": '"ARTIFACT_SIGNER_JOB_WORKFLOW_REF"',
     "infrastructure-live/PRODUCTION_QUALIFICATION_IDENTITY_JSON": '"PRODUCTION_QUALIFICATION_IDENTITY_JSON"',
     "infrastructure-live/BAZEL_CACHE_IDENTITY_JSON": '"BAZEL_CACHE_IDENTITY_JSON"',
+    "infrastructure-live/WORKSTATION_IMAGE_IDENTITY_JSON": '"WORKSTATION_IMAGE_IDENTITY_JSON"',
     "github-config/DR_EVIDENCE_ENVIRONMENT_VARIABLES": '"DR_EVIDENCE_ENVIRONMENT_VARIABLES"',
     "monorepo/WIF_PROVIDER_SIGNER": '"WIF_PROVIDER_SIGNER"',
     "monorepo/WIF_PROVIDER_ARC_CANARY": '"WIF_PROVIDER_ARC_CANARY"',
@@ -1449,6 +1539,9 @@ required_export_fragments = {
     "monorepo/WIF_PROVIDER_BAZEL_CACHE": '"WIF_PROVIDER_BAZEL_CACHE"',
     "monorepo/SA_BAZEL_CACHE_READER": '"SA_BAZEL_CACHE_READER"',
     "monorepo/SA_BAZEL_CACHE_WRITER": '"SA_BAZEL_CACHE_WRITER"',
+    "monorepo/WIF_PROVIDER_WORKSTATION_IMAGE": '"WIF_PROVIDER_WORKSTATION_IMAGE"',
+    "monorepo/SA_WORKSTATION_IMAGE_BUILDER": '"SA_WORKSTATION_IMAGE_BUILDER"',
+    "monorepo/WORKSTATION_IMAGE_BUCKET": '"WORKSTATION_IMAGE_BUCKET"',
 }
 for name, fragment in required_export_fragments.items():
     if fragment not in ci_variable_exporter:
@@ -1456,7 +1549,7 @@ for name, fragment in required_export_fragments.items():
 if '"platform_contract"' not in ci_variable_exporter:
     err("ci-variable exporter must source bootstrap/platform_contract")
 for fragment in (
-    'SUPPORTED_BOOTSTRAP_CONTRACT_VERSIONS = {"1.2.0", "1.4.0", "1.5.0"}',
+    'SUPPORTED_BOOTSTRAP_CONTRACT_VERSIONS = {"1.2.0", "1.4.0", "1.5.0", "1.6.0"}',
     '"replica_buckets"',
     'if enabled or buildkite.get("workload_identity_pool") is not None',
     '"workload_identity_pool"',
@@ -1469,10 +1562,13 @@ for fragment in (
     "production_qualification_identity_contract(",
     "bazel_cache_identity_contract(",
     "validate_applied_bazel_cache_handoff(",
+    "workstation_image_identity_contract(",
+    "validate_applied_workstation_image_handoff(",
     "load_applied_handoff(",
     "apply_applied_handoff(",
     '"1.3.0": APPLIED_HANDOFF_V13_VARIABLES',
     '"1.4.0": APPLIED_HANDOFF_V13_VARIABLES',
+    '"1.5.0": (',
     'applied_handoff.contract_version != "1.4.0"',
     'choices=("bootstrap", "full")',
 ):

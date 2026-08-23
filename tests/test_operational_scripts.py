@@ -289,6 +289,70 @@ class ExportSafetyTest(unittest.TestCase):
         )
         return CI.AppliedHandoff(contract_version="1.4.0", variables=variables)
 
+    @classmethod
+    def staged_v16_contract(cls) -> dict[str, object]:
+        platform = cls.staged_v15_contract()
+        platform["contract_version"] = "1.6.0"
+        github = platform["github"]
+        pool = github["workload_identity_pool"]
+        repository_identity = github["repository_identities"][
+            "mindclade-internal-monorepo"
+        ]
+        subject = (
+            f"repo:mindclade@{repository_identity['repository_owner_id']}/"
+            f"mindclade-internal-monorepo@{repository_identity['repository_id']}:"
+            "environment:workstation-image-publication"
+        )
+        github["workstation_image_identity"] = {
+            "workload_identity_provider": f"{pool}/providers/gh-workstation-image",
+            "principal": (
+                f"principal://iam.googleapis.com/{pool}/subject/"
+                f"workstation-image:{subject}"
+            ),
+            "repository": "mindclade/mindclade-internal-monorepo",
+            "repository_id": repository_identity["repository_id"],
+            "subject": subject,
+            "workflow_ref": (
+                "mindclade/mindclade-internal-monorepo/.github/workflows/"
+                "nixos-image.yml@refs/heads/main"
+            ),
+            "job_workflow_ref": (
+                "mindclade/.github/.github/workflows/"
+                "reusable-nixos-gce-image-publish.yml@refs/tags/v5.0.0"
+            ),
+        }
+        return platform
+
+    @staticmethod
+    def staged_v15_handoff(platform: dict[str, object]) -> object:
+        variables = {
+            name: f"value-{name.lower()}"
+            for name in CI.APPLIED_HANDOFF_VARIABLES_BY_VERSION["1.5.0"]
+        }
+        project = "mc-common-ci"
+        variables.update(
+            {
+                "CI_PROJECT_ID": project,
+                "WIF_PROVIDER_BAZEL_CACHE": platform["github"][
+                    "bazel_cache_identity"
+                ]["workload_identity_provider"],
+                "SA_BAZEL_CACHE_READER": (
+                    f"bazel-cache-reader@{project}.iam.gserviceaccount.com"
+                ),
+                "SA_BAZEL_CACHE_WRITER": (
+                    f"bazel-cache-writer@{project}.iam.gserviceaccount.com"
+                ),
+                "WIF_PROVIDER_WORKSTATION_IMAGE": platform["github"][
+                    "workstation_image_identity"
+                ]["workload_identity_provider"],
+                "SA_WORKSTATION_IMAGE_BUILDER": (
+                    f"workstation-image-pub@{project}.iam.gserviceaccount.com"
+                ),
+                "WORKSTATION_IMAGE_BUCKET": "mc-common-ci-workstation-images",
+            }
+        )
+        return CI.AppliedHandoff(contract_version="1.5.0", variables=variables)
+
     def test_deployed_v12_contract_keeps_arc_authority_inactive(self) -> None:
         catalog = {
             ".github": {},
@@ -319,6 +383,20 @@ class ExportSafetyTest(unittest.TestCase):
         self.assertNotIn(
             "WIF_PROVIDER_ARC_BUILDER", payload["mindclade-internal-monorepo"]
         )
+
+    def test_v16_workstation_image_handoff_is_exact(self) -> None:
+        platform = self.staged_v16_contract()
+        pool = platform["github"]["workload_identity_pool"]
+        identity = CI.workstation_image_identity_contract(
+            platform["github"], pool, "mindclade"
+        )
+        handoff = self.staged_v15_handoff(platform)
+        CI.validate_applied_workstation_image_handoff(handoff, identity)
+        handoff.variables["SA_WORKSTATION_IMAGE_BUILDER"] = handoff.variables[
+            "SA_BAZEL_CACHE_READER"
+        ]
+        with self.assertRaisesRegex(ValueError, "publisher differs"):
+            CI.validate_applied_workstation_image_handoff(handoff, identity)
 
     def test_deployed_v12_rejects_a_future_signer_workflow(self) -> None:
         platform = self.deployed_v12_contract()

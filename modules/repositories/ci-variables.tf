@@ -151,6 +151,8 @@ locals {
       v.repository == "infrastructure-live" && v.name == "WIF_PROVIDER_SIGNER"
       ) && !(
       v.repository == "mindclade-internal-monorepo" && v.name == "WIF_PROVIDER_BAZEL_CACHE"
+      ) && !(
+      v.repository == "mindclade-internal-monorepo" && v.name == "WIF_PROVIDER_WORKSTATION_IMAGE"
     )
   }
 }
@@ -303,6 +305,99 @@ check "bazel_remote_cache_activation_is_safe" {
   }
 }
 
+locals {
+  workstation_image_source_contract_raw = try(
+    var.ci_variables["infrastructure-live"]["WORKSTATION_IMAGE_IDENTITY_JSON"],
+    ""
+  )
+  workstation_image_source_contract = try(
+    jsondecode(local.workstation_image_source_contract_raw),
+    {}
+  )
+  workstation_image_handoff = {
+    provider  = try(var.ci_variables["mindclade-internal-monorepo"]["WIF_PROVIDER_WORKSTATION_IMAGE"], "")
+    publisher = try(var.ci_variables["mindclade-internal-monorepo"]["SA_WORKSTATION_IMAGE_BUILDER"], "")
+    bucket    = try(var.ci_variables["mindclade-internal-monorepo"]["WORKSTATION_IMAGE_BUCKET"], "")
+  }
+  workstation_image_source = {
+    state = try(
+      var.ci_variables["infrastructure-live"]["WORKSTATION_IMAGE_SOURCE_STATE"],
+      ""
+    )
+    uri = try(
+      var.ci_variables["infrastructure-live"]["WORKSTATION_IMAGE_SOURCE_URI"],
+      ""
+    )
+    generation = try(
+      var.ci_variables["infrastructure-live"]["WORKSTATION_IMAGE_SOURCE_OBJECT_GENERATION"],
+      ""
+    )
+    source_sha256 = try(
+      var.ci_variables["infrastructure-live"]["WORKSTATION_IMAGE_SOURCE_SHA256"],
+      ""
+    )
+    contract_sha256 = try(
+      var.ci_variables["infrastructure-live"]["WORKSTATION_IMAGE_CONTRACT_SHA256"],
+      ""
+    )
+  }
+}
+
+check "workstation_image_handoff_is_exact" {
+  assert {
+    condition = alltrue([for value in values(local.workstation_image_handoff) : value == ""]) && contains(["", "{}"], local.workstation_image_source_contract_raw) ? true : try(
+      toset(keys(local.workstation_image_source_contract)) == toset([
+        "workload_identity_provider", "principal", "repository", "repository_id",
+        "subject", "workflow_ref", "job_workflow_ref",
+      ]) &&
+      can(regex(
+        "^projects/[0-9]+/locations/global/workloadIdentityPools/github/providers/gh-workstation-image$",
+        local.workstation_image_source_contract.workload_identity_provider
+      )) &&
+      local.workstation_image_source_contract.repository == "mindclade/mindclade-internal-monorepo" &&
+      can(regex("^[0-9]+$", local.workstation_image_source_contract.repository_id)) &&
+      can(regex(
+        "^repo:mindclade@[0-9]+/mindclade-internal-monorepo@[0-9]+:environment:workstation-image-publication$",
+        local.workstation_image_source_contract.subject
+      )) &&
+      local.workstation_image_source_contract.principal == "principal://iam.googleapis.com/${trimsuffix(local.workstation_image_source_contract.workload_identity_provider, "/providers/gh-workstation-image")}/subject/workstation-image:${local.workstation_image_source_contract.subject}" &&
+      local.workstation_image_source_contract.workflow_ref == "mindclade/mindclade-internal-monorepo/.github/workflows/nixos-image.yml@refs/heads/main" &&
+      local.workstation_image_source_contract.job_workflow_ref == "mindclade/.github/.github/workflows/reusable-nixos-gce-image-publish.yml@refs/tags/v5.0.0" &&
+      local.workstation_image_handoff.provider == local.workstation_image_source_contract.workload_identity_provider &&
+      can(regex(
+        "^[a-z][a-z0-9-]*-common-ci$",
+        try(var.ci_variables["mindclade-internal-monorepo"]["CI_PROJECT_ID"], "")
+      )) &&
+      local.workstation_image_handoff.publisher == "workstation-image-pub@${try(var.ci_variables["mindclade-internal-monorepo"]["CI_PROJECT_ID"], "")}.iam.gserviceaccount.com" &&
+      local.workstation_image_handoff.bucket == "mc-common-ci-workstation-images",
+      false,
+    )
+    error_message = "The workstation image handoff must be wholly absent before bootstrap 1.6 or contain the exact applied provider, publisher, source bucket, immutable caller, and v5 workflow contract."
+  }
+}
+
+check "workstation_image_source_evidence_is_atomic" {
+  assert {
+    condition = local.workstation_image_source.state == "blocked" ? (
+      local.workstation_image_source.uri == "unpublished" &&
+      local.workstation_image_source.generation == "0" &&
+      local.workstation_image_source.source_sha256 == "0000000000000000000000000000000000000000000000000000000000000000" &&
+      local.workstation_image_source.contract_sha256 == "0000000000000000000000000000000000000000000000000000000000000000"
+      ) : local.workstation_image_source.state == "qualified-v1" ? (
+      can(regex("^[1-9][0-9]{0,31}$", local.workstation_image_source.generation)) &&
+      can(regex("^[a-f0-9]{64}$", local.workstation_image_source.source_sha256)) &&
+      local.workstation_image_source.source_sha256 != "0000000000000000000000000000000000000000000000000000000000000000" &&
+      can(regex("^[a-f0-9]{64}$", local.workstation_image_source.contract_sha256)) &&
+      local.workstation_image_source.contract_sha256 != "0000000000000000000000000000000000000000000000000000000000000000" &&
+      can(regex(
+        "^https://storage[.]googleapis[.]com/mc-common-ci-workstation-images/workstation-images/mindclade-workstation-[a-f0-9]{40,64}-${local.workstation_image_source.source_sha256}[.]tar[.]gz$",
+        local.workstation_image_source.uri
+      ))
+    ) : false
+    error_message = "Workstation image source evidence must be the exact blocked sentinel tuple or one atomic qualified-v1 transition bound to a content-addressed object in the applied source bucket."
+  }
+}
+
 # infrastructure-live consumes the same bootstrap account values both as individual workflow
 # variables and as one source-bound handoff record. The record is generated from the complete
 # applied platform_contract and a clean bootstrap commit; it is never human-authored catalog
@@ -351,7 +446,7 @@ check "bootstrap_account_handoff_is_exact" {
         "service_accounts",
       ]) &&
       local.bootstrap_account_handoff.schema_version == 1 &&
-      local.bootstrap_account_handoff.bootstrap_contract_version == "1.5.0" &&
+      contains(["1.5.0", "1.6.0"], local.bootstrap_account_handoff.bootstrap_contract_version) &&
       can(regex("^[0-9a-f]{40}$", local.bootstrap_account_handoff.bootstrap_source_commit)) &&
       can(regex("^sha256:[0-9a-f]{64}$", local.bootstrap_account_handoff.platform_contract_sha256)) &&
       local.bootstrap_account_handoff.state_location == "US" &&
