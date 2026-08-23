@@ -35,6 +35,12 @@ Mindclade's repository-home action is allowlisted only at its exact
 `mindclade/.github/actions/validate-repository-home` subpath; adding another first-party action
 requires its own reviewed catalog entry.
 
+Workflow-release preflights compare connected tag governance to `RELEASE_TEAM_ID`. Terraform
+derives that repository variable directly from the immutable Release-team resource; it is not a
+catalog or operator input and grants no authority. Missing environment protections, an inactive
+creation rule, a different bypass actor, or an API response that omits bypass evidence blocks
+draft assembly and publication.
+
 Nix cache publication uses the dedicated `nix-cache-publication` environment on only
 `mindclade-internal-monorepo`. It requires protected main, reviewer eligibility from Platform or
 Security, a five-minute wait, and no self-review. GitHub requires one eligible environment
