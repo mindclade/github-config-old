@@ -1,0 +1,72 @@
+# Copyright © 2026 Mindclade, LLC. All Rights Reserved.
+# Mindclade Proprietary and Confidential.
+# SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
+
+---
+schema_version: 1
+rollout_order:
+  - repository: mindclade-internal-monorepo
+    github_actions_integration_id: 15368
+    required_contexts:
+      - ci / build
+      - codeql-go / analyze (go)
+      - python / build
+      - rust / build
+      - architecture
+      - Go registry + admission / live PostgreSQL and failure injection
+      - bazel / verdict
+      - infra-static
+    permanent_rulesets:
+      - required-checks-go
+      - required-checks-mixed
+      - required-checks-infra-static
+    status: blocked
+    blocker: >-
+      Exact positive pull-request and merge-group results, an intentional merge-group failure,
+      and the connected permanent-ruleset audit have not been independently reviewed.
+    evidence:
+      positive_pull_request: null
+      positive_merge_group: null
+      intentional_negative_merge_group: null
+      permanent_ruleset_audit: null
+  - repository: gitops
+    github_actions_integration_id: 15368
+    required_contexts:
+      - contract
+      - lint
+      - schema
+      - policy
+      - exemptions
+      - promotion-integrity
+      - repository-invariants
+    permanent_rulesets:
+      - required-checks-gitops
+    status: blocked
+    blocker: >-
+      The monorepo rollout must qualify first, then GitOps needs exact positive, negative, and
+      connected permanent-ruleset evidence for its merge-group-safe checks.
+    evidence:
+      positive_pull_request: null
+      positive_merge_group: null
+      intentional_negative_merge_group: null
+      permanent_ruleset_audit: null
+  - repository: infrastructure-live
+    github_actions_integration_id: 15368
+    required_contexts:
+      - fmt
+      - validate
+      - plan
+      - tflint
+      - checkov
+    permanent_rulesets:
+      - required-checks-tf
+      - required-checks-tf-static-infrastructure-live
+    status: blocked
+    blocker: >-
+      The earlier repositories must qualify first, and protected read-only WIF planning must
+      report successfully on a merge group within the bounded queue timeout.
+    evidence:
+      positive_pull_request: null
+      positive_merge_group: null
+      intentional_negative_merge_group: null
+      permanent_ruleset_audit: null

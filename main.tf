@@ -82,9 +82,11 @@ module "rulesets" {
   release_team_id        = tonumber(module.teams.team_ids["release"])
   dot_github_repo_id     = module.repositories.repository_ids[".github"]
 
-  rulesets              = module.catalog.rulesets
-  repositories          = local.repositories
-  enforcement_overrides = var.ruleset_enforcement_overrides
+  rulesets                                     = module.catalog.rulesets
+  repositories                                 = local.repositories
+  enforcement_overrides                        = var.ruleset_enforcement_overrides
+  merge_queue_repository_enforcement_overrides = var.merge_queue_repository_enforcement_overrides
+  merge_queue_canary_required_checks           = var.merge_queue_canary_required_checks
   release_tag_creation_control_qualified = (
     module.catalog.governance_activation.gates.release_tag_creation_control_qualified == "qualified"
   )

@@ -33,7 +33,8 @@ resource "github_organization_ruleset" "required_checks_infra_static" {
   rules {
     required_status_checks {
       required_check {
-        context = "infra-static"
+        context        = "infra-static"
+        integration_id = local.github_actions_integration_id
       }
 
       strict_required_status_checks_policy = true

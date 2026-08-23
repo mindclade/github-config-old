@@ -87,10 +87,10 @@ run "policy_catalog_is_production_grade" {
 
   assert {
     condition = (
-      output.rulesets["required-checks-gitops"].enforcement == "active" &&
+      output.rulesets["required-checks-gitops"].enforcement == "evaluate" &&
       output.rulesets["required-checks-gitops"].repositories == ["gitops"]
     )
-    error_message = "GitOps merge-queue changes must require repository-local static checks."
+    error_message = "GitOps merge-queue checks must remain evaluate until the staged queue is qualified."
   }
 
   assert {
@@ -133,7 +133,6 @@ run "policy_catalog_is_production_grade" {
         (
           output.governance_activation.gates.monorepo_bazel_verdict_observed == "qualified" &&
           output.governance_activation.gates.monorepo_merge_group_full_graph_observed == "qualified" &&
-          output.governance_activation.gates.monorepo_affected_latency_qualified == "qualified" &&
           output.governance_activation.gates.rulesets_connected_audit == "qualified"
         )
       )
@@ -153,6 +152,22 @@ run "policy_catalog_is_production_grade" {
       ])
     )
     error_message = "Infrastructure cost enforcement must remain blocked until one stable verdict reports on pull requests and merge groups."
+  }
+
+  assert {
+    condition = (
+      output.merge_queue_readiness.schema_version == 1 &&
+      [for contract in output.merge_queue_readiness.rollout_order : contract.repository] == [
+        "mindclade-internal-monorepo",
+        "gitops",
+        "infrastructure-live",
+      ] &&
+      alltrue([
+        for contract in output.merge_queue_readiness.rollout_order :
+        contract.github_actions_integration_id == 15368 && contract.status == "blocked"
+      ])
+    )
+    error_message = "Merge-queue readiness must start blocked in exact repository order and pin the GitHub Actions integration."
   }
 
   assert {

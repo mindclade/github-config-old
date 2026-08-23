@@ -32,13 +32,34 @@ resource "github_organization_ruleset" "required_checks_gitops" {
 
   rules {
     required_status_checks {
-      required_check { context = "contract" }
-      required_check { context = "lint" }
-      required_check { context = "schema" }
-      required_check { context = "policy" }
-      required_check { context = "exemptions" }
-      required_check { context = "promotion-integrity" }
-      required_check { context = "repository-invariants" }
+      required_check {
+        context        = "contract"
+        integration_id = local.github_actions_integration_id
+      }
+      required_check {
+        context        = "lint"
+        integration_id = local.github_actions_integration_id
+      }
+      required_check {
+        context        = "schema"
+        integration_id = local.github_actions_integration_id
+      }
+      required_check {
+        context        = "policy"
+        integration_id = local.github_actions_integration_id
+      }
+      required_check {
+        context        = "exemptions"
+        integration_id = local.github_actions_integration_id
+      }
+      required_check {
+        context        = "promotion-integrity"
+        integration_id = local.github_actions_integration_id
+      }
+      required_check {
+        context        = "repository-invariants"
+        integration_id = local.github_actions_integration_id
+      }
 
       strict_required_status_checks_policy = true
       do_not_enforce_on_create             = true

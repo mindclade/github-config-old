@@ -45,23 +45,25 @@ resource "github_organization_ruleset" "required_checks_go" {
       # reusable workflow is "<caller job id> / <called job id>". Getting this wrong produces
       # a check that is required and never satisfied.
       required_check {
-        context = "ci / build"
+        context        = "ci / build"
+        integration_id = local.github_actions_integration_id
       }
 
       # Was "CodeQL", which nothing in this org can produce. Two things make the real context
       # longer than the bare name:
       #
       #   - it comes from a called reusable workflow, so it carries the "<caller> / <called>"
-      #     prefix like the Go check above — here `codeql` calling reusable-codeql's `analyze`;
+      #     prefix like the Go check above — here `codeql-go` calling reusable-codeql's `analyze`;
       #   - `analyze` is a matrix over languages, and GitHub appends the matrix value to each
-      #     check run. There is no aggregate "codeql / analyze" run to require.
+      #     check run. There is no aggregate "codeql-go / analyze" run to require.
       #
       # Only the `go` leg is required. This ruleset also covers `mindclade_language_profile = mixed` repos, which
       # additionally produce `(python)` and `(javascript-typescript)` legs — but requiring those
       # would block a pure-Go repo forever on checks its CI never runs. The `go` leg is the one
       # every repository this ruleset targets is guaranteed to emit.
       required_check {
-        context = "codeql / analyze (go)"
+        context        = "codeql-go / analyze (go)"
+        integration_id = local.github_actions_integration_id
       }
 
       # Re-run checks against the merge result, not the branch head. Without this, two PRs

@@ -24,6 +24,23 @@ variable "ruleset_enforcement_overrides" {
   }
 }
 
+variable "merge_queue_repository_enforcement_overrides" {
+  description = "Reviewed per-repository merge-queue enforcement. Omitted repositories remain in evaluate mode."
+  type        = map(string)
+  default     = {}
+
+  validation {
+    condition     = alltrue([for _, value in var.merge_queue_repository_enforcement_overrides : contains(["active", "evaluate", "disabled"], value)])
+    error_message = "Each merge-queue repository enforcement override must be active, evaluate, or disabled."
+  }
+}
+
+variable "merge_queue_canary_required_checks" {
+  description = "Temporary repository-local required check contexts used while qualifying one merge queue."
+  type        = map(set(string))
+  default     = {}
+}
+
 variable "ci_variables" {
   description = "Non-secret repository Actions variables generated from authoritative outputs."
   type        = map(map(string))

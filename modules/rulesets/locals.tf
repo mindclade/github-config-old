@@ -3,7 +3,8 @@
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
 
 locals {
-  ruleset_names = sort(keys(var.rulesets))
+  github_actions_integration_id = 15368
+  ruleset_names                 = sort(keys(var.rulesets))
   enforcement = {
     for name, config in var.rulesets :
     name => try(var.enforcement_overrides[name], config.enforcement)
@@ -36,6 +37,7 @@ check "catalog_matches_implemented_rulesets" {
       "required-checks-nix",
       "required-checks-tf",
       "required-checks-tf-static",
+      "required-checks-tf-static-infrastructure-live",
       "required-checks-tf-tests",
       "ruleset-workflows",
       "tag-protection",

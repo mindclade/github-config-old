@@ -5,7 +5,7 @@
 # Required status checks for polyglot repositories, selected by `mindclade_language_profile = mixed`.
 #
 # WHY THIS EXISTS. required-checks-go requires exactly two contexts — "ci / build" and
-# "codeql / analyze (go)". A `mixed` repository also runs a Python lane and a Rust lane, and
+# "codeql-go / analyze (go)". A `mixed` repository also runs a Python lane and a Rust lane, and
 # neither was required by anything, so a pull request could go red in both and still merge.
 #
 # That is not hypothetical. mindclade commit d74b978 ("refactor(training): migrate distributed
@@ -57,11 +57,13 @@ resource "github_organization_ruleset" "required_checks_mixed" {
       # reusable-rust-ci name their job `build`, so the caller's job id is what distinguishes
       # them: mindclade's presubmit.yml calls them from jobs `python` and `rust`.
       required_check {
-        context = "python / build"
+        context        = "python / build"
+        integration_id = local.github_actions_integration_id
       }
 
       required_check {
-        context = "rust / build"
+        context        = "rust / build"
+        integration_id = local.github_actions_integration_id
       }
 
       # A plain job in the caller, so the context is the job's own name. This is the lane that
@@ -69,10 +71,11 @@ resource "github_organization_ruleset" "required_checks_mixed" {
       # maturity, Cargo/Bazel parity.
       #
       # The header on locals.tf already claimed required-checks-go enforced this. It never
-      # did; that ruleset requires "ci / build" and "codeql / analyze (go)". The claim is
+      # did; that ruleset requires "ci / build" and "codeql-go / analyze (go)". The claim is
       # true from here on.
       required_check {
-        context = "architecture"
+        context        = "architecture"
+        integration_id = local.github_actions_integration_id
       }
 
       # This stable caller-job name qualifies the real PostgreSQL registry and admission
@@ -80,7 +83,8 @@ resource "github_organization_ruleset" "required_checks_mixed" {
       # Keep the ruleset in evaluate mode until the context is observed on pull_request and
       # merge_group runs and an intentional failure proves enforcement.
       required_check {
-        context = "Go registry + admission / live PostgreSQL and failure injection"
+        context        = "Go registry + admission / live PostgreSQL and failure injection"
+        integration_id = local.github_actions_integration_id
       }
 
       # The monorepo emits this exact stable caller-job name on pull_request and merge_group.
@@ -88,7 +92,8 @@ resource "github_organization_ruleset" "required_checks_mixed" {
       # execute the full configured graph before the queue may merge the change. Keep this
       # ruleset in evaluate until both event shapes and an intentional failure are observed.
       required_check {
-        context = "bazel / verdict"
+        context        = "bazel / verdict"
+        integration_id = local.github_actions_integration_id
       }
 
       # Re-run checks against the merge result, not the branch head. Without this, two PRs

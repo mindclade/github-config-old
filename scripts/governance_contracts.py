@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any, Mapping
 
 
@@ -17,13 +18,11 @@ EVIDENCE_GATED_RULESET_GATES = {
     "required-checks-go": (
         "monorepo_bazel_verdict_observed",
         "monorepo_merge_group_full_graph_observed",
-        "monorepo_affected_latency_qualified",
         "rulesets_connected_audit",
     ),
     "required-checks-mixed": (
         "monorepo_bazel_verdict_observed",
         "monorepo_merge_group_full_graph_observed",
-        "monorepo_affected_latency_qualified",
         "rulesets_connected_audit",
     ),
     "required-checks-infra-static": (
@@ -37,6 +36,81 @@ EVIDENCE_GATED_RULESET_GATES = {
         "release_environments_qualified",
     ),
 }
+
+GITHUB_ACTIONS_INTEGRATION_ID = 15368
+MERGE_QUEUE_REQUIRED_STATUS_CHECK_CONTEXTS = {
+    "required-checks-go": (
+        "ci / build",
+        "codeql-go / analyze (go)",
+    ),
+    "required-checks-mixed": (
+        "python / build",
+        "rust / build",
+        "architecture",
+        "Go registry + admission / live PostgreSQL and failure injection",
+        "bazel / verdict",
+    ),
+    "required-checks-infra-static": ("infra-static",),
+    "required-checks-gitops": (
+        "contract",
+        "lint",
+        "schema",
+        "policy",
+        "exemptions",
+        "promotion-integrity",
+        "repository-invariants",
+    ),
+    "required-checks-tf": ("fmt", "validate", "plan"),
+    "required-checks-tf-static-infrastructure-live": ("tflint", "checkov"),
+}
+MERGE_QUEUE_REPOSITORY_RULESETS = (
+    (
+        "mindclade-internal-monorepo",
+        (
+            "required-checks-go",
+            "required-checks-mixed",
+            "required-checks-infra-static",
+        ),
+    ),
+    (
+        "gitops",
+        ("required-checks-gitops",),
+    ),
+    (
+        "infrastructure-live",
+        (
+            "required-checks-tf",
+            "required-checks-tf-static-infrastructure-live",
+        ),
+    ),
+)
+MERGE_QUEUE_ROLLOUT = tuple(
+    (
+        repository,
+        tuple(
+            context
+            for ruleset in permanent_rulesets
+            for context in MERGE_QUEUE_REQUIRED_STATUS_CHECK_CONTEXTS[ruleset]
+        ),
+        permanent_rulesets,
+    )
+    for repository, permanent_rulesets in MERGE_QUEUE_REPOSITORY_RULESETS
+)
+MERGE_QUEUE_EVIDENCE_FIELDS = (
+    "positive_pull_request",
+    "positive_merge_group",
+    "intentional_negative_merge_group",
+    "permanent_ruleset_audit",
+)
+MERGE_QUEUE_EVIDENCE_EXPECTATIONS = {
+    "positive_pull_request": ("pull_request", "success"),
+    "positive_merge_group": ("merge_group", "success"),
+    "intentional_negative_merge_group": ("merge_group", "failure"),
+    "permanent_ruleset_audit": ("workflow_dispatch", "success"),
+}
+MERGE_QUEUE_RUN_URL = re.compile(
+    r"https://github\.com/mindclade/(?P<repository>[A-Za-z0-9_.-]+)/actions/runs/[1-9][0-9]*"
+)
 
 EXPECTED_RUNNER_GROUPS = {
     "mindclade-arc-artifact-authority": {
@@ -201,4 +275,144 @@ def required_check_readiness_errors(
             errors.append(
                 f"required-check readiness {name}: status must be blocked or qualified"
             )
+    return errors
+
+
+def merge_queue_readiness_errors(readiness: Mapping[str, Any]) -> list[str]:
+    """Require an exact, sequential, immutable merge-queue qualification record."""
+
+    errors: list[str] = []
+    if readiness.get("schema_version") != 1:
+        errors.append("merge-queue readiness schema_version must be 1")
+    rollout = readiness.get("rollout_order")
+    if not isinstance(rollout, list):
+        return errors + ["merge-queue readiness rollout_order must be an array"]
+    expected_repositories = tuple(item[0] for item in MERGE_QUEUE_ROLLOUT)
+    actual_repositories = tuple(
+        item.get("repository") if isinstance(item, Mapping) else None
+        for item in rollout
+    )
+    if actual_repositories != expected_repositories:
+        errors.append(
+            "merge-queue readiness repository order must be exactly "
+            f"{list(expected_repositories)}"
+        )
+        return errors
+
+    seen_unqualified = False
+    seen_canary = False
+    observed_run_urls: list[str] = []
+    for raw_contract, (repository, contexts, rulesets) in zip(
+        rollout, MERGE_QUEUE_ROLLOUT
+    ):
+        if not isinstance(raw_contract, Mapping):
+            errors.append(f"merge-queue readiness {repository}: contract must be an object")
+            continue
+        if raw_contract.get("github_actions_integration_id") != GITHUB_ACTIONS_INTEGRATION_ID:
+            errors.append(
+                f"merge-queue readiness {repository}: GitHub Actions integration id must be "
+                f"{GITHUB_ACTIONS_INTEGRATION_ID}"
+            )
+        if tuple(raw_contract.get("required_contexts", ())) != contexts:
+            errors.append(
+                f"merge-queue readiness {repository}: required contexts are not exact"
+            )
+        if tuple(raw_contract.get("permanent_rulesets", ())) != rulesets:
+            errors.append(
+                f"merge-queue readiness {repository}: permanent rulesets are not exact"
+            )
+
+        status = raw_contract.get("status")
+        evidence = raw_contract.get("evidence")
+        if status not in {"blocked", "canary_active", "canary_passed", "qualified"}:
+            errors.append(
+                f"merge-queue readiness {repository}: status must be blocked, "
+                "canary_active, canary_passed, or qualified"
+            )
+            continue
+        if not isinstance(evidence, Mapping):
+            errors.append(
+                f"merge-queue readiness {repository}: evidence must be an object"
+            )
+            continue
+        if set(evidence) != set(MERGE_QUEUE_EVIDENCE_FIELDS):
+            errors.append(
+                f"merge-queue readiness {repository}: evidence fields are not exact"
+            )
+
+        present = {name for name in MERGE_QUEUE_EVIDENCE_FIELDS if evidence.get(name) is not None}
+        expected_present = {
+            "blocked": set(),
+            "canary_active": set(),
+            "canary_passed": set(MERGE_QUEUE_EVIDENCE_FIELDS[:3]),
+            "qualified": set(MERGE_QUEUE_EVIDENCE_FIELDS),
+        }[status]
+        if present != expected_present:
+            errors.append(
+                f"merge-queue readiness {repository}: {status} evidence must be exactly "
+                f"{sorted(expected_present)}"
+            )
+
+        run_urls: list[str] = []
+        for field in sorted(present):
+            record = evidence.get(field)
+            if not isinstance(record, Mapping):
+                errors.append(
+                    f"merge-queue readiness {repository}: {field} evidence must be an object"
+                )
+                continue
+            expected_event, expected_conclusion = MERGE_QUEUE_EVIDENCE_EXPECTATIONS[field]
+            if record.get("subject_repository") != repository:
+                errors.append(
+                    f"merge-queue readiness {repository}: {field} subject repository is not exact"
+                )
+            if record.get("evidence_role") != field:
+                errors.append(
+                    f"merge-queue readiness {repository}: {field} evidence role is not exact"
+                )
+            if record.get("event_name") != expected_event:
+                errors.append(
+                    f"merge-queue readiness {repository}: {field} event must be {expected_event}"
+                )
+            if record.get("conclusion") != expected_conclusion:
+                errors.append(
+                    f"merge-queue readiness {repository}: {field} conclusion must be "
+                    f"{expected_conclusion}"
+                )
+            run_url = record.get("run_url")
+            match = MERGE_QUEUE_RUN_URL.fullmatch(run_url) if isinstance(run_url, str) else None
+            expected_run_repository = (
+                "github-config" if field == "permanent_ruleset_audit" else repository
+            )
+            if match is None or match.group("repository") != expected_run_repository:
+                errors.append(
+                    f"merge-queue readiness {repository}: {field} run repository must be "
+                    f"{expected_run_repository}"
+                )
+            else:
+                run_urls.append(run_url)
+                observed_run_urls.append(run_url)
+        if len(run_urls) != len(set(run_urls)):
+            errors.append(
+                f"merge-queue readiness {repository}: evidence run URLs must be unique"
+            )
+
+        if status == "qualified":
+            if seen_unqualified:
+                errors.append(
+                    f"merge-queue readiness {repository}: a later repository cannot be "
+                    "qualified before every predecessor"
+                )
+        elif status in {"canary_active", "canary_passed"}:
+            if seen_unqualified or seen_canary:
+                errors.append(
+                    f"merge-queue readiness {repository}: only the first unqualified "
+                    "repository may have an active canary"
+                )
+            seen_canary = True
+            seen_unqualified = True
+        else:
+            seen_unqualified = True
+    if len(observed_run_urls) != len(set(observed_run_urls)):
+        errors.append("merge-queue readiness evidence run URLs must be globally unique")
     return errors

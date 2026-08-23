@@ -27,18 +27,19 @@ Before promotion, retain connected evidence for:
    red and appears in Ruleset Insights as a would-block result.
 5. A successful merge-group run where `bazel / verdict` records explicit full
    configured analysis and tests.
-6. A 28-day affected-run evidence window with at least 20 samples and p95 at or
-   below 1,800 seconds.
+6. A separately reviewed 28-day affected-run evidence window with at least 20 samples and p95 at
+   or below 1,800 seconds before affected-test or queue-concurrency optimization. This performance
+   evidence is not required-check activation evidence.
 
 The same pull-request and merge-group audit must confirm `ci / build`,
-`codeql / analyze (go)`, `python / build`, `rust / build`, `architecture`,
+`codeql-go / analyze (go)`, `python / build`, `rust / build`, `architecture`,
 `Go registry + admission / live PostgreSQL and failure injection`, and
 `infra-static` use their exact cataloged strings.
 
 ## Promotion order
 
 1. Merge the monorepo workflow first and observe the evaluate-mode contexts.
-2. Update the three monorepo activation gates to `qualified` with links or
+2. Update the merge-safety activation gates to `qualified` with links or
    immutable evidence identifiers. Independent Platform and Security review is
    required.
 3. In a separate PR, change only `required-checks-go`,

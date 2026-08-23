@@ -352,6 +352,21 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Compile exact resting rollout bundle
+        run: |
+          set -euo pipefail
+          python3 scripts/governance-rollout.py --phase normal > rollout-bundle.json
+          jq -e 'keys == [
+            "merge_queue_canary_required_checks",
+            "merge_queue_repository_enforcement_overrides",
+            "ruleset_enforcement_overrides"
+          ]' rollout-bundle.json >/dev/null
+          {
+            echo "TF_VAR_ruleset_enforcement_overrides=$(jq -c '.ruleset_enforcement_overrides' rollout-bundle.json)"
+            echo "TF_VAR_merge_queue_repository_enforcement_overrides=$(jq -c '.merge_queue_repository_enforcement_overrides' rollout-bundle.json)"
+            echo "TF_VAR_merge_queue_canary_required_checks=$(jq -c '.merge_queue_canary_required_checks' rollout-bundle.json)"
+          } >> "$GITHUB_ENV"
+
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093  # v3
         with:
           workload_identity_provider: ${{ vars.WIF_PROVIDER_PLAN }}
@@ -444,6 +459,7 @@ jobs:
             plan.txt
             plan.json
             state-list.txt
+            rollout-bundle.json
           retention-days: 7
           if-no-files-found: error
 
@@ -503,6 +519,7 @@ jobs:
             echo "Plan text artifact missing."
           fi
           test -f artifacts/plan.json || { echo 'Plan JSON artifact missing.'; exit 1; }
+          test -f artifacts/rollout-bundle.json || { echo 'Rollout bundle artifact missing.'; exit 1; }
 
   verdict:
     name: plan / verdict

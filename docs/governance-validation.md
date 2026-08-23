@@ -23,6 +23,12 @@ state, so evidence gating cannot weaken the active baseline. The current gated c
 in `evaluate`; source validation does not constitute connected evidence or permission to apply
 governance.
 
+Merge-queue state is independently schema-backed in `catalog/merge-queue-readiness.yaml`. Its
+semantic validator requires the exact rollout order, contexts, permanent rulesets, Actions
+integration ID, state transitions, and evidence set. The protected compiler derives all queue,
+permanent-check, and temporary-canary Terraform inputs from that record; a normal apply therefore
+cannot activate an unqualified repository. See [the merge-queue runbook](merge-queue-rollout.md).
+
 ## Deferred cost verdict
 
 `catalog/required-check-readiness.yaml` records the candidate `infracost / verdict` context and

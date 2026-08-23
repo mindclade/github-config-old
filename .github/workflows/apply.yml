@@ -22,6 +22,26 @@ on:
           - normal
           - adopt-evaluate
           - promote-core
+          - merge-queue
+      merge_queue_repository:
+        description: Exact repository for a staged merge-queue rollout.
+        type: choice
+        default: none
+        options:
+          - none
+          - mindclade-internal-monorepo
+          - gitops
+          - infrastructure-live
+      merge_queue_stage:
+        description: Exact merge-queue transition for the selected repository.
+        type: choice
+        default: none
+        options:
+          - none
+          - canary
+          - promote
+          - finalize
+          - rollback
 
 permissions:
   contents: read
@@ -61,12 +81,38 @@ jobs:
 
       - name: Compile exact rollout overrides
         env:
+          MERGE_QUEUE_REPOSITORY: ${{ github.event_name == 'workflow_dispatch' && inputs.merge_queue_repository || 'none' }}
+          MERGE_QUEUE_STAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.merge_queue_stage || 'none' }}
           ROLLOUT_PHASE: ${{ github.event_name == 'workflow_dispatch' && inputs.rollout_phase || 'normal' }}
         run: |
           set -euo pipefail
-          overrides="$(python3 scripts/governance-rollout.py --phase "$ROLLOUT_PHASE")"
-          printf '%s\n' "$overrides" > rollout-overrides.json
-          echo "TF_VAR_ruleset_enforcement_overrides=$overrides" >> "$GITHUB_ENV"
+          arguments=(--phase "$ROLLOUT_PHASE")
+          if [[ "$ROLLOUT_PHASE" == "merge-queue" ]]; then
+            [[ "$MERGE_QUEUE_REPOSITORY" != "none" ]] || {
+              echo "::error::merge-queue phase requires an exact repository"
+              exit 1
+            }
+            [[ "$MERGE_QUEUE_STAGE" != "none" ]] || {
+              echo "::error::merge-queue phase requires an exact stage"
+              exit 1
+            }
+            arguments+=(--repository "$MERGE_QUEUE_REPOSITORY" --stage "$MERGE_QUEUE_STAGE")
+          elif [[ "$MERGE_QUEUE_REPOSITORY" != "none" || "$MERGE_QUEUE_STAGE" != "none" ]]; then
+            echo "::error::merge-queue repository and stage require rollout_phase=merge-queue"
+            exit 1
+          fi
+          bundle="$(python3 scripts/governance-rollout.py "${arguments[@]}")"
+          printf '%s\n' "$bundle" > rollout-bundle.json
+          jq -e 'keys == [
+            "merge_queue_canary_required_checks",
+            "merge_queue_repository_enforcement_overrides",
+            "ruleset_enforcement_overrides"
+          ]' rollout-bundle.json >/dev/null
+          {
+            echo "TF_VAR_ruleset_enforcement_overrides=$(jq -c '.ruleset_enforcement_overrides' rollout-bundle.json)"
+            echo "TF_VAR_merge_queue_repository_enforcement_overrides=$(jq -c '.merge_queue_repository_enforcement_overrides' rollout-bundle.json)"
+            echo "TF_VAR_merge_queue_canary_required_checks=$(jq -c '.merge_queue_canary_required_checks' rollout-bundle.json)"
+          } >> "$GITHUB_ENV"
 
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093  # v3
         with:
@@ -116,6 +162,8 @@ jobs:
         name: Create exact merged-SHA plan
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          MERGE_QUEUE_REPOSITORY: ${{ github.event_name == 'workflow_dispatch' && inputs.merge_queue_repository || 'none' }}
+          MERGE_QUEUE_STAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.merge_queue_stage || 'none' }}
           ROLLOUT_PHASE: ${{ github.event_name == 'workflow_dispatch' && inputs.rollout_phase || 'normal' }}
           TF_VAR_billing_email: ${{ vars.BILLING_EMAIL }}
           TF_VAR_wif_pool_project_number: ${{ vars.WIF_POOL_PROJECT_NUMBER }}
@@ -145,16 +193,19 @@ jobs:
           fi
 
           sha256sum tfplan > tfplan.sha256
+          sha256sum rollout-bundle.json > rollout-bundle.sha256
           jq -n \
             --arg commit_sha "$GITHUB_SHA" \
             --arg repository "$GITHUB_REPOSITORY" \
             --arg run_id "$GITHUB_RUN_ID" \
             --arg artifact_name "$artifact_name" \
             --arg rollout_phase "$ROLLOUT_PHASE" \
-            --slurpfile rollout_overrides rollout-overrides.json \
+            --arg merge_queue_repository "$MERGE_QUEUE_REPOSITORY" \
+            --arg merge_queue_stage "$MERGE_QUEUE_STAGE" \
+            --slurpfile rollout_bundle rollout-bundle.json \
             --argjson destroy_count "$destroy_count" \
             --argjson replace_count "$replace_count" \
-            '{commit_sha:$commit_sha,repository:$repository,run_id:$run_id,artifact_name:$artifact_name,rollout_phase:$rollout_phase,rollout_overrides:$rollout_overrides[0],destroy_count:$destroy_count,replace_count:$replace_count}' \
+            '{commit_sha:$commit_sha,repository:$repository,run_id:$run_id,artifact_name:$artifact_name,rollout_phase:$rollout_phase,merge_queue_repository:$merge_queue_repository,merge_queue_stage:$merge_queue_stage,rollout_bundle:$rollout_bundle[0],destroy_count:$destroy_count,replace_count:$replace_count}' \
             > plan-metadata.json
           echo "commit_sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
           echo "artifact_name=$artifact_name" >> "$GITHUB_OUTPUT"
@@ -163,6 +214,8 @@ jobs:
             echo "### Exact post-merge plan"
             echo "- Commit: \`$GITHUB_SHA\`"
             echo "- Rollout phase: \`$ROLLOUT_PHASE\`"
+            echo "- Merge queue repository: \`$MERGE_QUEUE_REPOSITORY\`"
+            echo "- Merge queue stage: \`$MERGE_QUEUE_STAGE\`"
             echo "- Deletes: $destroy_count"
             echo "- Replacements: $replace_count"
             echo '```terraform'
@@ -180,7 +233,8 @@ jobs:
             plan.json
             state-list.txt
             plan-metadata.json
-            rollout-overrides.json
+            rollout-bundle.json
+            rollout-bundle.sha256
           if-no-files-found: error
           retention-days: 1
 
@@ -242,13 +296,23 @@ jobs:
           set -euo pipefail
           cd plan-artifact
           sha256sum --check tfplan.sha256
+          sha256sum --check rollout-bundle.sha256
           test "$(jq -r '.commit_sha' plan-metadata.json)" = "$EXPECTED_SHA"
           test "$(jq -r '.repository' plan-metadata.json)" = "$GITHUB_REPOSITORY"
           test "$EXPECTED_SHA" = "$(git -C .. rev-parse HEAD)"
           rollout_phase="$(jq -r '.rollout_phase' plan-metadata.json)"
-          expected_overrides="$(python3 ../scripts/governance-rollout.py --phase "$rollout_phase")"
-          jq -e --argjson expected "$expected_overrides" '.rollout_overrides == $expected' plan-metadata.json >/dev/null
-          jq -e --argjson expected "$expected_overrides" '. == $expected' rollout-overrides.json >/dev/null
+          merge_queue_repository="$(jq -r '.merge_queue_repository' plan-metadata.json)"
+          merge_queue_stage="$(jq -r '.merge_queue_stage' plan-metadata.json)"
+          arguments=(--phase "$rollout_phase")
+          if [[ "$rollout_phase" == "merge-queue" ]]; then
+            [[ "$merge_queue_repository" != "none" && "$merge_queue_stage" != "none" ]]
+            arguments+=(--repository "$merge_queue_repository" --stage "$merge_queue_stage")
+          else
+            [[ "$merge_queue_repository" == "none" && "$merge_queue_stage" == "none" ]]
+          fi
+          expected_bundle="$(python3 ../scripts/governance-rollout.py "${arguments[@]}")"
+          jq -e --argjson expected "$expected_bundle" '.rollout_bundle == $expected' plan-metadata.json >/dev/null
+          jq -e --argjson expected "$expected_bundle" '. == $expected' rollout-bundle.json >/dev/null
 
       - name: Apply reviewed plan
         env:
@@ -265,6 +329,25 @@ jobs:
           ORGANIZATION: ${{ vars.ORGANIZATION }}
         run: python3 scripts/enforce-immutable-oidc.py --apply
 
+      - name: Audit connected governance against applied rollout
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          ORGANIZATION: ${{ vars.ORGANIZATION }}
+        run: >-
+          python3 scripts/audit-connected-governance.py
+          --organization "$ORGANIZATION"
+          --rollout-bundle plan-artifact/rollout-bundle.json
+          --output connected-governance.json
+
+      - name: Preserve connected governance evidence
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5
+        with:
+          name: connected-governance-${{ needs.plan.outputs.commit_sha }}
+          path: connected-governance.json
+          if-no-files-found: error
+          retention-days: 35
+
       - name: Publish audit summary
         run: |
           {
@@ -272,6 +355,8 @@ jobs:
             echo "- Commit: \`${{ needs.plan.outputs.commit_sha }}\`"
             echo "- Plan artifact: \`${{ needs.plan.outputs.artifact_name }}\`"
             echo "- Rollout phase: \`$(jq -r '.rollout_phase' plan-artifact/plan-metadata.json)\`"
+            echo "- Merge queue repository: \`$(jq -r '.merge_queue_repository' plan-artifact/plan-metadata.json)\`"
+            echo "- Merge queue stage: \`$(jq -r '.merge_queue_stage' plan-artifact/plan-metadata.json)\`"
             echo "- Protected environment: \`governance\`"
           } >> "$GITHUB_STEP_SUMMARY"
 

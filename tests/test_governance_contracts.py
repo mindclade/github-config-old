@@ -8,12 +8,15 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
+import re
 import sys
 import tempfile
 import unittest
 
 import yaml
+from jsonschema import Draft202012Validator
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -190,6 +193,165 @@ class RequiredCheckReadinessTest(unittest.TestCase):
         )
 
 
+class MergeQueueReadinessTest(unittest.TestCase):
+    EVIDENCE_EXPECTATIONS = {
+        "positive_pull_request": ("pull_request", "success"),
+        "positive_merge_group": ("merge_group", "success"),
+        "intentional_negative_merge_group": ("merge_group", "failure"),
+        "permanent_ruleset_audit": ("workflow_dispatch", "success"),
+    }
+
+    def setUp(self) -> None:
+        self.contract = yaml.safe_load(
+            (ROOT / "catalog/merge-queue-readiness.yaml").read_text(
+                encoding="utf-8"
+            )
+        )
+
+    def evidence(
+        self,
+        repository: str,
+        field: str,
+        index: int,
+        *,
+        qualified_uri: bool = True,
+    ) -> dict[str, object]:
+        event_name, conclusion = self.EVIDENCE_EXPECTATIONS[field]
+        run_repository = (
+            "github-config" if field == "permanent_ruleset_audit" else repository
+        )
+        digit = format(index, "x")
+        generation = f"#{index}" if qualified_uri else ""
+        return {
+            "run_url": (
+                f"https://github.com/mindclade/{run_repository}/actions/runs/{index}"
+            ),
+            "head_sha": digit * 40,
+            "base_sha": format(index + 4, "x") * 40,
+            "subject_repository": repository,
+            "evidence_role": field,
+            "event_name": event_name,
+            "conclusion": conclusion,
+            "observed_at": f"2026-08-23T12:00:0{index}Z",
+            "reviewer": "independent-reviewer",
+            "restricted_snapshot_uri": (
+                f"gs://restricted/{repository}-{field}.json{generation}"
+            ),
+            "sha256": "sha256:" + digit * 64,
+        }
+
+    def test_current_sequential_contract_is_exact_and_blocked(self) -> None:
+        self.assertEqual(
+            GOVERNANCE.merge_queue_readiness_errors(self.contract), []
+        )
+
+    def test_repository_order_and_contexts_are_exact(self) -> None:
+        self.contract["rollout_order"][0]["required_contexts"][0] = "wrong"
+        errors = GOVERNANCE.merge_queue_readiness_errors(self.contract)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("required contexts are not exact", errors[0])
+
+        self.setUp()
+        self.contract["rollout_order"].reverse()
+        errors = GOVERNANCE.merge_queue_readiness_errors(self.contract)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("repository order must be exactly", errors[0])
+
+    def test_actions_integration_id_is_pinned(self) -> None:
+        self.contract["rollout_order"][0]["github_actions_integration_id"] = 1
+        errors = GOVERNANCE.merge_queue_readiness_errors(self.contract)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("integration id must be 15368", errors[0])
+
+    def test_canary_state_requires_exact_three_evidence_records(self) -> None:
+        monorepo = self.contract["rollout_order"][0]
+        monorepo["status"] = "canary_passed"
+        errors = GOVERNANCE.merge_queue_readiness_errors(self.contract)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("canary_passed evidence must be exactly", errors[0])
+
+        for index, field in enumerate(GOVERNANCE.MERGE_QUEUE_EVIDENCE_FIELDS[:3], 1):
+            monorepo["evidence"][field] = self.evidence(
+                "mindclade-internal-monorepo", field, index
+            )
+        self.assertEqual(
+            GOVERNANCE.merge_queue_readiness_errors(self.contract), []
+        )
+
+    def test_active_canary_is_source_represented_before_evidence(self) -> None:
+        monorepo = self.contract["rollout_order"][0]
+        monorepo["status"] = "canary_active"
+
+        self.assertEqual(
+            GOVERNANCE.merge_queue_readiness_errors(self.contract), []
+        )
+
+    def test_evidence_is_bound_to_role_repository_outcome_and_unique_run(self) -> None:
+        monorepo = self.contract["rollout_order"][0]
+        monorepo["status"] = "canary_passed"
+        monorepo["blocker"] = None
+        for index, field in enumerate(GOVERNANCE.MERGE_QUEUE_EVIDENCE_FIELDS[:3], 1):
+            monorepo["evidence"][field] = self.evidence(
+                "mindclade-internal-monorepo", field, index
+            )
+
+        negative = monorepo["evidence"]["intentional_negative_merge_group"]
+        negative["conclusion"] = "success"
+        errors = GOVERNANCE.merge_queue_readiness_errors(self.contract)
+        self.assertTrue(any("conclusion must be failure" in error for error in errors))
+
+        negative["conclusion"] = "failure"
+        negative["evidence_role"] = "positive_merge_group"
+        errors = GOVERNANCE.merge_queue_readiness_errors(self.contract)
+        self.assertTrue(any("evidence role is not exact" in error for error in errors))
+
+        negative["evidence_role"] = "intentional_negative_merge_group"
+        negative["subject_repository"] = "gitops"
+        errors = GOVERNANCE.merge_queue_readiness_errors(self.contract)
+        self.assertTrue(any("subject repository is not exact" in error for error in errors))
+
+        negative["subject_repository"] = "mindclade-internal-monorepo"
+        negative["run_url"] = monorepo["evidence"]["positive_merge_group"]["run_url"]
+        errors = GOVERNANCE.merge_queue_readiness_errors(self.contract)
+        self.assertTrue(any("run URLs must be unique" in error for error in errors))
+
+    def test_schema_rejects_mutable_or_unqualified_evidence_location(self) -> None:
+        schema = json.loads(
+            (ROOT / "catalog/schema/merge-queue-readiness.schema.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        monorepo = self.contract["rollout_order"][0]
+        monorepo["status"] = "canary_passed"
+        monorepo["blocker"] = None
+        for index, field in enumerate(GOVERNANCE.MERGE_QUEUE_EVIDENCE_FIELDS[:3], 1):
+            monorepo["evidence"][field] = self.evidence(
+                "mindclade-internal-monorepo",
+                field,
+                index,
+                qualified_uri=False,
+            )
+        errors = list(Draft202012Validator(schema).iter_errors(self.contract))
+        self.assertTrue(
+            any("restricted_snapshot_uri" in str(error.absolute_path) for error in errors)
+        )
+
+        for index, field in enumerate(GOVERNANCE.MERGE_QUEUE_EVIDENCE_FIELDS[:3], 1):
+            monorepo["evidence"][field]["restricted_snapshot_uri"] += f"#{index}"
+        self.assertEqual(
+            list(Draft202012Validator(schema).iter_errors(self.contract)), []
+        )
+
+    def test_affected_latency_does_not_gate_required_check_activation(self) -> None:
+        self.assertNotIn(
+            "monorepo_affected_latency_qualified",
+            GOVERNANCE.EVIDENCE_GATED_RULESET_GATES["required-checks-go"],
+        )
+        self.assertNotIn(
+            "monorepo_affected_latency_qualified",
+            GOVERNANCE.EVIDENCE_GATED_RULESET_GATES["required-checks-mixed"],
+        )
+
 class TerraformSemanticContractTest(unittest.TestCase):
     def test_bootstrap_account_handoff_contract_accepts_current_source(self) -> None:
         self.assertEqual(ACCOUNT_HANDOFF.contract_errors(ROOT), [])
@@ -198,10 +360,13 @@ class TerraformSemanticContractTest(unittest.TestCase):
         source = (
             ROOT / "modules/rulesets/required-checks-infra-static.tf"
         ).read_text(encoding="utf-8")
-        source = source.replace(
-            'context = "infra-static"',
+        source, replacements = re.subn(
+            r'context\s*=\s*"infra-static"',
             'context = "wrong-context"\n        # context = "infra-static"',
+            source,
+            count=1,
         )
+        self.assertEqual(replacements, 1)
         with tempfile.TemporaryDirectory() as directory:
             temporary_root = Path(directory)
             target = temporary_root / "modules/rulesets/required-checks-infra-static.tf"
@@ -227,6 +392,44 @@ class TerraformSemanticContractTest(unittest.TestCase):
                     },
                 )
 
+    def test_required_check_integration_pin_is_semantic(self) -> None:
+        source = (
+            ROOT / "modules/rulesets/required-checks-infra-static.tf"
+        ).read_text(encoding="utf-8")
+        source, replacements = re.subn(
+            r"integration_id\s*=\s*local\.github_actions_integration_id",
+            "integration_id = local.wrong_integration_id "
+            "# integration_id = local.github_actions_integration_id",
+            source,
+            count=1,
+        )
+        self.assertEqual(replacements, 1)
+        with tempfile.TemporaryDirectory() as directory:
+            temporary_root = Path(directory)
+            target = temporary_root / "modules/rulesets/required-checks-infra-static.tf"
+            target.parent.mkdir(parents=True)
+            target.write_text(source, encoding="utf-8")
+            contract = TERRAFORM.RequiredStatusRulesetContract(
+                path="modules/rulesets/required-checks-infra-static.tf",
+                resource_name="required_checks_infra_static",
+                ruleset_name="required-checks-infra-static",
+                repositories=("mindclade-internal-monorepo",),
+                contexts=("infra-static",),
+                integration_expression="local.github_actions_integration_id",
+            )
+            with self.assertRaisesRegex(
+                TERRAFORM.TerraformContractError,
+                "required_check.integration_ids",
+            ):
+                TERRAFORM.validate_required_status_ruleset(
+                    temporary_root,
+                    contract,
+                    {
+                        "repositories": ["mindclade-internal-monorepo"],
+                        "enforcement": "evaluate",
+                    },
+                )
+
     def test_structural_ruleset_and_oidc_contracts_accept_current_modules(self) -> None:
         contract = TERRAFORM.RequiredStatusRulesetContract(
             path="modules/rulesets/required-checks-mixed.tf",
@@ -240,6 +443,7 @@ class TerraformSemanticContractTest(unittest.TestCase):
                 "Go registry + admission / live PostgreSQL and failure injection",
                 "bazel / verdict",
             ),
+            integration_expression="local.github_actions_integration_id",
         )
         TERRAFORM.validate_required_status_ruleset(
             ROOT,
