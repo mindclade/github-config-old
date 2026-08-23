@@ -190,6 +190,30 @@ if REPOSITORY == "bootstrap":
     if re.search(r'module\s+"(?:folders|governance)"', combined):
         error("Ring-0 root still instantiates folders/governance")
 elif REPOSITORY == "github-config":
+    ci_variable_catalog = (ROOT / "catalog/ci-variables.yaml").read_text(
+        "utf-8", errors="ignore"
+    )
+    github_config_variables = re.search(
+        r"(?ms)^github-config:\s*$\n(?P<body>.*?)(?=^[A-Za-z0-9_.-]+:\s*$)",
+        ci_variable_catalog,
+    )
+    if github_config_variables is None or re.search(
+        r"(?m)^\s{2}CLOUD_IDENTITY_CUSTOMER_ID:\s+env:CLOUD_IDENTITY_CUSTOMER_ID\s*$",
+        github_config_variables.group("body"),
+    ) is None:
+        error(
+            "github-config CI-variable catalog omits the operator-sourced Cloud Identity customer ID"
+        )
+    idp_sync_workflow = (ROOT / ".github/workflows/idp-sync.yml").read_text(
+        "utf-8", errors="ignore"
+    )
+    customer_id_binding = (
+        "IDP_CUSTOMER_ID: ${{ vars.CLOUD_IDENTITY_CUSTOMER_ID }}"
+    )
+    if idp_sync_workflow.count(customer_id_binding) != 2:
+        error(
+            "idp-sync workflow must bind the catalog customer ID on both export jobs"
+        )
     text = (ROOT / "catalog/repositories.yaml").read_text("utf-8", errors="ignore")
     for repo in (
         ".github",

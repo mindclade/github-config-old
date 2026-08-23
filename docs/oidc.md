@@ -86,7 +86,10 @@ token outside the provider condition and do not grant Compute Image creation aut
 `idp-sync.yml` has two explicit cloud-authentication paths. Internal pull requests use the
 protected `plan` environment subject. Schedule and main-branch dispatch runs use the exact
 `idp-sync.yml@refs/heads/main` workflow identity bootstrap allowlists, with no environment, so a
-nightly offboarding check cannot stall behind an interactive approval.
+nightly offboarding check cannot stall behind an interactive approval. Both jobs map the
+catalog-managed, non-secret `CLOUD_IDENTITY_CUSTOMER_ID` repository variable to the exporter's
+`IDP_CUSTOMER_ID` input. This avoids depending on broader organization-list authority merely to
+discover an identifier that governance already knows.
 
 ## Change sequence
 

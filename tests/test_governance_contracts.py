@@ -130,6 +130,48 @@ class PromotionContractTest(unittest.TestCase):
         )
 
 
+class IdpCustomerIdBindingTest(unittest.TestCase):
+    @staticmethod
+    def sources() -> tuple[dict[str, object], dict[str, object]]:
+        catalog = yaml.safe_load(
+            (ROOT / "catalog/ci-variables.yaml").read_text(encoding="utf-8")
+        )
+        workflow = yaml.safe_load(
+            (ROOT / ".github/workflows/idp-sync.yml").read_text(encoding="utf-8")
+        )
+        return catalog, workflow
+
+    def test_current_catalog_and_workflow_binding_pass(self) -> None:
+        catalog, workflow = self.sources()
+        self.assertEqual(
+            GOVERNANCE.idp_customer_id_binding_errors(catalog, workflow), []
+        )
+
+    def test_secret_substitution_is_rejected(self) -> None:
+        catalog, workflow = self.sources()
+        workflow["jobs"]["export_main"]["env"]["IDP_CUSTOMER_ID"] = (
+            "${{ secrets.CLOUD_IDENTITY_CUSTOMER_ID }}"
+        )
+        self.assertEqual(
+            GOVERNANCE.idp_customer_id_binding_errors(catalog, workflow),
+            [
+                "idp-sync.yml export_main must map IDP_CUSTOMER_ID from "
+                "vars.CLOUD_IDENTITY_CUSTOMER_ID"
+            ],
+        )
+
+    def test_catalog_omission_is_rejected(self) -> None:
+        catalog, workflow = self.sources()
+        del catalog["github-config"]["CLOUD_IDENTITY_CUSTOMER_ID"]
+        self.assertEqual(
+            GOVERNANCE.idp_customer_id_binding_errors(catalog, workflow),
+            [
+                "ci-variables: github-config/CLOUD_IDENTITY_CUSTOMER_ID must be "
+                "'env:CLOUD_IDENTITY_CUSTOMER_ID'"
+            ],
+        )
+
+
 class DrEvidenceWorkflowContractTest(unittest.TestCase):
     def test_current_workflow_fails_closed_while_v5_is_blocked(self) -> None:
         workflow = yaml.safe_load(

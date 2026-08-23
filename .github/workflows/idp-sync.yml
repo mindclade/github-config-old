@@ -48,6 +48,8 @@ jobs:
     environment: plan
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    env:
+      IDP_CUSTOMER_ID: ${{ vars.CLOUD_IDENTITY_CUSTOMER_ID }}
     outputs:
       stale: ${{ steps.check.outputs.stale }}
     permissions:
@@ -106,6 +108,8 @@ jobs:
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    env:
+      IDP_CUSTOMER_ID: ${{ vars.CLOUD_IDENTITY_CUSTOMER_ID }}
     outputs:
       stale: ${{ steps.check.outputs.stale }}
     permissions:
