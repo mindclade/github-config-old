@@ -71,6 +71,18 @@ provider byte-for-byte and the distinct common-CI account names. Those variables
 activate a cache client or prove connected token exchange; endpoint publication and positive and
 negative route qualification remain separate protected steps.
 
+## Workstation image trust
+
+Bootstrap contract `1.6.0` defines `gh-workstation-image` for the internal monorepo's exact
+`nixos-image.yml@refs/heads/main` caller, immutable owner/repository IDs, manual dispatch, the
+protected `workstation-image-publication` environment, and
+`reusable-nixos-gce-image-publish.yml@refs/tags/v5.0.0`. The mapped `workstation-image:` subject
+cannot cross into release or cache bindings.
+
+Governance publishes the provider, dedicated `workstation-image-pub` account, and exact source
+bucket only from applied infrastructure handoff `1.5.0`. These non-secret variables cannot mint a
+token outside the provider condition and do not grant Compute Image creation authority.
+
 `idp-sync.yml` has two explicit cloud-authentication paths. Internal pull requests use the
 protected `plan` environment subject. Schedule and main-branch dispatch runs use the exact
 `idp-sync.yml@refs/heads/main` workflow identity bootstrap allowlists, with no environment, so a

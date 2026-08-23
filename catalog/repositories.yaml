@@ -158,6 +158,7 @@ mindclade-internal-monorepo:
   environments:
     - release
     - nix-cache-publication
+    - workstation-image-publication
   topics:
     - monorepo
     - go

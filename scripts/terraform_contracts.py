@@ -925,7 +925,10 @@ def validate_bootstrap_account_handoff_ci_variable_contract(root: Path) -> None:
             "platform_contract_sha256,state_location,state_buckets,service_accounts])",
         ),
         ("local.bootstrap_account_handoff.schema_version==1",),
-        ('local.bootstrap_account_handoff.bootstrap_contract_version=="1.5.0"',),
+        (
+            'contains(["1.5.0","1.6.0"],local.bootstrap_account_handoff.bootstrap_contract_version)',
+            'contains([1.5.0,1.6.0],local.bootstrap_account_handoff.bootstrap_contract_version)',
+        ),
         (
             'can(regex("^[0-9a-f]{40}$",local.bootstrap_account_handoff.bootstrap_source_commit))',
         ),

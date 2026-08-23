@@ -135,7 +135,9 @@ material is absent. Bootstrap contracts `1.2.0` and `1.4.0` consume applied hand
 its exact 25-variable production-eligibility inventory. Bootstrap contract `1.5.0` instead
 requires applied handoff `1.4.0`, whose exact 28-variable inventory is the `1.3.0` contract plus
 `WIF_PROVIDER_BAZEL_CACHE`, `SA_BAZEL_CACHE_READER`, and `SA_BAZEL_CACHE_WRITER`. Versions are not
-interchangeable and stale, partial, or extra fields fail before GitHub can be changed.
+interchangeable and stale, partial, or extra fields fail before GitHub can be changed. Bootstrap
+`1.6.0` requires applied handoff `1.5.0`, adding the exact workstation-image provider, publisher,
+and source bucket for a 31-variable inventory.
 
 Bootstrap supplies `PRODUCTION_QUALIFICATION_IDENTITY_JSON` and, under contract `1.5.0`,
 `BAZEL_CACHE_IDENTITY_JSON` directly from `platform_contract`; an operator cannot substitute
@@ -146,9 +148,20 @@ publish a cache endpoint, enable a client, or claim that the provider, accounts,
 bucket are live. Supply only exact applied values for remaining non-handoff `env:` inputs and
 reapply `github-config`. Full mode remains fail-closed on every unresolved normal-plane input.
 
+Under bootstrap `1.6.0`, the exporter also validates `WORKSTATION_IMAGE_IDENTITY_JSON` and refuses
+to publish `WIF_PROVIDER_WORKSTATION_IMAGE`, `SA_WORKSTATION_IMAGE_BUILDER`, or
+`WORKSTATION_IMAGE_BUCKET` unless applied handoff `1.5.0` matches the bootstrap identity and exact
+common-CI resources. These values do not prove an object or Compute Image exists.
+
+The five `WORKSTATION_IMAGE_SOURCE_*` variables are a separate, catalog-owned evidence gate. They
+remain an exact unusable `blocked` tuple until the protected v5 workflow publishes the source and a
+reviewed qualification records its URI, object generation, source digest, and embedded-contract
+digest. Transition all five in one pull request to `qualified-v1`; Terraform rejects partial,
+cross-bucket, zero-digest, and unqualified combinations.
+
 ### Publish the applied bootstrap account handoff
 
-Bootstrap contract `1.5.0` also makes `BOOTSTRAP_ACCOUNT_HANDOFF_JSON` a derived governance
+Bootstrap contracts `1.5.0` and `1.6.0` make `BOOTSTRAP_ACCOUNT_HANDOFF_JSON` a derived governance
 output. It is not a catalog value and must never be reconstructed in the GitHub UI. The exporter
 requires the bootstrap checkout to be clean, records its full commit SHA, hashes the complete
 canonical `platform_contract`, validates the versioned schema, and binds the record to the exact
@@ -219,7 +232,7 @@ reviewed compiler payload from its exact clean bootstrap revision and running th
 plan/apply path; never edit or delete the downstream variable manually. Retain the compiled record,
 plan checksum, apply run, read-back, reviewer, and timestamps in the restricted evidence boundary.
 
-The same export accepts bootstrap `platform_contract` version `1.4.0` or `1.5.0`, reads
+The same export accepts bootstrap `platform_contract` version `1.4.0`, `1.5.0`, or `1.6.0`, reads
 `state.replica_buckets.bootstrap`, and publishes it as the managed
 `bootstrap/TFSTATE_REPLICA_BUCKET` Actions variable. The protected
 `bootstrap-recovery-read` environment is catalog-managed; never allow the recovery workflow to
@@ -236,6 +249,9 @@ project, and bucket outputs into environment variables on only the protected `sc
 Under bootstrap `1.5.0`, it additionally validates the dedicated `gh-bazel-cache` provider, exact
 immutable monorepo IDs, pull-request read route, and protected main, merge-group, and nightly write
 routes before exporting any cache-related value.
+Under bootstrap `1.6.0`, it additionally validates the exact protected workstation-image
+environment subject, caller on main, v5 reusable workflow, immutable repository IDs, and applied
+publisher/source-bucket handoff before exporting any workstation-image value.
 
 The ARC catalog is desired-state and preflight evidence, not proof of a live GitHub App
 installation. Before enabling the canary provider, create or verify both exact installations:

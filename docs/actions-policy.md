@@ -50,6 +50,13 @@ independently requires retained behavioral evidence, immutable module `v0.4.0`, 
 OIDC permission. The variable alone cannot mint a token, and workflow-level OIDC remains
 forbidden.
 
+Immutable workstation-image publication uses a separate
+`workstation-image-publication` environment on only `mindclade-internal-monorepo`, with the same
+Platform/Security reviewers, five-minute wait, protected-main requirement, and no self-review.
+Its exact WIF provider permits only the reviewed `nixos-image.yml` caller and v5 reusable workflow.
+The workflow may publish only a create-only raw-disk source object; Terraform retains exclusive
+Compute Image and workstation rollout authority.
+
 Changes to the allowlist, OIDC policy, required workflows, protected workflow paths, or token
 permissions are security changes and require the owners declared by `CODEOWNERS`.
 

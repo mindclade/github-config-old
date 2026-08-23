@@ -24,9 +24,9 @@ from jsonschema.exceptions import SchemaError
 
 ROOT = Path(__file__).resolve().parent.parent
 
-SUPPORTED_BOOTSTRAP_CONTRACT_VERSIONS = {"1.2.0", "1.4.0", "1.5.0"}
+SUPPORTED_BOOTSTRAP_CONTRACT_VERSIONS = {"1.2.0", "1.4.0", "1.5.0", "1.6.0"}
 BOOTSTRAP_ACCOUNT_HANDOFF_CONTRACT_VERSION = 1
-BOOTSTRAP_ACCOUNT_HANDOFF_PLATFORM_VERSION = "1.5.0"
+BOOTSTRAP_ACCOUNT_HANDOFF_PLATFORM_VERSIONS = {"1.5.0", "1.6.0"}
 BOOTSTRAP_ACCOUNT_HANDOFF_SCHEMA = (
     ROOT / "contracts/bootstrap-account-handoff.schema.json"
 )
@@ -75,15 +75,31 @@ BAZEL_CACHE_APPLIED_HANDOFF_VARIABLES = {
     "SA_BAZEL_CACHE_READER",
     "SA_BAZEL_CACHE_WRITER",
 }
+WORKSTATION_IMAGE_APPLIED_HANDOFF_VARIABLES = {
+    "WIF_PROVIDER_WORKSTATION_IMAGE",
+    "SA_WORKSTATION_IMAGE_BUILDER",
+    "WORKSTATION_IMAGE_BUCKET",
+}
 APPLIED_HANDOFF_VARIABLES_BY_VERSION = {
     "1.3.0": APPLIED_HANDOFF_V13_VARIABLES,
     "1.4.0": APPLIED_HANDOFF_V13_VARIABLES | BAZEL_CACHE_APPLIED_HANDOFF_VARIABLES,
+    "1.5.0": (
+        APPLIED_HANDOFF_V13_VARIABLES
+        | BAZEL_CACHE_APPLIED_HANDOFF_VARIABLES
+        | WORKSTATION_IMAGE_APPLIED_HANDOFF_VARIABLES
+    ),
 }
 APPLIED_HANDOFF_SOURCE_UNITS = {
     "automation_iam": "1-org/automation-iam",
     "gitops_identities": "5-workloads/shared/control-plane-identities",
     "binary_authorization": "5-workloads/production/binary-authorization",
     "qualification_evidence": "5-workloads/shared/production-qualification-evidence",
+}
+APPLIED_HANDOFF_SOURCE_UNITS_BY_VERSION = {
+    "1.3.0": APPLIED_HANDOFF_SOURCE_UNITS,
+    "1.4.0": APPLIED_HANDOFF_SOURCE_UNITS,
+    "1.5.0": APPLIED_HANDOFF_SOURCE_UNITS
+    | {"workstation_image_source": "5-workloads/ci/workstation-image-source"},
 }
 
 
@@ -207,7 +223,7 @@ def build_bootstrap_account_handoff(
 ) -> dict[str, Any]:
     """Build the canonical non-secret record from applied bootstrap output."""
 
-    if contract.get("contract_version") != BOOTSTRAP_ACCOUNT_HANDOFF_PLATFORM_VERSION:
+    if contract.get("contract_version") not in BOOTSTRAP_ACCOUNT_HANDOFF_PLATFORM_VERSIONS:
         raise ValueError(
             "[ACCOUNT-HANDOFF-BOOTSTRAP] bootstrap platform contract version differs"
         )
@@ -218,7 +234,7 @@ def build_bootstrap_account_handoff(
     ).encode("utf-8")
     return {
         "schema_version": BOOTSTRAP_ACCOUNT_HANDOFF_CONTRACT_VERSION,
-        "bootstrap_contract_version": BOOTSTRAP_ACCOUNT_HANDOFF_PLATFORM_VERSION,
+        "bootstrap_contract_version": contract["contract_version"],
         "bootstrap_source_commit": source_commit,
         "platform_contract_sha256": f"sha256:{hashlib.sha256(encoded).hexdigest()}",
         "state_location": values["STATE_LOCATION"],
@@ -312,7 +328,8 @@ def load_applied_handoff(path: Path) -> AppliedHandoff:
         or payload["environment"] != "production"
         or payload["credential_material_included"] is not False
         or re.fullmatch(r"[0-9a-f]{40}", str(payload["source_commit"])) is None
-        or payload["source_units"] != APPLIED_HANDOFF_SOURCE_UNITS
+        or payload["source_units"]
+        != APPLIED_HANDOFF_SOURCE_UNITS_BY_VERSION[contract_version]
     ):
         raise ValueError("applied control-plane handoff authority is invalid")
     variables = payload["variables"]
@@ -671,6 +688,60 @@ def validate_applied_bazel_cache_handoff(
             raise ValueError(f"applied Bazel cache service account differs: {name}")
 
 
+def workstation_image_identity_contract(
+    github_contract: dict[str, Any], github_pool: str, organization: str
+) -> dict[str, str]:
+    identity = require(
+        github_contract, "workstation_image_identity", "platform_contract.github"
+    )
+    fields = {
+        "workload_identity_provider", "principal", "repository", "repository_id",
+        "subject", "workflow_ref", "job_workflow_ref",
+    }
+    if not isinstance(identity, dict) or set(identity) != fields:
+        raise ValueError("platform_contract workstation image identity is not exact")
+    repository = f"{organization}/mindclade-internal-monorepo"
+    subject = identity["subject"]
+    if not isinstance(subject, str) or re.fullmatch(
+        rf"repo:{re.escape(organization)}@[0-9]+/"
+        r"mindclade-internal-monorepo@[0-9]+:environment:workstation-image-publication",
+        subject,
+    ) is None:
+        raise ValueError("platform_contract workstation image subject differs")
+    expected = {
+        "workload_identity_provider": f"{github_pool}/providers/gh-workstation-image",
+        "principal": f"principal://iam.googleapis.com/{github_pool}/subject/workstation-image:{subject}",
+        "repository": repository,
+        "repository_id": identity["repository_id"],
+        "subject": subject,
+        "workflow_ref": f"{repository}/.github/workflows/nixos-image.yml@refs/heads/main",
+        "job_workflow_ref": (
+            f"{organization}/.github/.github/workflows/"
+            "reusable-nixos-gce-image-publish.yml@refs/tags/v5.0.0"
+        ),
+    }
+    if not isinstance(identity["repository_id"], str) or not identity["repository_id"].isdigit():
+        raise ValueError("platform_contract workstation image repository ID differs")
+    if identity != expected:
+        raise ValueError("platform_contract workstation image identity differs")
+    return identity
+
+
+def validate_applied_workstation_image_handoff(
+    handoff: AppliedHandoff, identity: dict[str, str]
+) -> None:
+    variables = handoff.variables
+    if variables["WIF_PROVIDER_WORKSTATION_IMAGE"] != identity["workload_identity_provider"]:
+        raise ValueError("applied workstation image provider differs from bootstrap")
+    project = variables["CI_PROJECT_ID"]
+    if variables["SA_WORKSTATION_IMAGE_BUILDER"] != (
+        f"workstation-image-pub@{project}.iam.gserviceaccount.com"
+    ):
+        raise ValueError("applied workstation image publisher differs")
+    if variables["WORKSTATION_IMAGE_BUCKET"] != "mc-common-ci-workstation-images":
+        raise ValueError("applied workstation image bucket differs")
+
+
 def dr_evidence_environment_contract(
     github_contract: dict[str, Any], github_pool: str, organization: str
 ) -> dict[str, str]:
@@ -776,15 +847,24 @@ def compile_payload(
             raise ValueError("applied handoff is only valid for the full export stage")
         config = select_bootstrap_stage(config)
     elif stage == "full":
-        if contract_version == "1.5.0":
+        if contract_version == "1.6.0":
+            if applied_handoff is None or applied_handoff.contract_version != "1.5.0":
+                raise ValueError(
+                    "bootstrap 1.6.0 full export requires applied handoff 1.5.0"
+                )
+        elif contract_version == "1.5.0":
             if applied_handoff is None or applied_handoff.contract_version != "1.4.0":
                 raise ValueError(
                     "bootstrap 1.5.0 full export requires applied handoff 1.4.0"
                 )
+            for name in WORKSTATION_IMAGE_APPLIED_HANDOFF_VARIABLES:
+                config["mindclade-internal-monorepo"].pop(name, None)
+            config["infrastructure-live"].pop("WORKSTATION_IMAGE_IDENTITY_JSON", None)
         else:
-            for name in BAZEL_CACHE_APPLIED_HANDOFF_VARIABLES:
+            for name in BAZEL_CACHE_APPLIED_HANDOFF_VARIABLES | WORKSTATION_IMAGE_APPLIED_HANDOFF_VARIABLES:
                 config["mindclade-internal-monorepo"].pop(name, None)
             config["infrastructure-live"].pop("BAZEL_CACHE_IDENTITY_JSON", None)
+            config["infrastructure-live"].pop("WORKSTATION_IMAGE_IDENTITY_JSON", None)
             if (
                 applied_handoff is not None
                 and applied_handoff.contract_version != "1.3.0"
@@ -822,7 +902,8 @@ def compile_payload(
     release_identities: dict[str, dict[str, str]] | None = None
     production_qualification_identity: dict[str, str] | None = None
     bazel_cache_identity: dict[str, Any] | None = None
-    if contract_version in {"1.4.0", "1.5.0"}:
+    workstation_image_identity: dict[str, str] | None = None
+    if contract_version in {"1.4.0", "1.5.0", "1.6.0"}:
         release_identities = artifact_release_contract(
             github_contract, str(github_pool), github_organization
         )
@@ -858,7 +939,7 @@ def compile_payload(
             principal,
         ) is None:
             raise ValueError("legacy artifact signer principal differs")
-    if contract_version == "1.5.0":
+    if contract_version in {"1.5.0", "1.6.0"}:
         bazel_cache_identity = bazel_cache_identity_contract(
             github_contract, str(github_pool), github_organization
         )
@@ -868,7 +949,17 @@ def compile_payload(
             validate_applied_bazel_cache_handoff(
                 applied_handoff, bazel_cache_identity
             )
-    if stage == "full" and contract_version in {"1.4.0", "1.5.0"}:
+    if contract_version == "1.6.0":
+        workstation_image_identity = workstation_image_identity_contract(
+            github_contract, str(github_pool), github_organization
+        )
+        if stage == "full":
+            if applied_handoff is None:
+                raise ValueError("applied workstation image handoff is missing")
+            validate_applied_workstation_image_handoff(
+                applied_handoff, workstation_image_identity
+            )
+    if stage == "full" and contract_version in {"1.4.0", "1.5.0", "1.6.0"}:
         config["github-config"]["DR_EVIDENCE_ENVIRONMENT_VARIABLES"] = json.dumps(
             dr_evidence_environment_contract(
                 github_contract, str(github_pool), github_organization
@@ -1008,7 +1099,11 @@ def compile_payload(
         infrastructure_live_values["BAZEL_CACHE_IDENTITY_JSON"] = json.dumps(
             bazel_cache_identity, sort_keys=True, separators=(",", ":")
         )
-    if contract_version == BOOTSTRAP_ACCOUNT_HANDOFF_PLATFORM_VERSION:
+    if workstation_image_identity is not None:
+        infrastructure_live_values["WORKSTATION_IMAGE_IDENTITY_JSON"] = json.dumps(
+            workstation_image_identity, sort_keys=True, separators=(",", ":")
+        )
+    if contract_version in BOOTSTRAP_ACCOUNT_HANDOFF_PLATFORM_VERSIONS:
         source_commit = bootstrap_source_commit(bootstrap)
         account_handoff = build_bootstrap_account_handoff(
             platform, infrastructure_live_values, source_commit
