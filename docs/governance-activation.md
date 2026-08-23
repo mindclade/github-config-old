@@ -39,6 +39,9 @@ or retrospective closeout.
   types. The schema-backed readiness contract therefore stays blocked.
 - `.github` declares the two protected workflow-release environments, but the connected inventory
   found neither environment live.
+- The monorepo declares `terraform-module-release` as a protected-main-only Security approval
+  boundary. It is source desired state only until a protected exact-SHA plan creates and qualifies
+  it; signed tag creation and signer qualification remain separate Release-team authorities.
 - The exact observed `copilot` environments are GitHub-platform-managed exceptions, not Terraform
   resources. The audit requires zero secrets, variables, reviewers, timers, and custom protection
   rules and rejects any additional unmanaged environment.
@@ -85,26 +88,31 @@ or retrospective closeout.
    an agent—creates the annotated `v5.0.0` tag on that exact merged commit through the active
    creation guard. Qualify the exact tag, approve
    both protected environments with distinct people, and publish the immutable release.
-7. Adopt the published release and policy provenance record through consumer pull requests. Keep
+7. Before publishing Terraform modules, enable and independently prove immutable releases on the
+   monorepo, qualify the source-managed release signer identity and evidence, and apply the exact
+   `terraform-module-release` environment from a protected saved plan. The publisher runs only by
+   protected-main dispatch and consumes an existing signed tag; the environment never authorizes
+   tag creation or movement.
+8. Adopt the published release and policy provenance record through consumer pull requests. Keep
    legacy Nix checks until `nix / verdict` is observed on pull requests, merge groups, schedules,
    all native platforms, and both rebuilds.
-8. Merge the bootstrap and github-config plan-verdict workflows. For each repository, observe its
+9. Merge the bootstrap and github-config plan-verdict workflows. For each repository, observe its
    stable verdict for both a relevant Terraform change and an unaffected documentation change.
    Confirm a close or draft-conversion event cancels a stale waiting run without cloud
    authentication.
    For github-config, first create the ruleset in evaluate mode and review Ruleset Insights before
    recording `github_config_verdict_observed: qualified`.
-9. Update the remaining gate evidence to `qualified`, run the exact merged-SHA plan, and only then promote
+10. Update the remaining gate evidence to `qualified`, run the exact merged-SHA plan, and only then promote
    `ruleset-workflows`, `required-checks-bootstrap`, and `required-checks-nix` to active in a
    separate reviewed change.
-10. Before adding cost policy to `required-checks-tf`, complete the four-step readiness sequence in
+11. Before adding cost policy to `required-checks-tf`, complete the four-step readiness sequence in
     [governance validation](governance-validation.md#deferred-cost-verdict). Never require the
     existing pull-request-only `infracost` or `comment` contexts.
-11. Qualify merge queues sequentially through source-recorded `canary_active` and the exact
+12. Qualify merge queues sequentially through source-recorded `canary_active` and the exact
     `canary`, `promote`, `finalize`, and `rollback`
     transitions in [the protected merge-queue runbook](merge-queue-rollout.md). Resting normal
     applies must hold every unqualified repository and its permanent checks in `evaluate`.
-12. Complete the independent retrospective in
+13. Complete the independent retrospective in
    [issue #33](https://github.com/mindclade/github-config/issues/33) for infrastructure-live PR
    #25, `.github` PRs #22–#23, bootstrap PR #30, and github-config PRs #35–#39. Assign it to the
    independent Security reviewer after that human joins; a second founder-controlled account does

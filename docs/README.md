@@ -27,6 +27,8 @@
   repository-key migration non-destructive and verify it by immutable repository ID.
 - [Governance activation preflight](governance-activation.md) — sequence release, environment,
   import, reviewer, and ruleset evidence without bypass.
+- [Terraform module release governance](terraform-module-release-governance.md) — create the
+  protected monorepo publication environment without granting tag-management authority.
 - [Monorepo required-check rollout](monorepo-required-check-rollout.md) — qualify affected Bazel,
   merge-group full validation, critical contexts, and evaluate-to-active promotion.
 - [Protected merge-queue rollout](merge-queue-rollout.md) — qualify queues sequentially with

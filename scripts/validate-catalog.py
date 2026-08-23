@@ -76,6 +76,7 @@ EXPECTED_ENVIRONMENTS = {
     "release",
     "nix-cache-publication",
     "workstation-image-publication",
+    "terraform-module-release",
     "workflow-release-platform",
     "workflow-release-security",
     "repository-observability",
@@ -898,6 +899,7 @@ for name, cfg in environments.items():
         "release",
         "nix-cache-publication",
         "workstation-image-publication",
+        "terraform-module-release",
         "workflow-release-platform",
         "workflow-release-security",
         "repository-maintenance",
@@ -985,6 +987,26 @@ workstation_image_repositories = {
 }
 if workstation_image_repositories != {"mindclade-internal-monorepo"}:
     err("workstation-image-publication must be assigned only to mindclade-internal-monorepo")
+terraform_module_release_environment = environments.get("terraform-module-release", {})
+if (
+    set(terraform_module_release_environment.get("reviewer_teams", []))
+    != {"security"}
+    or terraform_module_release_environment.get("wait_timer", 0) < 5
+    or not terraform_module_release_environment.get("protected_branches")
+    or terraform_module_release_environment.get("custom_branch_policies")
+    or not terraform_module_release_environment.get("prevent_self_review")
+):
+    err(
+        "environment terraform-module-release requires protected main, Security review, "
+        "no self-review, and a wait timer"
+    )
+terraform_module_release_repositories = {
+    repository
+    for repository, config in repos.items()
+    if "terraform-module-release" in config.get("environments", [])
+}
+if terraform_module_release_repositories != {"mindclade-internal-monorepo"}:
+    err("terraform-module-release must be assigned only to mindclade-internal-monorepo")
 break_glass_environment = environments.get("break-glass", {})
 if set(break_glass_environment.get("reviewer_teams", [])) != {"security"}:
     err(

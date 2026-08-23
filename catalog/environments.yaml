@@ -100,6 +100,14 @@ workstation-image-publication:
   custom_branch_policies: false
   prevent_self_review: true
   project_required: false
+terraform-module-release:
+  wait_timer: 5
+  reviewer_teams:
+    - security
+  protected_branches: true
+  custom_branch_policies: false
+  prevent_self_review: true
+  project_required: false
 workflow-release-platform:
   wait_timer: 0
   reviewer_teams:

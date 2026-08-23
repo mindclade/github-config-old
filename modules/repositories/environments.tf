@@ -48,6 +48,14 @@ locals {
       project_required       = false
     }
   }
+  terraform_module_release_environment_contract = {
+    wait_timer             = 5
+    reviewer_teams         = ["security"]
+    protected_branches     = true
+    custom_branch_policies = false
+    prevent_self_review    = true
+    project_required       = false
+  }
 }
 
 resource "github_repository_environment" "this" {
@@ -109,6 +117,22 @@ check "workflow_release_environment_contract_is_exact" {
       false,
     )
     error_message = "Workflow release governance requires exact protected Platform/Security environments on .github and three distinct Platform, Security, and Release team identities."
+  }
+}
+
+check "terraform_module_release_environment_contract_is_exact" {
+  assert {
+    condition = try(
+      var.environments["terraform-module-release"] == local.terraform_module_release_environment_contract &&
+      contains(var.repository_environments["mindclade-internal-monorepo"], "terraform-module-release") &&
+      alltrue([
+        for repository, names in var.repository_environments :
+        repository == "mindclade-internal-monorepo" || !contains(names, "terraform-module-release")
+      ]) &&
+      var.team_ids["release"] != var.team_ids["security"],
+      false,
+    )
+    error_message = "Terraform module publication requires the exact delayed, protected-main Security environment and distinct Release identity only on the monorepo."
   }
 }
 
