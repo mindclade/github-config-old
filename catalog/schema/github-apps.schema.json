@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "mindclade-arc",
+    "mindclade-estate-observer",
+    "mindclade-policy-sync",
+    "mindclade-production-qualification-reader",
+    "mindclade-ref-janitor",
+    "mindclade-release-governance-reader",
+    "mindclade-release-promoter",
+    "mindclade-workflow-pin-updater"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "mindclade-arc": {"$ref": "#/$defs/app"},
+    "mindclade-estate-observer": {"$ref": "#/$defs/app"},
+    "mindclade-policy-sync": {"$ref": "#/$defs/app"},
+    "mindclade-production-qualification-reader": {"$ref": "#/$defs/app"},
+    "mindclade-ref-janitor": {"$ref": "#/$defs/app"},
+    "mindclade-release-governance-reader": {"$ref": "#/$defs/app"},
+    "mindclade-release-promoter": {"$ref": "#/$defs/app"},
+    "mindclade-workflow-pin-updater": {"$ref": "#/$defs/app"}
+  },
+  "$defs": {
+    "permissionLevel": {"enum": ["read", "write", "admin"]},
+    "permissions": {
+      "type": "object",
+      "propertyNames": {"pattern": "^[A-Za-z][A-Za-z0-9]*$"},
+      "additionalProperties": {"$ref": "#/$defs/permissionLevel"}
+    },
+    "app": {
+      "type": "object",
+      "required": [
+        "purpose",
+        "repositories",
+        "organizationPermissions",
+        "repositoryPermissions"
+      ],
+      "additionalProperties": false,
+      "dependentRequired": {
+        "webhookActive": ["events"],
+        "events": ["webhookActive"]
+      },
+      "properties": {
+        "purpose": {"type": "string", "minLength": 1},
+        "repositories": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "webhookActive": {"type": "boolean"},
+        "events": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "organizationPermissions": {"$ref": "#/$defs/permissions"},
+        "repositoryPermissions": {"$ref": "#/$defs/permissions"}
+      }
+    }
+  }
+}

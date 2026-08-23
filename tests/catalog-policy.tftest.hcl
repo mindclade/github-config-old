@@ -53,6 +53,27 @@ run "policy_catalog_is_production_grade" {
   }
 
   assert {
+    condition = (
+      toset(output.github_apps["mindclade-release-governance-reader"].repositories) == toset([
+        ".github",
+        "mindclade-internal-monorepo",
+      ]) &&
+      !output.github_apps["mindclade-release-governance-reader"].webhookActive &&
+      length(output.github_apps["mindclade-release-governance-reader"].events) == 0 &&
+      output.github_apps["mindclade-release-governance-reader"].organizationPermissions == {
+        members = "read"
+      } &&
+      output.github_apps["mindclade-release-governance-reader"].repositoryPermissions == {
+        actions        = "read"
+        administration = "read"
+        contents       = "read"
+        metadata       = "read"
+      }
+    )
+    error_message = "Release governance must use one webhook-free read-only App selected only to the two release repositories."
+  }
+
+  assert {
     condition     = output.rulesets["ruleset-workflows"].workflow_ref == "refs/tags/v5.0.0"
     error_message = "Mandatory workflow enforcement must use the controlled v5.0.0 release tag."
   }

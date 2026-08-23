@@ -39,6 +39,37 @@ ACCOUNT_HANDOFF = load(
 )
 
 
+class GitHubAppSchemaTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.contract = yaml.safe_load(
+            (ROOT / "catalog/github-apps.yaml").read_text(encoding="utf-8")
+        )
+        self.schema = json.loads(
+            (ROOT / "catalog/schema/github-apps.schema.json").read_text(
+                encoding="utf-8"
+            )
+        )
+
+    def test_current_app_catalog_matches_schema(self) -> None:
+        self.assertEqual(
+            list(Draft202012Validator(self.schema).iter_errors(self.contract)), []
+        )
+
+    def test_schema_rejects_unknown_app_and_credential_field(self) -> None:
+        self.contract["unreviewed-app"] = self.contract[
+            "mindclade-release-governance-reader"
+        ].copy()
+        self.contract["mindclade-release-governance-reader"]["privateKey"] = (
+            "must-never-enter-source"
+        )
+        messages = [
+            error.message
+            for error in Draft202012Validator(self.schema).iter_errors(self.contract)
+        ]
+        self.assertTrue(any("unreviewed-app" in message for message in messages))
+        self.assertTrue(any("privateKey" in message for message in messages))
+
+
 class PromotionContractTest(unittest.TestCase):
     @staticmethod
     def rulesets(enforcement: str = "evaluate") -> dict[str, dict[str, str]]:

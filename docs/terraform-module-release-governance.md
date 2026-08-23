@@ -17,19 +17,32 @@ use any-one-reviewer semantics, so adding Release as a second reviewer would not
 The publisher must therefore use `workflow_dispatch` from protected `main`; a tag-triggered run
 cannot satisfy a protected-branch-only environment.
 
+Release preflight uses the selected-repository `mindclade-release-governance-reader` App, not the
+caller `GITHUB_TOKEN`, to read immutable-release settings, workflow evidence, repository source,
+and organization membership. The monorepo receives only the non-secret
+`RELEASE_GOVERNANCE_READER_APP_ID` repository variable from Terraform. Activate the exact
+`RELEASE_GOVERNANCE_READER_APP_PRIVATE_KEY` secret manually only in the protected
+`terraform-module-release` environment after the App installation and permissions pass connected
+audit. The private key must never enter Git, `CI_VARIABLES`, Terraform input, a plan, state, logs,
+or artifacts.
+
 ## Activation order
 
 1. Qualify an exact signing key and signer identity, and retain the digest-bound evidence named by
    the monorepo release-authority contract.
-2. Enable immutable releases for the monorepo and retain independent read-back evidence. The
+2. Create and install the release-governance reader App exactly as cataloged, set the App ID
+   variable in both selected repositories, and place its private key only in the documented
+   repository/protected-environment Actions secrets. Prove that its token can perform every
+   required read and that write requests and webhook delivery remain unavailable.
+3. Enable immutable releases for the monorepo and retain independent read-back evidence. The
    GitHub Terraform provider does not make that manual setting part of this environment resource.
-3. Run the protected `github-config` exact-main plan. Stop on any deletion, replacement, reviewer
+4. Run the protected `github-config` exact-main plan. Stop on any deletion, replacement, reviewer
    drift, branch-policy drift, or unexpected environment variable or secret.
-4. Apply only the reviewed saved plan, then read back the environment: exact Security team ID,
+5. Apply only the reviewed saved plan, then read back the environment: exact Security team ID,
    protected branches only, no self-review, no administrator bypass, and the wait timer.
    Independently prove the exact Release team bypass on the creation-only tag rule and the
    qualified signer identity.
-5. Record connected evidence before updating the monorepo release-authority contract from blocked
+6. Record connected evidence before updating the monorepo release-authority contract from blocked
    to qualified. Source validation alone never authorizes publication.
 
 ## Rollback and failure

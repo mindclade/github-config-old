@@ -21,6 +21,20 @@ mindclade-release-promoter:
     contents: write
     metadata: read
     pullRequests: write
+mindclade-release-governance-reader:
+  purpose: Read immutable release, workflow, repository, and approver evidence without mutation.
+  repositories:
+    - .github
+    - mindclade-internal-monorepo
+  webhookActive: false
+  events: []
+  organizationPermissions:
+    members: read
+  repositoryPermissions:
+    actions: read
+    administration: read
+    contents: read
+    metadata: read
 mindclade-production-qualification-reader:
   purpose: Read exact source and protected workflow evidence for final production qualification.
   repositories:
