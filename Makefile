@@ -9,9 +9,12 @@ YAMLLINT ?= yamllint
 .PHONY: validate-production-contract validate-repository-home workspace-remotes-check workspace-remotes-apply
 .PHONY: workspace-remotes-test scripts-test terraform-init-test connected-audit activation-gate
 .PHONY: bootstrap-account-handoff prepare-workflow-activation prepare-workflow-pin-upgrades
-.PHONY: qualify-github-platform
+.PHONY: qualify-github-platform protected-run-contract
 
-validate: lint fmt-check catalog adoption workflow-adoption security license-headers bootstrap-account-handoff validate-production-contract validate-repository-home
+validate: lint fmt-check catalog adoption workflow-adoption security license-headers bootstrap-account-handoff protected-run-contract validate-production-contract validate-repository-home
+
+protected-run-contract:
+	@$(PYTHON) -m unittest tests.test_protected_run
 
 lint:
 	@$(ACTIONLINT) -config-file .github/actionlint.yaml .github/workflows/*.yml

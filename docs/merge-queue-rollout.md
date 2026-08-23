@@ -33,7 +33,9 @@ queue-concurrency optimization; merge groups always run the repository's complet
 ## Protected transitions
 
 All dispatches use `.github/workflows/apply.yml` on an exact merged `main` SHA. Keep delete and
-replacement authorization false.
+replacement authorization false. Keep `source_rollback=false`: the merge-queue `rollback` stage
+changes compiled rollout policy from current source and is not authorization to execute an older
+commit.
 
 1. In a reviewed PR, change only the first blocked repository to `canary_active` while retaining
    its blocker and null evidence. The speculative plan must show only that queue and its exact
