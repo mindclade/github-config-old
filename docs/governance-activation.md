@@ -75,8 +75,12 @@ or retrospective closeout.
 5. After independently reviewing Ruleset Insights, dispatch `rollout_phase=promote-core` to make
    only `baseline-all` and `protected-paths` active. The saved-plan metadata must contain the
    exact phase and override map, and the apply job must recompute and match both before mutation.
-   Promote `release-tag-creation` separately only after its qualification gate is recorded; its
-   exact merged-SHA plan must pass the Terraform precondition before a bounded apply.
+   Promote `release-tag-creation` separately only after the protected release environments,
+   connected creation control, and authorized signer gates are all recorded qualified; its exact
+   merged-SHA plan must pass the Terraform precondition before a bounded apply. After apply and the
+   connected audit, dispatch `release-governance-preflight.yml` from protected `main` in
+   `mindclade/.github`; its repository token must prove the exact environments and Release-team
+   creation bypass without substituting a privileged App token.
 6. Merge the canonical `.github` v5 source through independent review. A Release-team operator—not
    an agent—creates the annotated `v5.0.0` tag on that exact merged commit through the active
    creation guard. Qualify the exact tag, approve

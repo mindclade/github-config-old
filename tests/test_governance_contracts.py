@@ -101,6 +101,15 @@ class PromotionContractTest(unittest.TestCase):
         self.assertEqual(len(errors), 1)
         self.assertIn("release_signer_identity_qualified", errors[0])
 
+    def test_release_tag_creation_requires_the_environment_gate(self) -> None:
+        rulesets = self.rulesets()
+        rulesets["release-tag-creation"]["enforcement"] = "active"
+        gates = self.gates("qualified")
+        gates["release_environments_qualified"] = "blocked"
+        errors = GOVERNANCE.evidence_gated_ruleset_errors(rulesets, gates)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("release_environments_qualified", errors[0])
+
     def test_fixed_resting_state_does_not_freeze_qualified_rules(self) -> None:
         expected = {
             "baseline-all": "active",
