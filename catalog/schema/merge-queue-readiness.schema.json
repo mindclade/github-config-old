@@ -157,6 +157,7 @@
                     "policy",
                     "exemptions",
                     "promotion-integrity",
+                    "production-handoff-gate",
                     "repository-invariants"
                   ]
                 }

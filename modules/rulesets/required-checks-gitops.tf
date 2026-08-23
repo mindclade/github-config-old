@@ -3,8 +3,9 @@
 # SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
 
 # GitOps uses merge queue, so every required context must run on both pull_request and
-# merge_group. Require only repository-local, credential-free gates. Render/provenance remain
-# activation evidence until their pull_request_target/cloud-trust behavior supports merge_group.
+# merge_group. The production-handoff gate is stable for all changes: it is credential-free when
+# production is staged/blocked and uses the protected production environment plus read-only WIF
+# only when the proposed source is qualified-v1.
 resource "github_organization_ruleset" "required_checks_gitops" {
   name        = "required-checks-gitops"
   target      = "branch"
@@ -54,6 +55,10 @@ resource "github_organization_ruleset" "required_checks_gitops" {
       }
       required_check {
         context        = "promotion-integrity"
+        integration_id = local.github_actions_integration_id
+      }
+      required_check {
+        context        = "production-handoff-gate"
         integration_id = local.github_actions_integration_id
       }
       required_check {

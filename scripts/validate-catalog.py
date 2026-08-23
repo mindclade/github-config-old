@@ -155,6 +155,7 @@ REQUIRED_STATUS_RULESET_CONTRACTS = (
             "policy",
             "exemptions",
             "promotion-integrity",
+            "production-handoff-gate",
             "repository-invariants",
         ),
         integration_expression="local.github_actions_integration_id",
