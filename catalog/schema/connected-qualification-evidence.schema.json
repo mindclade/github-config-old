@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "as_of", "max_age_days", "records"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "as_of": {"type": "string", "format": "date"},
+    "max_age_days": {"type": "integer", "minimum": 1, "maximum": 180},
+    "records": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id", "gate", "repository", "evidence_kind", "run_url", "source_sha",
+          "outcome", "observed_at", "expires_at", "reviewer", "evidence_digest"
+        ],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]+$"},
+          "gate": {"type": "string", "minLength": 1},
+          "repository": {"enum": [".github", ".github-private", "github-config"]},
+          "evidence_kind": {"enum": ["workflow-run", "runner", "wif", "release", "connected-audit"]},
+          "run_url": {"type": "string", "pattern": "^https://github\\.com/mindclade/[A-Za-z0-9._-]+/actions/runs/[0-9]+$"},
+          "source_sha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+          "outcome": {"const": "success"},
+          "observed_at": {"type": "string", "format": "date-time"},
+          "expires_at": {"type": "string", "format": "date-time"},
+          "reviewer": {"type": "string", "pattern": "^[A-Za-z0-9-]+$"},
+          "evidence_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+        }
+      }
+    }
+  }
+}

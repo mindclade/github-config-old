@@ -27,6 +27,7 @@ from governance_contracts import (
     resting_ruleset_errors,
     runner_group_contract_errors,
 )
+from platform_contracts import connected_evidence_errors, workflow_adoption_errors
 from terraform_contracts import (
     RequiredStatusRulesetContract,
     TerraformContractError,
@@ -278,6 +279,7 @@ REQUIRED_CI_VARIABLES = {
     "github-config": {
         "BILLING_EMAIL": "env:BILLING_EMAIL",
         "GOVERNANCE_CONNECTED_DRIFT": "false",
+        "WORKFLOW_PIN_UPDATER_APP_ID": "env:WORKFLOW_PIN_UPDATER_APP_ID",
     },
     "bootstrap": {
         "AUTOMATION_SECRET_LOCATION": "us-central1",
@@ -373,6 +375,8 @@ for stem in (
     "governance-activation",
     "merge-queue-readiness",
     "required-check-readiness",
+    "workflow-adoption",
+    "connected-qualification-evidence",
 ):
     data = load_yaml(f"{stem}.yaml")
     try:
@@ -405,6 +409,10 @@ merge_queue_readiness = load_yaml("merge-queue-readiness.yaml") or {}
 required_check_readiness = load_yaml("required-check-readiness.yaml") or {}
 adoption_inventory = load_yaml("adoption-inventory.yaml") or {}
 connected_exceptions = load_yaml("connected-resource-exceptions.yaml") or {}
+workflow_adoption = load_yaml("workflow-adoption.yaml") or {}
+connected_qualification_evidence = (
+    load_yaml("connected-qualification-evidence.yaml") or {}
+)
 try:
     repository_maintenance = json.loads(
         (CAT / "repository-maintenance.json").read_text(encoding="utf-8")
@@ -497,6 +505,14 @@ for name in (
     if activation_enforcement.get(name) != rulesets.get(name, {}).get("enforcement"):
         err(f"governance activation evidence disagrees with ruleset {name}")
 activation_gates = governance_activation.get("gates", {})
+for message in workflow_adoption_errors(
+    workflow_adoption, governance_activation, repository_root=ROOT
+):
+    err(message)
+for message in connected_evidence_errors(
+    connected_qualification_evidence, governance_activation
+):
+    err(message)
 all_activation_gates_qualified = bool(activation_gates) and all(
     value == "qualified" for value in activation_gates.values()
 )
@@ -525,6 +541,7 @@ if set(github_apps) != {
     "mindclade-ref-janitor",
     "mindclade-release-promoter",
     "mindclade-production-qualification-reader",
+    "mindclade-workflow-pin-updater",
 }:
     err("GitHub App contract inventory is not exact")
 else:
@@ -574,6 +591,15 @@ else:
         err("policy sync App has an unexpected repository permission contract")
     if policy_sync.get("organizationPermissions") != {}:
         err("policy sync App must not have organization permissions")
+    workflow_updater = github_apps["mindclade-workflow-pin-updater"]
+    if workflow_updater.get("repositories") != [".github-private", "github-config"]:
+        err("workflow pin updater App must select exactly the two workflow consumers")
+    if workflow_updater.get("repositoryPermissions") != {
+        "contents": "write",
+        "metadata": "read",
+        "pullRequests": "write",
+    } or workflow_updater.get("organizationPermissions") != {}:
+        err("workflow pin updater App permission contract is not exact and review-only")
     observer = github_apps["mindclade-estate-observer"]
     if set(observer.get("repositories", [])) != EXPECTED_REPOS:
         err("estate observer App must select exactly the seven managed repositories")

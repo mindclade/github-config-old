@@ -1,5 +1,5 @@
 <!-- mindclade-doc: repository-home@2 -->
-<!-- Brand source: mindclade/.github-private/mindclade-brand-assets (MONO family). -->
+<!-- Brand distribution: mindclade/.github-private/mindclade-brand-assets (MONO family). -->
 
 <p align="center">
   <picture>
@@ -61,6 +61,7 @@ organization or repository settings.
 nix develop .#ci --command make validate
 nix develop .#ci --command make test
 nix flake check --no-update-lock-file
+make qualify-github-platform
 ```
 
 **Success means:** catalog schemas, access expiry, cross-references, Terraform formatting and
@@ -107,6 +108,8 @@ flowchart LR
 | `modules/rulesets/` | Organization and repository rulesets. |
 | `modules/policies/` | Actions and organization policy. |
 | `.github/workflows/` | Plan, protected apply, drift, and contract gates. |
+| `catalog/workflow-adoption.yaml` | Producer/consumer pins, permissions, and activation gates. |
+| `scripts/qualify-github-platform.py` | Three-repository qualification and JSON/Markdown report. |
 
 ## Change path
 
@@ -122,6 +125,7 @@ replacements fail closed unless an authorized operator provides the documented d
 - [Access model](docs/access-model.md)
 - [Actions policy](docs/actions-policy.md)
 - [GitHub App authority contracts](docs/github-apps.md)
+- [GitHub platform qualification](docs/github-platform-qualification.md)
 - [Onboarding](docs/onboarding.md) and [offboarding](docs/offboarding.md)
 - [Contributing](CONTRIBUTING.md)
 - Policies and terms: [governance](GOVERNANCE.md) · [conduct](CODE_OF_CONDUCT.md) ·
