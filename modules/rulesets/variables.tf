@@ -33,6 +33,12 @@ variable "release_tag_creation_control_qualified" {
   default     = false
 }
 
+variable "release_environments_qualified" {
+  description = "Whether connected evidence proves both workflow-release environments have their exact distinct reviewer and protected-branch policies."
+  type        = bool
+  default     = false
+}
+
 variable "release_signer_identity_qualified" {
   description = "Whether connected evidence binds the approved Release member to a valid registered signing identity."
   type        = bool

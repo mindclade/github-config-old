@@ -30,6 +30,24 @@ locals {
       "${pair_key}:${name}" => merge(pair, { name = name, value = value, pair_key = pair_key })
     }
   ]...)
+  workflow_release_environment_contract = {
+    workflow-release-platform = {
+      wait_timer             = 0
+      reviewer_teams         = ["platform"]
+      protected_branches     = true
+      custom_branch_policies = false
+      prevent_self_review    = true
+      project_required       = false
+    }
+    workflow-release-security = {
+      wait_timer             = 0
+      reviewer_teams         = ["security"]
+      protected_branches     = true
+      custom_branch_policies = false
+      prevent_self_review    = true
+      project_required       = false
+    }
+  }
 }
 
 resource "github_repository_environment" "this" {
@@ -67,6 +85,30 @@ check "repository_environment_branch_policies_are_valid" {
       !(environment.protected_branches && environment.custom_branch_policies)
     ])
     error_message = "An environment cannot select protected branches and custom branch policies simultaneously."
+  }
+}
+
+check "workflow_release_environment_contract_is_exact" {
+  assert {
+    condition = try(
+      alltrue([
+        for name, expected in local.workflow_release_environment_contract :
+        var.environments[name] == expected && contains(var.repository_environments[".github"], name)
+      ]) &&
+      toset(var.repository_environments[".github"]) == toset([
+        "workflow-release-platform",
+        "workflow-release-security",
+        "repository-observability",
+        "repository-maintenance",
+      ]) &&
+      length(toset([
+        var.team_ids["platform"],
+        var.team_ids["security"],
+        var.team_ids["release"],
+      ])) == 3,
+      false,
+    )
+    error_message = "Workflow release governance requires exact protected Platform/Security environments on .github and three distinct Platform, Security, and Release team identities."
   }
 }
 

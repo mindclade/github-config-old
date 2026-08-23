@@ -13,6 +13,7 @@ from typing import Any, Mapping
 
 EVIDENCE_GATED_RULESET_GATES = {
     "release-tag-creation": (
+        "release_environments_qualified",
         "release_tag_creation_control_qualified",
         "release_signer_identity_qualified",
     ),

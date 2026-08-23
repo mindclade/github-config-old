@@ -425,6 +425,7 @@ def validate_release_tag_contracts(root: Path) -> None:
         _expression(creation_precondition, "condition", creation_label)
     )
     qualified_terms = (
+        "var.release_environments_qualified && "
         "var.release_tag_creation_control_qualified && "
         "var.release_signer_identity_qualified && "
         'local.enforcement["tag-protection"] == "active"'

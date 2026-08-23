@@ -90,6 +90,9 @@ module "rulesets" {
   release_tag_creation_control_qualified = (
     module.catalog.governance_activation.gates.release_tag_creation_control_qualified == "qualified"
   )
+  release_environments_qualified = (
+    module.catalog.governance_activation.gates.release_environments_qualified == "qualified"
+  )
   release_signer_identity_qualified = (
     module.catalog.governance_activation.gates.release_signer_identity_qualified == "qualified"
   )
