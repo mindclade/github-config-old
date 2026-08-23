@@ -28,8 +28,8 @@ or an undeclared tenant would be changed.
 1. Compare GitHub's service status with IdP health and an independent network probe.
 2. From an already authenticated read-only session, capture organization audit-log continuity,
    SAML/SCIM status, pending invitations, owners, and recent role changes.
-3. Run `make plan` only with the protected plan identity when service availability permits; never
-   use a speculative plan as proof that the IdP is healthy.
+3. Dispatch the protected `plan` workflow from `main` when service availability permits; never
+   run a local credentialed plan or use a speculative plan as proof that the IdP is healthy.
 4. Classify the fault as GitHub outage, IdP outage, federation/configuration failure, or suspected
    compromise. Preserve all command output with hashes.
 

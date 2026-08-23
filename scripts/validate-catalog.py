@@ -20,6 +20,7 @@ import yaml
 from jsonschema import Draft202012Validator
 
 from governance_contracts import (
+    dr_evidence_workflow_errors,
     evidence_gated_ruleset_errors,
     merge_queue_readiness_errors,
     required_check_readiness_errors,
@@ -279,14 +280,19 @@ REQUIRED_CI_VARIABLES = {
         "GOVERNANCE_CONNECTED_DRIFT": "false",
     },
     "bootstrap": {
+        "AUTOMATION_SECRET_LOCATION": "us-central1",
         "ENABLE_BUILDKITE_WIF": "false",
         "GCP_REGION": "us-central1",
+        "KMS_PROTECTION_LEVEL": "SOFTWARE",
+        "NONCURRENT_VERSION_COUNT": "100",
+        "NONCURRENT_VERSION_DAYS": "90",
         "RESIDENCY_PROFILE": "us-only-v1",
         "SECURITY_CONTACT": "security@mindclade.com",
         "STATE_BUCKET_LOCATION": "US",
         "STATE_KMS_LOCATION": "us",
         "STATE_REPLICA_LOCATION": "us-east4",
         "STATE_REPLICA_KMS_LOCATION": "us-east4",
+        "STATE_SOFT_DELETE_DAYS": "30",
     },
     "infrastructure-live": {
         "BAZEL_CACHE_IDENTITY_JSON": "{}",
@@ -1160,7 +1166,7 @@ if nix_job.get("secrets"):
     err("nix-qualification caller must not inherit or pass secrets")
 if nix_job.get("uses") != (
     "mindclade/.github/.github/workflows/"
-    "reusable-nix-qualification.yml@0bdba2a8d06c732a6eb0a09238267dc83e1ca576"
+    "reusable-nix-qualification.yml@c386f4846a669ed841c54bc103d566c463fe4869"
 ):
     err("nix-qualification must use the audited immutable v5.0.0 candidate commit")
 nix_inputs = nix_job.get("with", {})
@@ -1332,7 +1338,6 @@ for contract_derived_name in (
     "GH_ORGANIZATION_ID",
     "GH_REPOSITORY_IDS_JSON",
     "BOOTSTRAP_FOLDER_ID",
-    "AUTOMATION_SECRET_LOCATION",
 ):
     if contract_derived_name in ci_variables.get("bootstrap", {}):
         err(
@@ -1455,9 +1460,6 @@ if '"GITHUB_WIF_POOL_NAME"' in ci_variable_exporter:
     err("ci-variable exporter uses forbidden GITHUB_WIF_POOL_NAME")
 if '"BOOTSTRAP_FOLDER_ID"' in ci_variable_exporter:
     err("ci-variable exporter must not publish the bootstrap adopt-existing folder input")
-if '"AUTOMATION_SECRET_LOCATION"' in ci_variable_exporter:
-    err("ci-variable exporter must not publish an unused bootstrap default as a repository variable")
-
 try:
     validate_bazel_cache_ci_variable_contract(ROOT)
 except TerraformContractError as exc:
@@ -1557,8 +1559,12 @@ except TerraformContractError as exc:
 workflow_dir = ROOT / ".github" / "workflows"
 workflow_docs = {
     name: yaml.safe_load((workflow_dir / f"{name}.yml").read_text(encoding="utf-8"))
-    for name in ("plan", "apply", "drift", "idp-sync")
+    for name in ("plan", "apply", "drift", "idp-sync", "dr-evidence")
 }
+dr_evidence = workflow_docs["dr-evidence"]
+v5_release_status = activation_gates.get("v5_release_published")
+for message in dr_evidence_workflow_errors(dr_evidence, v5_release_status):
+    err(message)
 for workflow_name in ("plan", "apply"):
     plan_job = workflow_docs[workflow_name].get("jobs", {}).get("plan", {})
     if plan_job.get("environment") != "plan":

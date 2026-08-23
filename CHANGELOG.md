@@ -50,6 +50,9 @@ not reconstructed or relabeled here.
 
 ### Changed
 
+- Made the bootstrap protected-CI input handoff explicit and fail closed, including the exact
+  legacy-replica disposition, U.S. Secret Manager location, state retention, and KMS protection
+  values required to keep post-migration plans identical to the reviewed first apply.
 - Replaced hard-coded evaluate-only clamps for every evidence-gated ruleset with one fail-closed
   lifecycle that accepts active enforcement only after that rule's connected evidence is
   qualified; the resting catalog remains evaluate.
@@ -68,7 +71,7 @@ not reconstructed or relabeled here.
   mutations and the required read-back verification.
 - Documented that GitHub-to-cloud token-exchange evidence must consume a cloud API, because a
   successful authentication step alone does not prove a token was minted.
-- Synchronized policy bundle `2026.08.21.3`, pinned repository-home validation to canonical
+- Synchronized policy bundle `2026.08.22.1`, pinned repository-home validation to canonical
   commit `8467615f12868d4b78718b8ddf7f05797c44a507`, and removed the obsolete duplicate validator.
 - Updated the proprietary license with the protected-disclosure notice and
   recorded the Contributor Covenant 2.1 attribution and modifications.

@@ -97,7 +97,7 @@
     {
       "name": "pull-request-policy-validator",
       "source": "tools/validate_pr_policy.py",
-      "sha256": "129359d1e952343d3a0b3e1744d1ed70d9bd10299f9d86b241a80d4bddf2a2a6",
+      "sha256": "b01938ec48eb2daa77abf1fdbc9f7d2274a33f329376f37e6690df0fa8a0d78f",
       "mediaType": "text/x-python",
       "distributions": []
     },

@@ -92,6 +92,15 @@ class PromotionContractTest(unittest.TestCase):
         )
         self.assertTrue(all("evaluate or active" in message for message in errors))
 
+    def test_release_tag_creation_requires_the_signer_identity_gate(self) -> None:
+        rulesets = self.rulesets()
+        rulesets["release-tag-creation"]["enforcement"] = "active"
+        gates = self.gates("qualified")
+        gates["release_signer_identity_qualified"] = "blocked"
+        errors = GOVERNANCE.evidence_gated_ruleset_errors(rulesets, gates)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("release_signer_identity_qualified", errors[0])
+
     def test_fixed_resting_state_does_not_freeze_qualified_rules(self) -> None:
         expected = {
             "baseline-all": "active",
@@ -109,6 +118,48 @@ class PromotionContractTest(unittest.TestCase):
         self.assertEqual(
             len(GOVERNANCE.resting_ruleset_errors(rulesets, expected)),
             1,
+        )
+
+
+class DrEvidenceWorkflowContractTest(unittest.TestCase):
+    def test_current_workflow_fails_closed_while_v5_is_blocked(self) -> None:
+        workflow = yaml.safe_load(
+            (ROOT / ".github/workflows/dr-evidence.yml").read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            GOVERNANCE.dr_evidence_workflow_errors(workflow, "blocked"),
+            [],
+        )
+
+    def test_qualified_state_requires_the_exact_v5_publication_caller(self) -> None:
+        workflow = {
+            "permissions": {"contents": "read", "id-token": "write"},
+            "jobs": {
+                "publish": {
+                    "uses": (
+                        "mindclade/.github/.github/workflows/"
+                        "reusable-dr-evidence.yml@v5.0.0"
+                    ),
+                    "with": {
+                        "report-path": "${{ inputs.report_path }}",
+                        "environment": "${{ inputs.environment }}",
+                        "primary-operator": "${{ github.actor }}",
+                        "observer-operator": "${{ inputs.observer_operator }}",
+                    },
+                    "permissions": {
+                        "actions": "read",
+                        "contents": "read",
+                        "id-token": "write",
+                    },
+                }
+            },
+        }
+        self.assertEqual(
+            GOVERNANCE.dr_evidence_workflow_errors(workflow, "qualified"),
+            [],
+        )
+        self.assertTrue(
+            GOVERNANCE.dr_evidence_workflow_errors(workflow, "blocked")
         )
 
 

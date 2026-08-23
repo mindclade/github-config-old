@@ -6,7 +6,7 @@ Mindclade access is team-based, catalog-driven, and least-privilege. Human lifec
 
 | Class | Scope | Baseline |
 |---|---|---|
-| `enterprise-control` | `.github`, `github-config`, `bootstrap` | Strongest governance and smallest bypass surface |
+| `enterprise-control` | `.github`, `.github-private`, `github-config`, `bootstrap` | Strongest governance and smallest bypass surface |
 | `production-control` | `infrastructure-live`, `gitops` | Protected deployment paths, two approvals, merge queue |
 | `source-monorepo` | `mindclade-internal-monorepo` | Affected CI, CODEOWNERS, merge queue, release controls |
 | `public-sdk` | Future public SDKs | Public contribution and release controls |

@@ -39,8 +39,16 @@ bootstrap:
   RESIDENCY_PROFILE: us-only-v1
   STATE_BUCKET_LOCATION: US
   STATE_KMS_LOCATION: us
+  AUTOMATION_SECRET_LOCATION: us-central1
   STATE_REPLICA_LOCATION: us-east4
   STATE_REPLICA_KMS_LOCATION: us-east4
+  # Must equal the first-apply disposition. Existing estates normally preserve the deployed
+  # Europe replicas; a greenfield estate explicitly supplies false.
+  PRESERVE_LEGACY_EU_STATE_REPLICAS: env:PRESERVE_LEGACY_EU_STATE_REPLICAS
+  STATE_SOFT_DELETE_DAYS: "30"
+  NONCURRENT_VERSION_DAYS: "90"
+  NONCURRENT_VERSION_COUNT: "100"
+  KMS_PROTECTION_LEVEL: SOFTWARE
   BREAK_GLASS_PRINCIPALS_JSON: env:BREAK_GLASS_PRINCIPALS_JSON
   # Full activation targets the provisioned security group. Bootstrap-stage export instead
   # requires SECURITY_CONTACT from the operator so it preserves the current live recipient.

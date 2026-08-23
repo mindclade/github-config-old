@@ -22,7 +22,7 @@ concurrency:
 jobs:
   nix:
     name: nix
-    uses: mindclade/.github/.github/workflows/reusable-nix-qualification.yml@0bdba2a8d06c732a6eb0a09238267dc83e1ca576
+    uses: mindclade/.github/.github/workflows/reusable-nix-qualification.yml@c386f4846a669ed841c54bc103d566c463fe4869
     with:
       watch-path-regex: '(^|/)(flake\.nix|flake\.lock|[^/]+\.nix|\.terraform-version)$|^\.github/workflows/.*nix.*\.ya?ml$'
       ci-command: make validate
