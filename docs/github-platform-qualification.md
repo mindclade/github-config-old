@@ -16,7 +16,8 @@ make qualify-github-platform
 
 The command executes each repository's locked native validation and flake gate, verifies the
 policy distribution, checks every producer/consumer workflow pin and permission contract, checks
-the generated adoption dashboard, and writes JSON and Markdown reports under `.qualification/`.
+the repository-home action pins against the policy-manifest digest, checks the generated adoption
+dashboard, and writes JSON and Markdown reports under `.qualification/`.
 That directory is ignored and contains no credentials.
 
 The report has two independent verdicts:

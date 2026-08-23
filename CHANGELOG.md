@@ -78,7 +78,7 @@ not reconstructed or relabeled here.
 - Documented that GitHub-to-cloud token-exchange evidence must consume a cloud API, because a
   successful authentication step alone does not prove a token was minted.
 - Synchronized policy bundle `2026.08.23.1`, pinned repository-home validation to canonical
-  commit `8467615f12868d4b78718b8ddf7f05797c44a507`, and removed the obsolete duplicate validator.
+  commit `f6d4bf43a1c4a69345556a224cfd13c3ab53188e`, and removed the obsolete duplicate validator.
 - Updated the proprietary license with the protected-disclosure notice and
   recorded the Contributor Covenant 2.1 attribution and modifications.
 - Moved the reusable SPDX source-header template under `.github/` so `LICENSE`

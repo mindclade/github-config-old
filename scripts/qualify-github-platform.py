@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 from typing import Any
@@ -131,6 +132,19 @@ def policy_distribution_errors(workspace: Path) -> list[str]:
     )
     if canonical_result.returncode != 0:
         errors.append(".github: canonical policy bundle verification failed")
+    manifest = json.loads(canonical.read_text(encoding="utf-8"))
+    validator_digest = next(
+        artifact["sha256"]
+        for artifact in manifest["artifacts"]
+        if artifact["name"] == "repository-home-validator"
+    )
+    action_pattern = re.compile(
+        r"mindclade/\.github/actions/validate-repository-home@([^\s#]+)"
+    )
+    consumer_workflows = {
+        ".github-private": ".github/workflows/validate.yml",
+        "github-config": ".github/workflows/production-contract.yml",
+    }
     for repository in (".github-private", "github-config"):
         target = workspace / repository / "contracts" / "policy-bundle" / "manifest.json"
         if not target.is_file() or target.read_bytes() != canonical.read_bytes():
@@ -154,6 +168,30 @@ def policy_distribution_errors(workspace: Path) -> list[str]:
         )
         if result.returncode != 0:
             errors.append(f"{repository}: declared policy distribution verification failed")
+        workflow = workspace / repository / consumer_workflows[repository]
+        matches = action_pattern.findall(workflow.read_text(encoding="utf-8"))
+        if len(matches) != 1:
+            errors.append(f"{repository}: repository-home action pin is not exact")
+            continue
+        reference = matches[0]
+        try:
+            blob = subprocess.run(
+                [
+                    "git",
+                    "show",
+                    f"{reference}:actions/validate-repository-home/validate.py",
+                ],
+                cwd=workspace / ".github",
+                check=True,
+                capture_output=True,
+            ).stdout
+        except (OSError, subprocess.CalledProcessError):
+            errors.append(f"{repository}: repository-home action pin is unavailable")
+            continue
+        if hashlib.sha256(blob).hexdigest() != validator_digest:
+            errors.append(
+                f"{repository}: repository-home action pin differs from the policy manifest"
+            )
     return errors
 
 
