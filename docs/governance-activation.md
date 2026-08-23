@@ -27,14 +27,16 @@ or retrospective closeout.
   evidence from the published v5 workflow.
 - The monorepo Go, mixed-language, and infra-static rules remain `evaluate`. The mixed rule
   includes the exact `bazel / verdict` context, whose pull-request, intentional-negative,
-  merge-group full-graph, and 28-day latency evidence is tracked by
-  [the monorepo rollout](monorepo-required-check-rollout.md). The validator permits mixed and
+  and merge-group full-graph evidence is tracked by
+  [the monorepo rollout](monorepo-required-check-rollout.md). Affected-test latency remains a
+  separate performance gate and cannot block required-check activation. The validator permits mixed and
   infra-static promotion only when their cataloged evidence gates are qualified; it no longer
   requires a validator-code edit to promote a qualified rule.
-- `required-checks-tf` remains active with only `fmt`, `validate`, and `plan`. Infracost is not a
-  required context: its current workflow runs only on pull requests and cannot satisfy merge
-  groups. The schema-backed readiness contract stays blocked until one stable cost verdict reports
-  on both event types.
+- `required-checks-gitops` and `required-checks-tf` remain `evaluate` until their sequential
+  merge-queue canaries are qualified. The Terraform rule contains only `fmt`, `validate`, and
+  `plan`. Infracost is not a required context: its source now defines a merge-group-capable verdict,
+  but connected positive and intentional-negative evidence has not been reviewed on both event
+  types. The schema-backed readiness contract therefore stays blocked.
 - `.github` declares the two protected workflow-release environments, but the connected inventory
   found neither environment live.
 - The exact observed `copilot` environments are GitHub-platform-managed exceptions, not Terraform
@@ -94,7 +96,11 @@ or retrospective closeout.
 10. Before adding cost policy to `required-checks-tf`, complete the four-step readiness sequence in
     [governance validation](governance-validation.md#deferred-cost-verdict). Never require the
     existing pull-request-only `infracost` or `comment` contexts.
-11. Complete the independent retrospective in
+11. Qualify merge queues sequentially through source-recorded `canary_active` and the exact
+    `canary`, `promote`, `finalize`, and `rollback`
+    transitions in [the protected merge-queue runbook](merge-queue-rollout.md). Resting normal
+    applies must hold every unqualified repository and its permanent checks in `evaluate`.
+12. Complete the independent retrospective in
    [issue #33](https://github.com/mindclade/github-config/issues/33) for infrastructure-live PR
    #25, `.github` PRs #22–#23, bootstrap PR #30, and github-config PRs #35–#39. Assign it to the
    independent Security reviewer after that human joins; a second founder-controlled account does

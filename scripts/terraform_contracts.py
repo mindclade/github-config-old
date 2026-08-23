@@ -30,6 +30,7 @@ class RequiredStatusRulesetContract:
     repositories: tuple[str, ...] = ()
     language_profiles: tuple[str, ...] = ()
     lifecycle_condition: str | None = None
+    integration_expression: str | None = None
 
     def __post_init__(self) -> None:
         if bool(self.repositories) == bool(self.language_profiles):
@@ -190,6 +191,20 @@ def local_value(document: Mapping[str, Any], name: str, label: str) -> Any:
     return value
 
 
+def validate_github_actions_integration_id(root: Path) -> None:
+    """Require the GitHub Actions App id to be one exact Terraform integer literal."""
+
+    label = "GitHub Actions integration id"
+    document = load_terraform(root / "modules/rulesets/locals.tf")
+    value = local_value(document, "github_actions_integration_id", label)
+    if isinstance(value, list) and len(value) == 1:
+        value = value[0]
+    if type(value) is not int or value != 15368:
+        raise TerraformContractError(
+            f"{label}: local.github_actions_integration_id must be the literal integer 15368"
+        )
+
+
 def _local_mapping(document: Mapping[str, Any], name: str, label: str) -> Mapping[str, Any]:
     value = local_value(document, name, label)
     if isinstance(value, list) and len(value) == 1 and isinstance(value[0], dict):
@@ -328,11 +343,24 @@ def validate_required_status_ruleset(
 
     rules = _block(body, "rules", label)
     status_checks = _block(rules, "required_status_checks", f"{label}.rules")
+    required_checks = _blocks(
+        status_checks, "required_check", f"{label}.status_checks"
+    )
     contexts = [
         _string(item, "context", f"{label}.required_check")
-        for item in _blocks(status_checks, "required_check", f"{label}.status_checks")
+        for item in required_checks
     ]
     _expect(contexts, list(contract.contexts), f"{label}.required_check.contexts")
+    if contract.integration_expression is not None:
+        integration_expressions = [
+            _expression(item, "integration_id", f"{label}.required_check")
+            for item in required_checks
+        ]
+        _expect(
+            integration_expressions,
+            [contract.integration_expression] * len(contract.contexts),
+            f"{label}.required_check.integration_ids",
+        )
     _expect(
         _boolean(status_checks, "strict_required_status_checks_policy", label),
         True,

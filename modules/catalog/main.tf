@@ -22,6 +22,9 @@ locals {
   governance_activation = yamldecode(
     file("${var.catalog_path}/governance-activation.yaml")
   )
+  merge_queue_readiness = yamldecode(
+    file("${var.catalog_path}/merge-queue-readiness.yaml")
+  )
   required_check_readiness = yamldecode(
     file("${var.catalog_path}/required-check-readiness.yaml")
   )
@@ -308,6 +311,7 @@ check "ruleset_catalog_matches_the_implementation" {
       "required-checks-nix",
       "required-checks-tf",
       "required-checks-tf-static",
+      "required-checks-tf-static-infrastructure-live",
       "required-checks-tf-tests",
       "ruleset-workflows",
       "tag-protection",
@@ -335,4 +339,5 @@ output "custom_properties" { value = local.custom_properties }
 output "runner_groups" { value = local.runner_groups }
 output "github_apps" { value = local.github_apps }
 output "governance_activation" { value = local.governance_activation }
+output "merge_queue_readiness" { value = local.merge_queue_readiness }
 output "required_check_readiness" { value = local.required_check_readiness }

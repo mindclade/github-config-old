@@ -58,15 +58,18 @@ resource "github_organization_ruleset" "required_checks_tf" {
       # Verify after any workflow edit:
       #   python3 -c "import yaml;print(sorted(yaml.safe_load(open('.github/workflows/plan.yml'))['jobs']))"
       required_check {
-        context = "fmt"
+        context        = "fmt"
+        integration_id = local.github_actions_integration_id
       }
 
       required_check {
-        context = "validate"
+        context        = "validate"
+        integration_id = local.github_actions_integration_id
       }
 
       required_check {
-        context = "plan"
+        context        = "plan"
+        integration_id = local.github_actions_integration_id
       }
 
       # tflint and checkov exist only in github-config's workflow, not in
@@ -102,13 +105,10 @@ resource "github_organization_ruleset" "required_checks_tf" {
 # context a repository reports depends on how its workflow is structured, not on what it
 # contains.
 #
-# BOTH repositories are covered. This used to name github-config alone, on the premise that
-# infrastructure-live holds no .tf files locally so tflint and checkov would analyse an empty
-# directory. The premise is out of date: infrastructure-live's plan.yml defines both jobs
-# (:101 and :131), each guarded by a `find . -name '*.tf'` probe that skips the tool and lets
-# the JOB report success. The context is produced either way, so requiring it is safe — and
-# the day that repository does vendor a module locally, the check is already in force rather
-# than needing to be remembered.
+# Keep github-config and infrastructure-live separate. Their qualification evidence is reviewed
+# independently, so one repository must be promotable without changing enforcement on the other.
+# Retaining the existing resource address for github-config updates the adopted rule in place;
+# the infrastructure-live rule below is additive and does not create a protection gap.
 resource "github_organization_ruleset" "required_checks_tf_static" {
   name        = "required-checks-tf-static"
   target      = "branch"
@@ -129,7 +129,7 @@ resource "github_organization_ruleset" "required_checks_tf_static" {
       exclude = []
     }
     repository_name {
-      include = ["github-config", "infrastructure-live"]
+      include = ["github-config"]
       exclude = []
     }
   }
@@ -142,6 +142,49 @@ resource "github_organization_ruleset" "required_checks_tf_static" {
 
       required_check {
         context = "checkov"
+      }
+
+      strict_required_status_checks_policy = true
+      do_not_enforce_on_create             = true
+    }
+  }
+}
+
+resource "github_organization_ruleset" "required_checks_tf_static_infrastructure_live" {
+  name        = "required-checks-tf-static-infrastructure-live"
+  target      = "branch"
+  enforcement = local.enforcement["required-checks-tf-static-infrastructure-live"]
+
+  dynamic "bypass_actors" {
+    for_each = local.bypass_incident_response
+    content {
+      actor_id    = bypass_actors.value.actor_id
+      actor_type  = bypass_actors.value.actor_type
+      bypass_mode = bypass_actors.value.bypass_mode
+    }
+  }
+
+  conditions {
+    ref_name {
+      include = ["~DEFAULT_BRANCH"]
+      exclude = []
+    }
+    repository_name {
+      include = ["infrastructure-live"]
+      exclude = []
+    }
+  }
+
+  rules {
+    required_status_checks {
+      required_check {
+        context        = "tflint"
+        integration_id = local.github_actions_integration_id
+      }
+
+      required_check {
+        context        = "checkov"
+        integration_id = local.github_actions_integration_id
       }
 
       strict_required_status_checks_policy = true

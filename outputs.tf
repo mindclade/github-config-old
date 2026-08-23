@@ -36,6 +36,11 @@ output "ruleset_enforcement" {
   value       = module.rulesets.enforcement
 }
 
+output "merge_queue_repository_enforcement" {
+  description = "Effective fail-closed merge-queue enforcement by eligible repository."
+  value       = module.rulesets.merge_queue_repository_enforcement
+}
+
 output "ci_variables" {
   description = <<-EOT
     Repository to the Actions variable names declared for it. drift.yml compares this against

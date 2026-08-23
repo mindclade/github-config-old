@@ -180,6 +180,21 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Compile exact resting rollout bundle
+        run: |
+          set -euo pipefail
+          python3 scripts/governance-rollout.py --phase normal > rollout-bundle.json
+          jq -e 'keys == [
+            "merge_queue_canary_required_checks",
+            "merge_queue_repository_enforcement_overrides",
+            "ruleset_enforcement_overrides"
+          ]' rollout-bundle.json >/dev/null
+          {
+            echo "TF_VAR_ruleset_enforcement_overrides=$(jq -c '.ruleset_enforcement_overrides' rollout-bundle.json)"
+            echo "TF_VAR_merge_queue_repository_enforcement_overrides=$(jq -c '.merge_queue_repository_enforcement_overrides' rollout-bundle.json)"
+            echo "TF_VAR_merge_queue_canary_required_checks=$(jq -c '.merge_queue_canary_required_checks' rollout-bundle.json)"
+          } >> "$GITHUB_ENV"
+
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093  # v3
         with:
           workload_identity_provider: ${{ vars.WIF_PROVIDER_PLAN }}
@@ -421,6 +436,7 @@ jobs:
           # evidence failure, not a clean result.
           if ! python3 scripts/audit-connected-governance.py \
             --organization "$ORG" \
+            --rollout-bundle rollout-bundle.json \
             --output connected-governance.json; then
             {
               echo ""
@@ -444,6 +460,7 @@ jobs:
             drift.txt
             unmanaged.txt
             connected-governance.json
+            rollout-bundle.json
           retention-days: 14
 
       - name: Open or update the drift issue

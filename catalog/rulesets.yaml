@@ -68,7 +68,7 @@ required-checks-gitops:
     - gitops
   # Credential-free merge-group gates only. Render and provenance remain explicit activation
   # evidence until those cross-repository/cloud trust workflows support merge_group safely.
-  enforcement: active
+  enforcement: evaluate
 required-checks-mixed:
   language_profiles:
     - mixed
@@ -90,12 +90,19 @@ required-checks-nix:
 required-checks-tf:
   repositories:
     - infrastructure-live
-  enforcement: active
+  # The stable Terraform checks report on merge groups, but enforcement remains staged until
+  # the infrastructure-live queue canary and protected-plan evidence are qualified.
+  enforcement: evaluate
 required-checks-tf-static:
   repositories:
     - github-config
-    - infrastructure-live
   enforcement: active
+required-checks-tf-static-infrastructure-live:
+  repositories:
+    - infrastructure-live
+  # Keep the infrastructure-specific static rule in evaluate mode until the repository's
+  # sequential merge-queue canary and connected permanent-ruleset audit are qualified.
+  enforcement: evaluate
 required-checks-tf-tests:
   repositories:
     - github-config

@@ -21,6 +21,7 @@ from jsonschema import Draft202012Validator
 
 from governance_contracts import (
     evidence_gated_ruleset_errors,
+    merge_queue_readiness_errors,
     required_check_readiness_errors,
     resting_ruleset_errors,
     runner_group_contract_errors,
@@ -35,6 +36,7 @@ from terraform_contracts import (
     validate_drift_readiness,
     validate_bazel_cache_ci_variable_contract,
     validate_environment_handoff,
+    validate_github_actions_integration_id,
     validate_import_contract,
     validate_oidc_module,
     validate_release_tag_contracts,
@@ -94,6 +96,7 @@ EXPECTED_RULESETS = {
     "required-checks-nix",
     "required-checks-tf",
     "required-checks-tf-static",
+    "required-checks-tf-static-infrastructure-live",
     "required-checks-tf-tests",
     "ruleset-workflows",
     "tag-protection",
@@ -107,12 +110,13 @@ EXPECTED_RULESET_ENFORCEMENT = {
     "release-tag-creation": "evaluate",
     "push-blocklist": "active",
     "required-checks-bootstrap": "evaluate",
-    "required-checks-gitops": "active",
+    "required-checks-gitops": "evaluate",
     "required-checks-go": "evaluate",
     "required-checks-github-config": "evaluate",
     "required-checks-nix": "evaluate",
-    "required-checks-tf": "active",
+    "required-checks-tf": "evaluate",
     "required-checks-tf-static": "active",
+    "required-checks-tf-static-infrastructure-live": "evaluate",
     "required-checks-tf-tests": "active",
     "ruleset-workflows": "evaluate",
     "tag-protection": "active",
@@ -150,13 +154,15 @@ REQUIRED_STATUS_RULESET_CONTRACTS = (
             "promotion-integrity",
             "repository-invariants",
         ),
+        integration_expression="local.github_actions_integration_id",
     ),
     RequiredStatusRulesetContract(
         path="modules/rulesets/required-checks-go.tf",
         resource_name="required_checks_go",
         ruleset_name="required-checks-go",
         language_profiles=("go", "mixed"),
-        contexts=("ci / build", "codeql / analyze (go)"),
+        contexts=("ci / build", "codeql-go / analyze (go)"),
+        integration_expression="local.github_actions_integration_id",
     ),
     RequiredStatusRulesetContract(
         path="modules/rulesets/required-checks-infra-static.tf",
@@ -164,6 +170,7 @@ REQUIRED_STATUS_RULESET_CONTRACTS = (
         ruleset_name="required-checks-infra-static",
         repositories=("mindclade-internal-monorepo",),
         contexts=("infra-static",),
+        integration_expression="local.github_actions_integration_id",
     ),
     RequiredStatusRulesetContract(
         path="modules/rulesets/required-checks-mixed.tf",
@@ -177,6 +184,7 @@ REQUIRED_STATUS_RULESET_CONTRACTS = (
             "Go registry + admission / live PostgreSQL and failure injection",
             "bazel / verdict",
         ),
+        integration_expression="local.github_actions_integration_id",
     ),
     RequiredStatusRulesetContract(
         path="modules/rulesets/required-checks-nix.tf",
@@ -199,13 +207,22 @@ REQUIRED_STATUS_RULESET_CONTRACTS = (
         ruleset_name="required-checks-tf",
         repositories=("infrastructure-live",),
         contexts=("fmt", "validate", "plan"),
+        integration_expression="local.github_actions_integration_id",
     ),
     RequiredStatusRulesetContract(
         path="modules/rulesets/required-checks-tf.tf",
         resource_name="required_checks_tf_static",
         ruleset_name="required-checks-tf-static",
-        repositories=("github-config", "infrastructure-live"),
+        repositories=("github-config",),
         contexts=("tflint", "checkov"),
+    ),
+    RequiredStatusRulesetContract(
+        path="modules/rulesets/required-checks-tf.tf",
+        resource_name="required_checks_tf_static_infrastructure_live",
+        ruleset_name="required-checks-tf-static-infrastructure-live",
+        repositories=("infrastructure-live",),
+        contexts=("tflint", "checkov"),
+        integration_expression="local.github_actions_integration_id",
     ),
     RequiredStatusRulesetContract(
         path="modules/rulesets/required-checks-tf.tf",
@@ -348,6 +365,7 @@ for stem in (
     "control-plane-apps",
     "connected-resource-exceptions",
     "governance-activation",
+    "merge-queue-readiness",
     "required-check-readiness",
 ):
     data = load_yaml(f"{stem}.yaml")
@@ -377,6 +395,7 @@ control_plane_apps = load_yaml("control-plane-apps.yaml") or {}
 exceptions = load_yaml("access-exceptions.yaml") or []
 ci_variables = load_yaml("ci-variables.yaml") or {}
 governance_activation = load_yaml("governance-activation.yaml") or {}
+merge_queue_readiness = load_yaml("merge-queue-readiness.yaml") or {}
 required_check_readiness = load_yaml("required-check-readiness.yaml") or {}
 adoption_inventory = load_yaml("adoption-inventory.yaml") or {}
 connected_exceptions = load_yaml("connected-resource-exceptions.yaml") or {}
@@ -488,6 +507,8 @@ for message in required_check_readiness_errors(
     activation_gates,
     ruleset_contexts,
 ):
+    err(message)
+for message in merge_queue_readiness_errors(merge_queue_readiness):
     err(message)
 for contract_error in runner_group_contract_errors(runner_groups):
     err(contract_error)
@@ -1087,8 +1108,8 @@ bootstrap_checks = rulesets.get("required-checks-bootstrap", {})
 if bootstrap_checks.get("repositories") != ["bootstrap"]:
     err("required-checks-bootstrap must target only bootstrap")
 gitops_checks = rulesets.get("required-checks-gitops", {})
-if gitops_checks.get("enforcement") != "active":
-    err("required-checks-gitops must remain active")
+if gitops_checks.get("enforcement") != "evaluate":
+    err("required-checks-gitops must remain evaluate until queue qualification")
 if gitops_checks.get("repositories") != ["gitops"]:
     err("required-checks-gitops must target only gitops")
 mixed_checks = rulesets.get("required-checks-mixed", {})
@@ -1106,6 +1127,10 @@ nix_repositories = nix_checks.get("repositories", [])
 if len(nix_repositories) != len(EXPECTED_REPOS) or set(nix_repositories) != EXPECTED_REPOS:
     err("required-checks-nix must target exactly the seven managed repositories")
 
+try:
+    validate_github_actions_integration_id(ROOT)
+except TerraformContractError as exc:
+    err(str(exc))
 try:
     validate_release_tag_contracts(ROOT)
 except TerraformContractError as exc:

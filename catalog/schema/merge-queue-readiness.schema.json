@@ -1,0 +1,269 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "evidence": {
+      "additionalProperties": false,
+      "properties": {
+        "base_sha": {"pattern": "^[0-9a-f]{40}$", "type": "string"},
+        "conclusion": {"enum": ["failure", "success"]},
+        "event_name": {
+          "enum": ["merge_group", "pull_request", "workflow_dispatch"]
+        },
+        "evidence_role": {
+          "enum": [
+            "positive_pull_request",
+            "positive_merge_group",
+            "intentional_negative_merge_group",
+            "permanent_ruleset_audit"
+          ]
+        },
+        "head_sha": {"pattern": "^[0-9a-f]{40}$", "type": "string"},
+        "observed_at": {
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+          "type": "string"
+        },
+        "restricted_snapshot_uri": {
+          "pattern": "^gs://[a-z0-9][a-z0-9._-]*/[^#\\s]+#[1-9][0-9]*$",
+          "type": "string"
+        },
+        "reviewer": {
+          "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$",
+          "type": "string"
+        },
+        "run_url": {
+          "pattern": "^https://github\\.com/mindclade/[A-Za-z0-9_.-]+/actions/runs/[1-9][0-9]*$",
+          "type": "string"
+        },
+        "sha256": {"pattern": "^sha256:[0-9a-f]{64}$", "type": "string"},
+        "subject_repository": {
+          "enum": [
+            "gitops",
+            "infrastructure-live",
+            "mindclade-internal-monorepo"
+          ]
+        }
+      },
+      "required": [
+        "run_url",
+        "head_sha",
+        "base_sha",
+        "subject_repository",
+        "evidence_role",
+        "event_name",
+        "conclusion",
+        "observed_at",
+        "reviewer",
+        "restricted_snapshot_uri",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "evidenceSet": {
+      "additionalProperties": false,
+      "properties": {
+        "intentional_negative_merge_group": {
+          "oneOf": [{"$ref": "#/$defs/evidence"}, {"type": "null"}]
+        },
+        "permanent_ruleset_audit": {
+          "oneOf": [{"$ref": "#/$defs/evidence"}, {"type": "null"}]
+        },
+        "positive_merge_group": {
+          "oneOf": [{"$ref": "#/$defs/evidence"}, {"type": "null"}]
+        },
+        "positive_pull_request": {
+          "oneOf": [{"$ref": "#/$defs/evidence"}, {"type": "null"}]
+        }
+      },
+      "required": [
+        "positive_pull_request",
+        "positive_merge_group",
+        "intentional_negative_merge_group",
+        "permanent_ruleset_audit"
+      ],
+      "type": "object"
+    },
+    "repositoryBase": {
+      "additionalProperties": false,
+      "properties": {
+        "blocker": {"type": ["string", "null"]},
+        "evidence": {"$ref": "#/$defs/evidenceSet"},
+        "github_actions_integration_id": {"const": 15368},
+        "permanent_rulesets": {"type": "array"},
+        "repository": {"type": "string"},
+        "required_contexts": {"type": "array"},
+        "status": {
+          "enum": ["blocked", "canary_active", "canary_passed", "qualified"]
+        }
+      },
+      "required": [
+        "repository",
+        "github_actions_integration_id",
+        "required_contexts",
+        "permanent_rulesets",
+        "status",
+        "blocker",
+        "evidence"
+      ],
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "rollout_order": {
+      "maxItems": 3,
+      "minItems": 3,
+      "prefixItems": [
+        {
+          "allOf": [
+            {"$ref": "#/$defs/repositoryBase"},
+            {
+              "properties": {
+                "permanent_rulesets": {
+                  "const": [
+                    "required-checks-go",
+                    "required-checks-mixed",
+                    "required-checks-infra-static"
+                  ]
+                },
+                "repository": {"const": "mindclade-internal-monorepo"},
+                "required_contexts": {
+                  "const": [
+                    "ci / build",
+                    "codeql-go / analyze (go)",
+                    "python / build",
+                    "rust / build",
+                    "architecture",
+                    "Go registry + admission / live PostgreSQL and failure injection",
+                    "bazel / verdict",
+                    "infra-static"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {"$ref": "#/$defs/repositoryBase"},
+            {
+              "properties": {
+                "permanent_rulesets": {"const": ["required-checks-gitops"]},
+                "repository": {"const": "gitops"},
+                "required_contexts": {
+                  "const": [
+                    "contract",
+                    "lint",
+                    "schema",
+                    "policy",
+                    "exemptions",
+                    "promotion-integrity",
+                    "repository-invariants"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {"$ref": "#/$defs/repositoryBase"},
+            {
+              "properties": {
+                "permanent_rulesets": {
+                  "const": [
+                    "required-checks-tf",
+                    "required-checks-tf-static-infrastructure-live"
+                  ]
+                },
+                "repository": {"const": "infrastructure-live"},
+                "required_contexts": {
+                  "const": ["fmt", "validate", "plan", "tflint", "checkov"]
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "type": "array"
+    },
+    "schema_version": {"const": 1}
+  },
+  "required": ["schema_version", "rollout_order"],
+  "type": "object",
+  "allOf": [
+    {
+      "properties": {
+        "rollout_order": {
+          "items": {
+            "allOf": [
+              {
+                "if": {"properties": {"status": {"const": "blocked"}}},
+                "then": {
+                  "properties": {
+                    "blocker": {"minLength": 1, "type": "string"},
+                    "evidence": {
+                      "properties": {
+                        "intentional_negative_merge_group": {"type": "null"},
+                        "permanent_ruleset_audit": {"type": "null"},
+                        "positive_merge_group": {"type": "null"},
+                        "positive_pull_request": {"type": "null"}
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "if": {"properties": {"status": {"const": "canary_active"}}},
+                "then": {
+                  "properties": {
+                    "blocker": {"minLength": 1, "type": "string"},
+                    "evidence": {
+                      "properties": {
+                        "intentional_negative_merge_group": {"type": "null"},
+                        "permanent_ruleset_audit": {"type": "null"},
+                        "positive_merge_group": {"type": "null"},
+                        "positive_pull_request": {"type": "null"}
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "if": {"properties": {"status": {"const": "canary_passed"}}},
+                "then": {
+                  "properties": {
+                    "blocker": {"type": "null"},
+                    "evidence": {
+                      "properties": {
+                        "intentional_negative_merge_group": {"$ref": "#/$defs/evidence"},
+                        "permanent_ruleset_audit": {"type": "null"},
+                        "positive_merge_group": {"$ref": "#/$defs/evidence"},
+                        "positive_pull_request": {"$ref": "#/$defs/evidence"}
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "if": {"properties": {"status": {"const": "qualified"}}},
+                "then": {
+                  "properties": {
+                    "blocker": {"type": "null"},
+                    "evidence": {
+                      "properties": {
+                        "intentional_negative_merge_group": {"$ref": "#/$defs/evidence"},
+                        "permanent_ruleset_audit": {"$ref": "#/$defs/evidence"},
+                        "positive_merge_group": {"$ref": "#/$defs/evidence"},
+                        "positive_pull_request": {"$ref": "#/$defs/evidence"}
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
