@@ -3,7 +3,7 @@
 # Shared workflow adoption
 
 Producer release: `v5.0.0` (candidate).
-Policy bundle: `2026.08.23.2`; manifest SHA-256 `ba081406682fc334bf4fdad0afeb2af936a23983a444f245b5fa01401618ce43`.
+Policy bundle: `2026.08.23.3`; manifest SHA-256 `5b05daa60d064ea3504daf0c5f76ad8d498e8d8c6205ff1005b7578a8d43cef6`.
 
 ## Repository readiness
 

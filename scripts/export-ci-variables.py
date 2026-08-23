@@ -24,9 +24,9 @@ from jsonschema.exceptions import SchemaError
 
 ROOT = Path(__file__).resolve().parent.parent
 
-SUPPORTED_BOOTSTRAP_CONTRACT_VERSIONS = {"1.2.0", "1.4.0", "1.5.0", "1.6.0"}
+SUPPORTED_BOOTSTRAP_CONTRACT_VERSIONS = {"2.0.0"}
 BOOTSTRAP_ACCOUNT_HANDOFF_CONTRACT_VERSION = 1
-BOOTSTRAP_ACCOUNT_HANDOFF_PLATFORM_VERSIONS = {"1.5.0", "1.6.0"}
+BOOTSTRAP_ACCOUNT_HANDOFF_PLATFORM_VERSIONS = {"2.0.0"}
 BOOTSTRAP_ACCOUNT_HANDOFF_SCHEMA = (
     ROOT / "contracts/bootstrap-account-handoff.schema.json"
 )
@@ -107,8 +107,6 @@ class AppliedHandoff(NamedTuple):
     contract_version: str
     variables: dict[str, str]
 
-BUILDKITE_DEFERRED_VARIABLES: dict[str, set[str]] = {}
-
 # Initial governance runs before GitHub Apps, normal-plane identities, attestors, and
 # environment projects exist. Keep this allowlist deliberately small: platform-contract values
 # are added after filtering, while every unavailable env: input is deferred to the full export.
@@ -132,7 +130,6 @@ BOOTSTRAP_STAGE_CATALOG_KEYS = {
         "KMS_PROTECTION_LEVEL",
         "BREAK_GLASS_PRINCIPALS_JSON",
         "SECURITY_CONTACT",
-        "ENABLE_BUILDKITE_WIF",
     },
     "infrastructure-live": {
         "ORG_POLICY_ACTIVATION_PHASE",
@@ -367,26 +364,6 @@ def require(mapping: dict[str, Any], key: str, label: str) -> Any:
     if value in (None, ""):
         raise ValueError(f"{label} is missing: {key}")
     return value
-
-
-def configure_buildkite_phase(
-    config: dict[str, dict[str, Any]], buildkite: dict[str, Any]
-) -> str | None:
-    enabled = buildkite.get("enabled")
-    if not isinstance(enabled, bool):
-        raise ValueError("platform_contract.buildkite.enabled is not boolean")
-    catalog_flag = config.get("bootstrap", {}).get("ENABLE_BUILDKITE_WIF")
-    if catalog_flag != "false":
-        raise ValueError(
-            "catalog must permanently disable retired Buildkite federation"
-        )
-    if enabled or buildkite.get("workload_identity_pool") is not None or (
-        buildkite.get("workload_identity_provider") is not None
-    ):
-        raise ValueError(
-            "Buildkite is retired and must publish disabled with null pool and provider"
-        )
-    return None
 
 
 def select_bootstrap_stage(
@@ -838,40 +815,15 @@ def compile_payload(
         raise ValueError(
             f"unsupported bootstrap platform_contract version: {contract_version or 'missing'}"
         )
-    buildkite = require(platform, "buildkite", "platform_contract")
-    if not isinstance(buildkite, dict):
-        raise ValueError("platform_contract.buildkite is not an object")
-    buildkite_pool = configure_buildkite_phase(config, buildkite)
     if stage == "bootstrap":
         if applied_handoff is not None:
             raise ValueError("applied handoff is only valid for the full export stage")
         config = select_bootstrap_stage(config)
     elif stage == "full":
-        if contract_version == "1.6.0":
-            if applied_handoff is None or applied_handoff.contract_version != "1.5.0":
-                raise ValueError(
-                    "bootstrap 1.6.0 full export requires applied handoff 1.5.0"
-                )
-        elif contract_version == "1.5.0":
-            if applied_handoff is None or applied_handoff.contract_version != "1.4.0":
-                raise ValueError(
-                    "bootstrap 1.5.0 full export requires applied handoff 1.4.0"
-                )
-            for name in WORKSTATION_IMAGE_APPLIED_HANDOFF_VARIABLES:
-                config["mindclade-internal-monorepo"].pop(name, None)
-            config["infrastructure-live"].pop("WORKSTATION_IMAGE_IDENTITY_JSON", None)
-        else:
-            for name in BAZEL_CACHE_APPLIED_HANDOFF_VARIABLES | WORKSTATION_IMAGE_APPLIED_HANDOFF_VARIABLES:
-                config["mindclade-internal-monorepo"].pop(name, None)
-            config["infrastructure-live"].pop("BAZEL_CACHE_IDENTITY_JSON", None)
-            config["infrastructure-live"].pop("WORKSTATION_IMAGE_IDENTITY_JSON", None)
-            if (
-                applied_handoff is not None
-                and applied_handoff.contract_version != "1.3.0"
-            ):
-                raise ValueError(
-                    "bootstrap 1.2.0/1.4.0 full export requires applied handoff 1.3.0"
-                )
+        if applied_handoff is None or applied_handoff.contract_version != "1.5.0":
+            raise ValueError(
+                "bootstrap 2.0.0 full export requires applied handoff 1.5.0"
+            )
     else:
         raise ValueError(f"unsupported CI variable export stage: {stage}")
     if applied_handoff is not None:
@@ -903,7 +855,7 @@ def compile_payload(
     production_qualification_identity: dict[str, str] | None = None
     bazel_cache_identity: dict[str, Any] | None = None
     workstation_image_identity: dict[str, str] | None = None
-    if contract_version in {"1.4.0", "1.5.0", "1.6.0"}:
+    if contract_version == "2.0.0":
         release_identities = artifact_release_contract(
             github_contract, str(github_pool), github_organization
         )
@@ -939,7 +891,7 @@ def compile_payload(
             principal,
         ) is None:
             raise ValueError("legacy artifact signer principal differs")
-    if contract_version in {"1.5.0", "1.6.0"}:
+    if contract_version == "2.0.0":
         bazel_cache_identity = bazel_cache_identity_contract(
             github_contract, str(github_pool), github_organization
         )
@@ -949,7 +901,7 @@ def compile_payload(
             validate_applied_bazel_cache_handoff(
                 applied_handoff, bazel_cache_identity
             )
-    if contract_version == "1.6.0":
+    if contract_version == "2.0.0":
         workstation_image_identity = workstation_image_identity_contract(
             github_contract, str(github_pool), github_organization
         )
@@ -959,7 +911,7 @@ def compile_payload(
             validate_applied_workstation_image_handoff(
                 applied_handoff, workstation_image_identity
             )
-    if stage == "full" and contract_version in {"1.4.0", "1.5.0", "1.6.0"}:
+    if stage == "full" and contract_version == "2.0.0":
         config["github-config"]["DR_EVIDENCE_ENVIRONMENT_VARIABLES"] = json.dumps(
             dr_evidence_environment_contract(
                 github_contract, str(github_pool), github_organization
@@ -1081,8 +1033,6 @@ def compile_payload(
             "automation identities",
         ),
     }
-    if buildkite_pool is not None:
-        infrastructure_live_values["BUILDKITE_WIF_POOL_NAME"] = buildkite_pool
     if release_identities is not None:
         infrastructure_live_values["ARTIFACT_RELEASE_IDENTITIES_JSON"] = json.dumps(
             release_identities, sort_keys=True, separators=(",", ":")

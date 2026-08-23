@@ -58,9 +58,6 @@ bootstrap:
   # Full activation targets the provisioned security group. Bootstrap-stage export instead
   # requires SECURITY_CONTACT from the operator so it preserves the current live recipient.
   SECURITY_CONTACT: security@mindclade.com
-  # The ARC amendment permanently disables the retained Buildkite transition guard.
-  ENABLE_BUILDKITE_WIF: "false"
-
 infrastructure-live:
   TF_APP_ID: env:TF_APP_ID
   CLOUD_IDENTITY_CUSTOMER_ID: env:CLOUD_IDENTITY_CUSTOMER_ID
@@ -120,7 +117,7 @@ mindclade-internal-monorepo:
   # This server-side half of the dual gate remains inert until the monorepo source contract,
   # restricted evidence, module release, and job-scoped OIDC permission are reviewed together.
   BAZEL_REMOTE_CACHE_STATE: blocked
-  # These values may come only from applied handoff 1.4.0+ after bootstrap 1.5+ and the
+  # These values may come only from applied handoff 1.5.0 under bootstrap contract 2.0.0 and the
   # authoritative automation IAM unit have both been applied. Raw operator values are rejected.
   WIF_PROVIDER_BAZEL_CACHE: env:WIF_PROVIDER_BAZEL_CACHE
   SA_BAZEL_CACHE_READER: env:SA_BAZEL_CACHE_READER

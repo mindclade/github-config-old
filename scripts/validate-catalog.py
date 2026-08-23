@@ -291,7 +291,6 @@ REQUIRED_CI_VARIABLES = {
     },
     "bootstrap": {
         "AUTOMATION_SECRET_LOCATION": "us-central1",
-        "ENABLE_BUILDKITE_WIF": "false",
         "GCP_REGION": "us-central1",
         "KMS_PROTECTION_LEVEL": "SOFTWARE",
         "NONCURRENT_VERSION_COUNT": "100",
@@ -1490,14 +1489,10 @@ for repo, variables in ci_variables.items():
         err(
             f"ci-variables: {repo} retains ambiguous legacy Binary Authorization variables"
         )
-if "BUILDKITE_WIF_POOL_NAME" in ci_variables.get("infrastructure-live", {}):
-    err(
-        "ci-variables: Buildkite WIF pool must come from bootstrap platform_contract, not env input"
-    )
 for repository, variables in ci_variables.items():
     forbidden_buildkite = {
         name for name in variables if name.startswith("BUILDKITE_")
-    } - ({"ENABLE_BUILDKITE_WIF"} if repository == "bootstrap" else set())
+    }
     if forbidden_buildkite:
         err(
             f"ci-variables: {repository} retains Buildkite authority variables: "
@@ -1635,9 +1630,8 @@ for name, fragment in required_export_fragments.items():
 if '"platform_contract"' not in ci_variable_exporter:
     err("ci-variable exporter must source bootstrap/platform_contract")
 for fragment in (
-    'SUPPORTED_BOOTSTRAP_CONTRACT_VERSIONS = {"1.2.0", "1.4.0", "1.5.0", "1.6.0"}',
+    'SUPPORTED_BOOTSTRAP_CONTRACT_VERSIONS = {"2.0.0"}',
     '"replica_buckets"',
-    'if enabled or buildkite.get("workload_identity_pool") is not None',
     '"workload_identity_pool"',
     '"principal"',
     '"repository_identities"',
@@ -1655,7 +1649,7 @@ for fragment in (
     '"1.3.0": APPLIED_HANDOFF_V13_VARIABLES',
     '"1.4.0": APPLIED_HANDOFF_V13_VARIABLES',
     '"1.5.0": (',
-    'applied_handoff.contract_version != "1.4.0"',
+    'applied_handoff.contract_version != "1.5.0"',
     'choices=("bootstrap", "full")',
 ):
     if fragment not in ci_variable_exporter:

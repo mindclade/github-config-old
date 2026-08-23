@@ -28,7 +28,7 @@ EXPECTED_SCHEMA_ID = (
     "bootstrap-account-handoff.schema.json"
 )
 EXPECTED_SCHEMA_SHA256 = (
-    "a0cbcea0d0f78800648f95e52a247fa3111db25f52f188b241e99af140759ce3"
+    "3ffafe7b1e9e0e42b42ba99d31206ddd507ea867f1023c6ce4655fda55bf9255"
 )
 EXPECTED_FIELDS = {
     "schema_version",
@@ -62,8 +62,8 @@ def contract_errors(root: Path = ROOT) -> list[str]:
         or schema.get("properties", {}).get("schema_version", {}).get("const") != 1
         or schema.get("properties", {})
         .get("bootstrap_contract_version", {})
-        .get("enum")
-        != ["1.5.0", "1.6.0"]
+        .get("const")
+        != "2.0.0"
     ):
         errors.append(
             "[ACCOUNT-HANDOFF-CONTRACT] handoff schema authority or field inventory differs"
