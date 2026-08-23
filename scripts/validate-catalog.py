@@ -1519,6 +1519,17 @@ else:
 ci_variable_exporter = (ROOT / "scripts" / "export-ci-variables.py").read_text(
     encoding="utf-8"
 )
+ci_variable_module = (ROOT / "modules/repositories/ci-variables.tf").read_text(
+    encoding="utf-8"
+)
+for fragment in (
+    'resource "github_actions_variable" "release_team_id"',
+    'variable_name = "RELEASE_TEAM_ID"',
+    'value         = var.team_ids["release"]',
+    'check "release_team_identity_is_immutable"',
+):
+    if fragment not in ci_variable_module:
+        err(f"ci-variables: derived release-team identity contract omits {fragment}")
 required_export_fragments = {
     "bootstrap/TFSTATE_REPLICA_BUCKET": '"TFSTATE_REPLICA_BUCKET"',
     "infrastructure-live/WIF_POOL_GITHUB_NAME": '"WIF_POOL_GITHUB_NAME"',

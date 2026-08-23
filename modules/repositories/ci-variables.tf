@@ -108,6 +108,22 @@ resource "github_actions_variable" "this" {
   value         = each.value.value
 }
 
+# Release workflows use this immutable numeric identity only to compare the connected ruleset's
+# sole creation bypass. It is derived from the Terraform-owned team resource rather than accepted
+# as an operator-authored catalog value, and grants no authority by itself.
+resource "github_actions_variable" "release_team_id" {
+  repository    = github_repository.this[".github"].name
+  variable_name = "RELEASE_TEAM_ID"
+  value         = var.team_ids["release"]
+}
+
+check "release_team_identity_is_immutable" {
+  assert {
+    condition     = can(regex("^[1-9][0-9]*$", var.team_ids["release"]))
+    error_message = "The protected workflow release preflight requires the immutable numeric Release team ID."
+  }
+}
+
 # A variable declared for a repository that does not exist fails mid-apply with a map-lookup
 # error naming neither. Catch it at plan time.
 check "ci_variables_reference_declared_repositories" {
