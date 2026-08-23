@@ -38,6 +38,7 @@ rollout_order:
       - policy
       - exemptions
       - promotion-integrity
+      - production-handoff-gate
       - repository-invariants
     permanent_rulesets:
       - required-checks-gitops

@@ -62,6 +62,7 @@ MERGE_QUEUE_REQUIRED_STATUS_CHECK_CONTEXTS = {
         "policy",
         "exemptions",
         "promotion-integrity",
+        "production-handoff-gate",
         "repository-invariants",
     ),
     "required-checks-tf": ("fmt", "validate", "plan"),

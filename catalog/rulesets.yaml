@@ -66,8 +66,8 @@ required-checks-infra-static:
 required-checks-gitops:
   repositories:
     - gitops
-  # Credential-free merge-group gates only. Render and provenance remain explicit activation
-  # evidence until those cross-repository/cloud trust workflows support merge_group safely.
+  # Merge-group-safe gates only. production-handoff-gate is credential-free for ordinary changes
+  # and enters the protected read-only production environment only for qualified-v1 activation.
   enforcement: evaluate
 required-checks-mixed:
   language_profiles:

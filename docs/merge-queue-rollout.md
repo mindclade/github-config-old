@@ -55,8 +55,10 @@ replacement authorization false.
 
 For `infrastructure-live`, the positive merge group must include a successful protected read-only
 WIF plan within the queue timeout. For `gitops`, `promotion-integrity` must validate the actual
-merge-group base/head delta. For the monorepo, `bazel / verdict` must prove full configured analysis
-and tests over `//...`.
+merge-group base/head delta, and `production-handoff-gate` must report on every range. Its connected
+read-only branch runs only for a `qualified-v1` production activation and must prove the immutable
+evidence generation before merge. For the monorepo, `bazel / verdict` must prove full configured
+analysis and tests over `//...`.
 
 ## Stop and rollback
 
