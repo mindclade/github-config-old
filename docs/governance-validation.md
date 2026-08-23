@@ -21,7 +21,8 @@ Each may become active only when its exact activation gates in
 `catalog/governance-activation.yaml` are qualified. Fixed rules still have one exact resting
 state, so evidence gating cannot weaken the active baseline. The current gated catalog remains
 in `evaluate`; source validation does not constitute connected evidence or permission to apply
-governance.
+governance. Release-tag creation specifically requires both connected tag-control evidence and
+qualified release-signer identity before it may become active.
 
 Merge-queue state is independently schema-backed in `catalog/merge-queue-readiness.yaml`. Its
 semantic validator requires the exact rollout order, contexts, permanent rulesets, Actions

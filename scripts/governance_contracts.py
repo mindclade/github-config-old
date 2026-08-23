@@ -12,7 +12,10 @@ from typing import Any, Mapping
 
 
 EVIDENCE_GATED_RULESET_GATES = {
-    "release-tag-creation": ("release_tag_creation_control_qualified",),
+    "release-tag-creation": (
+        "release_tag_creation_control_qualified",
+        "release_signer_identity_qualified",
+    ),
     "required-checks-bootstrap": ("bootstrap_verdict_observed",),
     "required-checks-github-config": ("github_config_verdict_observed",),
     "required-checks-go": (
@@ -135,6 +138,79 @@ EXPECTED_RUNNER_GROUPS = {
         ),
     },
 }
+
+
+def dr_evidence_workflow_errors(
+    workflow: Mapping[str, Any], v5_release_status: str | None
+) -> list[str]:
+    """Keep DR publication fail-closed until its immutable workflow release exists."""
+
+    errors: list[str] = []
+    jobs = workflow.get("jobs", {})
+    if not isinstance(jobs, Mapping):
+        return ["dr-evidence.yml jobs must be an object"]
+    if v5_release_status == "blocked":
+        if workflow.get("permissions") != {}:
+            errors.append(
+                "dr-evidence.yml must have no permissions while v5 publication is blocked"
+            )
+        if set(jobs) != {"activation-blocked"}:
+            errors.append(
+                "dr-evidence.yml must expose only the fail-closed job while v5 is blocked"
+            )
+        blocked_job = jobs.get("activation-blocked", {})
+        if not isinstance(blocked_job, Mapping):
+            errors.append("dr-evidence.yml blocked job must be an object")
+            return errors
+        if blocked_job.get("permissions") != {}:
+            errors.append("dr-evidence.yml blocked job must have no permissions")
+        if blocked_job.get("environment") is not None:
+            errors.append(
+                "dr-evidence.yml blocked job must not enter a protected cloud environment"
+            )
+        blocked_steps = str(blocked_job.get("steps", []))
+        if "reusable-dr-evidence.yml" in blocked_steps or "id-token" in blocked_steps:
+            errors.append(
+                "dr-evidence.yml blocked job must not retain publication authority"
+            )
+        if "exit 1" not in blocked_steps:
+            errors.append("dr-evidence.yml blocked job must fail explicitly")
+    elif v5_release_status == "qualified":
+        if workflow.get("permissions") != {"contents": "read", "id-token": "write"}:
+            errors.append(
+                "dr-evidence.yml active caller must have exact top-level permissions"
+            )
+        if set(jobs) != {"publish"}:
+            errors.append(
+                "dr-evidence.yml must expose only publish after v5 qualification"
+            )
+        publish_job = jobs.get("publish", {})
+        if not isinstance(publish_job, Mapping):
+            errors.append("dr-evidence.yml publish job must be an object")
+            return errors
+        if publish_job.get("uses") != (
+            "mindclade/.github/.github/workflows/reusable-dr-evidence.yml@v5.0.0"
+        ):
+            errors.append(
+                "dr-evidence.yml active caller must use the qualified immutable v5 workflow"
+            )
+        if publish_job.get("permissions") != {
+            "actions": "read",
+            "contents": "read",
+            "id-token": "write",
+        }:
+            errors.append("dr-evidence.yml active caller job permissions are not exact")
+        expected_inputs = {
+            "report-path": "${{ inputs.report_path }}",
+            "environment": "${{ inputs.environment }}",
+            "primary-operator": "${{ github.actor }}",
+            "observer-operator": "${{ inputs.observer_operator }}",
+        }
+        if publish_job.get("with") != expected_inputs:
+            errors.append("dr-evidence.yml active caller inputs are not exact")
+    else:
+        errors.append("v5_release_published must be blocked or qualified")
+    return errors
 
 
 def runner_group_contract_errors(runner_groups: Mapping[str, Any]) -> list[str]:

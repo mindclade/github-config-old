@@ -23,7 +23,7 @@ REPOSITORY = "github-config"
 CONTRACT = json.loads(
     '{"authority": ["github-enterprise-governance", "repositories", "teams", "access", "rulesets", "environments", "actions-policy", "oidc-policy"], "forbidden_authority": ["google-cloud-resources", "service-accounts", "gke-clusters", "cloud-sql", "cloud-storage-buckets[any-region]", "cloud-kms", "secret-manager[any-region]", "vertex-ai", "cloud-armor", "beyondcorp", "vpcsc[non-us]", "gcs-cors", "ci-systems[non-immutable]"], "required_paths": [".github/workflows", "catalog/repositories.yaml", "catalog/teams.yaml", "catalog/access.yaml", "catalog/rulesets.yaml", "contracts/repository.yaml", "catalog/oidc-policy.yaml", "modules/repositories", "modules/teams", "modules/rulesets", "scripts/validate-production-contract.py", "scripts/validate-catalog.py"], "forbidden_paths": [".env", ".env.local", "**/.tfstate", "**/.tfstate.backup", ".terraform", "*.tfplan", ".terragrunt-cache", ".cache", ".direnv", ".venv", "venv", "node_modules", "**/*.key", "**/*.pem", ".ssh"]}'
 )
-# Expected digest of policy bundle 2026.08.21.3 repository-home validation.
+# Expected digest of policy bundle 2026.08.22.1 repository-home validation.
 EXPECTED_VALIDATOR_DIGEST = "5ccfb1bdf85f978b0942bc797a960002b91b04ec705aec0138b5b581a61301e8"
 ERRORS = []
 
@@ -92,6 +92,26 @@ if not re.search(r"(?m)^\s{2}merge_queue:\s*false\s*$", repository_contract):
     error(
         "enterprise-control repository contract must not claim merge-queue enforcement"
     )
+
+release_manifest_path = ROOT / "RELEASE_MANIFEST.json"
+try:
+    release_manifest = json.loads(release_manifest_path.read_text(encoding="utf-8"))
+except (OSError, json.JSONDecodeError) as exc:
+    error(f"cannot parse RELEASE_MANIFEST.json: {exc}")
+    release_manifest = {}
+expected_release_manifest = {
+    "schema_version": 1,
+    "repository": REPOSITORY,
+    "default_branch": "main",
+    "blueprint": "docs/MINDCLADE_ENTERPRISE_PLATFORM_FOUNDATION_BLUEPRINT.md",
+    "qualification": "source-qualified; connected-system gates required",
+}
+for field, expected in expected_release_manifest.items():
+    if release_manifest.get(field) != expected:
+        error(f"release manifest {field} must equal {expected!r}")
+blueprint = release_manifest.get("blueprint")
+if isinstance(blueprint, str) and not (ROOT / blueprint).is_file():
+    error(f"release manifest blueprint does not exist: {blueprint}")
 
 for rel in CONTRACT["required_paths"]:
     if not (ROOT / rel).exists():

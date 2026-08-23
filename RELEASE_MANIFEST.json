@@ -3,6 +3,6 @@
   "repository": "github-config",
   "release": "2026.08.19-production.1",
   "default_branch": "main",
-  "blueprint": "MINDCLADE_ENTERPRISE_PLATFORM_FOUNDATION_BLUEPRINT.md",
+  "blueprint": "docs/MINDCLADE_ENTERPRISE_PLATFORM_FOUNDATION_BLUEPRINT.md",
   "qualification": "source-qualified; connected-system gates required"
 }

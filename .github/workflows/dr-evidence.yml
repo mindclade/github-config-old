@@ -24,19 +24,17 @@ on:
         required: true
         type: string
 
-permissions:
-  contents: read
-  id-token: write
+permissions: {}
 
 jobs:
-  publish:
-    uses: mindclade/.github/.github/workflows/reusable-dr-evidence.yml@v5.0.0
-    with:
-      report-path: ${{ inputs.report_path }}
-      environment: ${{ inputs.environment }}
-      primary-operator: ${{ github.actor }}
-      observer-operator: ${{ inputs.observer_operator }}
-    permissions:
-      actions: read
-      contents: read
-      id-token: write
+  activation-blocked:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 1
+    permissions: {}
+    steps:
+      - name: Explain the protected activation gate
+        shell: bash
+        run: |
+          echo "DR evidence publication remains blocked until v5_release_published is qualified."
+          echo "Publish and qualify the immutable shared-workflow release before activation."
+          exit 1

@@ -228,7 +228,7 @@ auto-create an unprotected environment with that name.
 The exporter requires `platform_contract.buildkite` to remain disabled with null pool/provider
 and the matching catalog flag. Buildkite cannot be re-enabled through an operator input. It also
 validates all six capability-specific ARC providers, collision-resistant mapped principals,
-trusted-main caller, immutable v4 canary/build/attestation/signing workflows, and the isolated v5
+trusted-main caller, exact immutable v5 canary/build/attestation/signing workflows, and the v5
 qualification-reader and promotion workflows before publishing any release variable.
 It also validates the exact eight-principal DR evidence provider and compiles the applied writer,
 project, and bucket outputs into environment variables on only the protected `scratch` and
@@ -267,6 +267,13 @@ token as read-only or expose it outside the protected plan workflow.
 never publishes it. Keep the bootstrap repository variable absent while Terraform owns the folder;
 a non-empty value switches bootstrap into adoption mode and would plan destruction of the managed
 folder (blocked by `prevent_destroy`).
+
+Bootstrap's protected workflows require an explicit input contract before cloud authentication.
+The catalog publishes the fixed U.S. locations, retention values, KMS protection level, and
+automation-secret location. Export `PRESERVE_LEGACY_EU_STATE_REPLICAS` as the exact reviewed
+first-apply/deployed-estate value: `false` for greenfield, `true` only while the documented legacy
+Europe replica migration remains active. An absent value fails export and bootstrap CI; never let
+Terraform's default silently choose the recovery topology.
 
 ## Import safety
 
