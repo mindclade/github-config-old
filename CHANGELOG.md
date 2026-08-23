@@ -10,6 +10,12 @@ not reconstructed or relabeled here.
 
 ### Added
 
+- Added a workspace-level GitHub platform qualifier with native gates, cross-repository policy and
+  workflow contracts, and separate JSON/Markdown source and connected-evidence verdicts.
+- Added a schema-backed shared-workflow adoption graph, generated dashboard, expiring evidence
+  ledger, protected DR activation preparation, and coordinated immutable-pin upgrade automation.
+- Added negative mutation tests for permissions, caller pins, activation gates, evidence expiry,
+  and fail-closed preparation behavior.
 - Added a schema-versioned `BOOTSTRAP_ACCOUNT_HANDOFF_JSON` compiler contract that binds a clean
   bootstrap source commit and canonical platform-output digest to the exact state buckets and
   service accounts protected governance publishes to `infrastructure-live`.
@@ -71,7 +77,7 @@ not reconstructed or relabeled here.
   mutations and the required read-back verification.
 - Documented that GitHub-to-cloud token-exchange evidence must consume a cloud API, because a
   successful authentication step alone does not prove a token was minted.
-- Synchronized policy bundle `2026.08.22.1`, pinned repository-home validation to canonical
+- Synchronized policy bundle `2026.08.23.1`, pinned repository-home validation to canonical
   commit `8467615f12868d4b78718b8ddf7f05797c44a507`, and removed the obsolete duplicate validator.
 - Updated the proprietary license with the protected-disclosure notice and
   recorded the Contributor Covenant 2.1 attribution and modifications.

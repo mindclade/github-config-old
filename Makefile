@@ -5,12 +5,13 @@ TERRAFORM ?= terraform
 ACTIONLINT ?= actionlint
 YAMLLINT ?= yamllint
 
-.PHONY: validate lint catalog adoption fmt fmt-check test security license-headers doctor
+.PHONY: validate lint catalog adoption workflow-adoption fmt fmt-check test security license-headers doctor
 .PHONY: validate-production-contract validate-repository-home workspace-remotes-check workspace-remotes-apply
 .PHONY: workspace-remotes-test scripts-test terraform-init-test connected-audit activation-gate
-.PHONY: bootstrap-account-handoff
+.PHONY: bootstrap-account-handoff prepare-workflow-activation prepare-workflow-pin-upgrades
+.PHONY: qualify-github-platform
 
-validate: lint fmt-check catalog adoption security license-headers bootstrap-account-handoff validate-production-contract validate-repository-home
+validate: lint fmt-check catalog adoption workflow-adoption security license-headers bootstrap-account-handoff validate-production-contract validate-repository-home
 
 lint:
 	@$(ACTIONLINT) -config-file .github/actionlint.yaml .github/workflows/*.yml
@@ -24,6 +25,18 @@ catalog:
 
 adoption:
 	@$(PYTHON) scripts/validate-adoption-plan.py
+
+workflow-adoption:
+	@$(PYTHON) scripts/render-workflow-adoption.py
+
+qualify-github-platform:
+	@$(PYTHON) scripts/qualify-github-platform.py
+
+prepare-workflow-activation:
+	@$(PYTHON) scripts/prepare-workflow-activation.py
+
+prepare-workflow-pin-upgrades:
+	@$(PYTHON) scripts/upgrade-workflow-pins.py
 
 activation-gate:
 	@$(PYTHON) scripts/validate-adoption-plan.py --activation

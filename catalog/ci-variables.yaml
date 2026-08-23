@@ -14,6 +14,7 @@
 
 github-config:
   ORGANIZATION: mindclade
+  WORKFLOW_PIN_UPDATER_APP_ID: env:WORKFLOW_PIN_UPDATER_APP_ID
   # Connected drift remains staged until the read/plan App installation, exact permissions,
   # selected repositories, and protected private key have passed the connected audit.
   GOVERNANCE_CONNECTED_DRIFT: "false"

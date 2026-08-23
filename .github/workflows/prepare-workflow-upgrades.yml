@@ -1,0 +1,141 @@
+---
+# Copyright © 2026 Mindclade, LLC. All Rights Reserved.
+# Mindclade Proprietary and Confidential.
+# SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
+
+name: Prepare immutable workflow upgrades
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 14 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prepare-immutable-workflow-upgrades
+  cancel-in-progress: false
+
+jobs:
+  eligibility:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      qualified: ${{ steps.gate.outputs.qualified }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - id: gate
+        name: Check source and connected eligibility
+        run: |
+          set -euo pipefail
+          if python3 scripts/upgrade-workflow-pins.py --eligibility-only >/dev/null; then
+            echo 'qualified=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'qualified=false' >> "$GITHUB_OUTPUT"
+            echo 'Immutable workflow upgrades remain safely blocked.'
+          fi
+
+  prepare:
+    needs: eligibility
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      needs.eligibility.outputs.qualified == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: governance
+    steps:
+      - id: app-token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349  # v2
+        with:
+          app-id: ${{ vars.WORKFLOW_PIN_UPDATER_APP_ID }}
+          private-key: ${{ secrets.WORKFLOW_PIN_UPDATER_APP_PRIVATE_KEY }}
+          owner: mindclade
+          repositories: |-
+            .github-private
+            github-config
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          repository: mindclade/.github-private
+          ref: main
+          token: ${{ steps.app-token.outputs.token }}
+          path: workspace/.github-private
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          repository: mindclade/github-config
+          ref: ${{ github.sha }}
+          token: ${{ steps.app-token.outputs.token }}
+          path: workspace/github-config
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342  # v31.11.0
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = false
+
+      - name: Prepare exact coordinated changes
+        run: |
+          set -euo pipefail
+          python3 workspace/github-config/scripts/upgrade-workflow-pins.py \
+            --workspace-root workspace --write
+          (
+            cd workspace/github-config
+            python3 scripts/render-workflow-adoption.py --write
+          )
+
+      - name: Record compatibility evidence
+        run: |
+          set -euo pipefail
+          nix flake check --no-update-lock-file workspace/.github-private
+          nix flake check --no-update-lock-file workspace/github-config
+
+      - name: Open coordinated review pull requests
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          for repository in .github-private github-config; do
+            target="workspace/${repository}"
+            if [[ -z "$(git -C "$target" status --porcelain)" ]]; then
+              continue
+            fi
+            branch="automation/workflow-v5-pins"
+            git -C "$target" config user.name 'mindclade-workflow-pin-updater[bot]'
+            git -C "$target" config user.email 'mindclade-workflow-pin-updater[bot]@users.noreply.github.com'
+            git -C "$target" checkout -B "$branch"
+            git -C "$target" add --all
+            git -C "$target" commit -m 'chore(ci): adopt immutable v5 workflow pins'
+            git -C "$target" remote set-url origin \
+              "https://x-access-token:${GH_TOKEN}@github.com/mindclade/${repository}.git"
+            git -C "$target" push --force-with-lease origin "HEAD:refs/heads/${branch}"
+            body="$(mktemp)"
+            {
+              echo 'Adopts only graph-declared shared workflows after the protected v5 release,'
+              echo 'activation gates, and unexpired connected evidence passed. The preparation run'
+              echo "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID} retained compatibility evidence."
+              echo
+              echo 'Merge the `.github-private` consumer before `github-config`, whose graph records the coordinated adoption.'
+              echo
+              echo '## Contributor authorization'
+              echo
+              echo '- [x] I am authorized under a current written agreement with Mindclade, LLC. to submit every part of this contribution.'
+              echo '- [x] I identified every third-party component, dataset, model, font, media, specification, or generated artifact and preserved its source, license, provenance, and required notices.'
+              echo '- [x] I updated `LICENSE`, `NOTICE`, the SBOM, or other license evidence when the included or distributed material changed.'
+            } > "$body"
+            existing="$(gh pr list --repo "mindclade/${repository}" --head "$branch" --state open --json number --jq '.[0].number // empty')"
+            if [[ -z "$existing" ]]; then
+              gh pr create --repo "mindclade/${repository}" --head "$branch" --base main \
+                --draft --title 'chore(ci): adopt immutable v5 workflow pins' --body-file "$body"
+            fi
+            rm -f "$body"
+          done

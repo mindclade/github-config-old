@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "bundleId": "mindclade-policy-bundle",
-  "version": "2026.08.22.1",
-  "effectiveDate": "2026-08-22",
+  "version": "2026.08.23.1",
+  "effectiveDate": "2026-08-23",
   "canonicalRepository": "mindclade/.github",
   "licenseExpression": "LicenseRef-Mindclade-Proprietary",
   "signature": {
@@ -70,7 +70,7 @@
     {
       "name": "repository-home-validator",
       "source": "actions/validate-repository-home/validate.py",
-      "sha256": "5ccfb1bdf85f978b0942bc797a960002b91b04ec705aec0138b5b581a61301e8",
+      "sha256": "6ea68b89098ca5fe73778ebc9b6b9ad5e17e105fe331ccf6f40b21709752dbed",
       "mediaType": "text/x-python",
       "distributions": [
         {"repository": ".github-private", "path": "scripts/validate-repository-home.py"},
@@ -153,7 +153,7 @@
     {
       "name": "policy-bundle-validator",
       "source": "tools/policy_bundle.py",
-      "sha256": "92404b50a6de9a56eaef4093565318f6669f75e72d1e24e44d7b8d285af3a6b3",
+      "sha256": "0bcbc5543e05b7198e0475ae54694cfea15b7c26eec40cc7a5a7ed472c855e30",
       "mediaType": "text/x-python",
       "distributions": []
     },

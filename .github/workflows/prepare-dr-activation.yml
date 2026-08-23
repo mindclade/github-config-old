@@ -1,0 +1,73 @@
+---
+# Copyright © 2026 Mindclade, LLC. All Rights Reserved.
+# Mindclade Proprietary and Confidential.
+# SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
+
+name: Prepare DR workflow activation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prepare-dr-workflow-activation
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: governance
+    steps:
+      - id: app-token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349  # v2
+        with:
+          app-id: ${{ vars.WORKFLOW_PIN_UPDATER_APP_ID }}
+          private-key: ${{ secrets.WORKFLOW_PIN_UPDATER_APP_PRIVATE_KEY }}
+          owner: mindclade
+          repositories: github-config
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          token: ${{ steps.app-token.outputs.token }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Prepare the exact qualified caller
+        run: |
+          set -euo pipefail
+          python3 scripts/prepare-workflow-activation.py --write
+          python3 scripts/render-workflow-adoption.py --write
+          python3 scripts/validate-catalog.py
+
+      - name: Open protected activation pull request
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          branch="automation/activate-dr-evidence-v5"
+          git config user.name 'mindclade-workflow-pin-updater[bot]'
+          git config user.email 'mindclade-workflow-pin-updater[bot]@users.noreply.github.com'
+          git checkout -B "$branch"
+          git add --all
+          git commit -m 'feat(dr): activate qualified v5 evidence caller'
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/mindclade/github-config.git"
+          git push --force-with-lease origin "HEAD:refs/heads/${branch}"
+          body="$(mktemp)"
+          {
+            echo 'Activates the exact graph-declared v5 DR evidence caller only after every required'
+            echo 'gate has qualified, unexpired connected evidence. Review the evidence ledger and run.'
+            echo
+            echo '## Contributor authorization'
+            echo
+            echo '- [x] I am authorized under a current written agreement with Mindclade, LLC. to submit every part of this contribution.'
+            echo '- [x] I identified every third-party component, dataset, model, font, media, specification, or generated artifact and preserved its source, license, provenance, and required notices.'
+            echo '- [x] I updated `LICENSE`, `NOTICE`, the SBOM, or other license evidence when the included or distributed material changed.'
+          } > "$body"
+          gh pr create --repo mindclade/github-config --head "$branch" --base main --draft \
+            --title 'feat(dr): activate qualified v5 evidence caller' --body-file "$body"
+          rm -f "$body"

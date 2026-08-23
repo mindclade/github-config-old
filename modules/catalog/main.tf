@@ -69,6 +69,7 @@ check "github_app_installation_contracts_are_exact" {
         "mindclade-ref-janitor",
         "mindclade-release-promoter",
         "mindclade-production-qualification-reader",
+        "mindclade-workflow-pin-updater",
       ]) &&
       toset(local.github_apps["mindclade-arc"].repositories) == toset(["mindclade-internal-monorepo"]) &&
       toset(local.github_apps["mindclade-release-promoter"].repositories) == toset(["gitops"]) &&
@@ -81,6 +82,15 @@ check "github_app_installation_contracts_are_exact" {
       ]) &&
       local.github_apps["mindclade-policy-sync"].organizationPermissions == {} &&
       local.github_apps["mindclade-policy-sync"].repositoryPermissions == {
+        contents     = "write"
+        metadata     = "read"
+        pullRequests = "write"
+      } &&
+      toset(local.github_apps["mindclade-workflow-pin-updater"].repositories) == toset([
+        ".github-private", "github-config"
+      ]) &&
+      local.github_apps["mindclade-workflow-pin-updater"].organizationPermissions == {} &&
+      local.github_apps["mindclade-workflow-pin-updater"].repositoryPermissions == {
         contents     = "write"
         metadata     = "read"
         pullRequests = "write"
@@ -118,7 +128,7 @@ check "github_app_installation_contracts_are_exact" {
         pullRequests = "read"
       }
     )
-    error_message = "GitHub App installation or permission contract exceeds the ARC, promoter, or qualification least-privilege boundary."
+    error_message = "GitHub App installation or permission contract exceeds its exact least-privilege boundary."
   }
 }
 

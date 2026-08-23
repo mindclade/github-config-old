@@ -5,7 +5,7 @@
 `catalog/control-plane-apps.yaml` is the machine-readable registration and installation
 contract for Terraform plan and apply identities. `catalog/github-apps.yaml` is the equivalent
 contract for ARC runner registration, GitOps promotion, production-qualification source reads,
-estate observation, and protected ref cleanup. Neither catalog proves an App exists:
+estate observation, protected ref cleanup, and workflow-pin pull requests. Neither catalog proves an App exists:
 `scripts/audit-connected-governance.py` must observe the exact installation, permission map, and
 selected repositories before production activation.
 
@@ -42,6 +42,12 @@ adds only Contents write, plus Metadata and Pull Requests read, and is usable fo
 through the reviewed `repository-maintenance` environment. See
 [`repository-operations.md`](repository-operations.md) for retention, deletion, and rollback.
 
+The workflow-pin-updater App is selected only to `.github-private` and `github-config`. It has
+Contents write, Pull Requests write, and Metadata read, with no organization permission or webhook.
+Its key is available only through the protected `governance` environment. The automation may open
+draft review PRs; it cannot merge them or push to `main`. Both pin upgrades and DR activation fail
+closed until the machine adoption graph and fresh connected-evidence ledger qualify every gate.
+
 ## Qualification
 
 1. Create each App from the exact catalog contract and install it with selected repositories.
@@ -57,6 +63,8 @@ through the reviewed `repository-maintenance` environment. See
    after the plan App ID and protected PEM are present. The scheduled workflow fails closed if
    activation is requested with either credential missing.
 6. Run the apply App only through a reviewed, checksummed saved plan waiting at `governance`.
+7. For the workflow-pin-updater App, run the blocked preparation commands first, then qualify v5
+   and its connected evidence before allowing either protected PR-preparation workflow to proceed.
 
 ## Rotation and rollback
 

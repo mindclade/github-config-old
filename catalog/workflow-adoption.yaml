@@ -1,0 +1,56 @@
+# Copyright © 2026 Mindclade, LLC. All Rights Reserved.
+# Mindclade Proprietary and Confidential.
+# SPDX-License-Identifier: LicenseRef-Mindclade-Proprietary
+
+---
+schema_version: 1
+producer:
+  repository: .github
+  release:
+    version: v5.0.0
+    status: candidate
+    source_commit: null
+    publication_gate: v5_release_published
+workflows:
+  reusable-nix-qualification:
+    implementation: .github/workflows/reusable-nix-qualification.yml
+    required_permissions:
+      contents: read
+    consumers:
+      - repository: .github-private
+        caller: .github/workflows/nix-qualification.yml
+        current_reference: c386f4846a669ed841c54bc103d566c463fe4869
+        desired_reference: v5.0.0
+        state: candidate
+        activation_gates:
+          - nix_estate_qualified
+        permissions:
+          contents: read
+      - repository: github-config
+        caller: .github/workflows/nix-qualification.yml
+        current_reference: c386f4846a669ed841c54bc103d566c463fe4869
+        desired_reference: v5.0.0
+        state: candidate
+        activation_gates:
+          - nix_estate_qualified
+        permissions:
+          contents: read
+  reusable-dr-evidence:
+    implementation: .github/workflows/reusable-dr-evidence.yml
+    required_permissions:
+      actions: read
+      contents: read
+      id-token: write
+    consumers:
+      - repository: github-config
+        caller: .github/workflows/dr-evidence.yml
+        current_reference: null
+        desired_reference: v5.0.0
+        state: blocked
+        activation_gates:
+          - v5_release_published
+          - release_environments_qualified
+        permissions:
+          actions: read
+          contents: read
+          id-token: write

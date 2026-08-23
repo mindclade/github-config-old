@@ -15,6 +15,7 @@
 | Operate manual enterprise controls | [Manual controls](enterprise-manual-controls.md) | Review settings Terraform cannot own |
 | Respond to blocked emergency work | [GitHub break-glass](break-glass.md) | Use and revoke the smallest declared bypass |
 | Recover a GitHub or IdP outage | [GitHub and IdP outage](github-idp-outage.md) | Preserve evidence, contain access, and restore the authoritative identity path |
+| Qualify the three GitHub platform repositories | [GitHub platform qualification](github-platform-qualification.md) | Run native gates, cross-repository contracts, and separate source from connected evidence |
 
 ## Getting started
 
@@ -42,6 +43,8 @@
   installation selection, qualification, rotation, and revocation.
 - [Repository estate operations](repository-operations.md) — dashboard evidence, conservative
   ref retention, protected deletion, activation, and rollback.
+- [GitHub platform qualification](github-platform-qualification.md) — workflow adoption graph,
+  expiring connected evidence, coordinated pin upgrades, and protected activation preparation.
 
 ## Operations
 

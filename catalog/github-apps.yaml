@@ -82,3 +82,13 @@ mindclade-policy-sync:
     contents: write
     metadata: read
     pullRequests: write
+mindclade-workflow-pin-updater:
+  purpose: Open review-only shared-workflow pin and activation pull requests after qualified gates.
+  repositories:
+    - .github-private
+    - github-config
+  organizationPermissions: {}
+  repositoryPermissions:
+    contents: write
+    metadata: read
+    pullRequests: write

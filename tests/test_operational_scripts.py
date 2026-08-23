@@ -936,7 +936,15 @@ class ExportSafetyTest(unittest.TestCase):
             },
             "bootstrap": {
                 "GH_ORGANIZATION": "mindclade",
+                "AUTOMATION_SECRET_LOCATION": "us-central1",
                 "ENABLE_BUILDKITE_WIF": "false",
+                "KMS_PROTECTION_LEVEL": "SOFTWARE",
+                "NONCURRENT_VERSION_COUNT": "100",
+                "NONCURRENT_VERSION_DAYS": "90",
+                "PRESERVE_LEGACY_EU_STATE_REPLICAS": (
+                    "env:PRESERVE_LEGACY_EU_STATE_REPLICAS"
+                ),
+                "STATE_SOFT_DELETE_DAYS": "30",
             },
             "infrastructure-live": {
                 "DOMAIN": "mindclade.com",
@@ -964,6 +972,29 @@ class ExportSafetyTest(unittest.TestCase):
         self.assertEqual(selected["github-config"]["ENVIRONMENT_PROJECT_IDS"], "{}")
         self.assertEqual(
             selected["bootstrap"]["SECURITY_CONTACT"], "env:SECURITY_CONTACT"
+        )
+        self.assertEqual(
+            {
+                name: selected["bootstrap"][name]
+                for name in (
+                    "AUTOMATION_SECRET_LOCATION",
+                    "KMS_PROTECTION_LEVEL",
+                    "NONCURRENT_VERSION_COUNT",
+                    "NONCURRENT_VERSION_DAYS",
+                    "PRESERVE_LEGACY_EU_STATE_REPLICAS",
+                    "STATE_SOFT_DELETE_DAYS",
+                )
+            },
+            {
+                "AUTOMATION_SECRET_LOCATION": "us-central1",
+                "KMS_PROTECTION_LEVEL": "SOFTWARE",
+                "NONCURRENT_VERSION_COUNT": "100",
+                "NONCURRENT_VERSION_DAYS": "90",
+                "PRESERVE_LEGACY_EU_STATE_REPLICAS": (
+                    "env:PRESERVE_LEGACY_EU_STATE_REPLICAS"
+                ),
+                "STATE_SOFT_DELETE_DAYS": "30",
+            },
         )
 
     def test_github_identity_variables_are_derived_from_platform_contract(self) -> None:
