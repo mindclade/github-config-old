@@ -22,6 +22,7 @@ from jsonschema import Draft202012Validator
 from governance_contracts import (
     dr_evidence_workflow_errors,
     evidence_gated_ruleset_errors,
+    idp_customer_id_binding_errors,
     merge_queue_readiness_errors,
     required_check_readiness_errors,
     resting_ruleset_errors,
@@ -280,6 +281,7 @@ REQUIRED_CI_VARIABLES = {
     },
     "github-config": {
         "BILLING_EMAIL": "env:BILLING_EMAIL",
+        "CLOUD_IDENTITY_CUSTOMER_ID": "env:CLOUD_IDENTITY_CUSTOMER_ID",
         "GOVERNANCE_CONNECTED_DRIFT": "false",
         "WORKFLOW_PIN_UPDATER_APP_ID": "env:WORKFLOW_PIN_UPDATER_APP_ID",
     },
@@ -1731,6 +1733,10 @@ if "needs.readiness.outputs.enabled == 'true'" not in str(artifact_job.get("if",
     err("drift artifact verification must remain staged with connected drift")
 
 idp_jobs = workflow_docs["idp-sync"].get("jobs", {})
+for message in idp_customer_id_binding_errors(
+    ci_variables, workflow_docs["idp-sync"]
+):
+    err(message)
 if "export" in idp_jobs:
     err("idp-sync.yml must split PR and protected-main authentication paths")
 idp_pr_job = idp_jobs.get("export_pr", {})

@@ -15,6 +15,9 @@
 github-config:
   ORGANIZATION: mindclade
   WORKFLOW_PIN_UPDATER_APP_ID: env:WORKFLOW_PIN_UPDATER_APP_ID
+  # The IdP export workflow maps this non-secret repository variable to IDP_CUSTOMER_ID.
+  # Supply the exact, operator-verified Cloud Identity customer ID during the full export.
+  CLOUD_IDENTITY_CUSTOMER_ID: env:CLOUD_IDENTITY_CUSTOMER_ID
   # Connected drift remains staged until the read/plan App installation, exact permissions,
   # selected repositories, and protected private key have passed the connected audit.
   GOVERNANCE_CONNECTED_DRIFT: "false"

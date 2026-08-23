@@ -58,9 +58,16 @@ confirms it. No human login belongs in `mappings.yaml`.
 Cloud Identity commands must charge quota to the bootstrap CI/CD project:
 
 ```sh
+IDP_CUSTOMER_ID='<verified Cloud Identity customer ID>' \
 IDP_BILLING_PROJECT=mc-b-cicd-fb7649 \
   python3 scripts/export-idp-groups.py --apply
 ```
+
+The full CI-variable export publishes that same non-secret identifier as the
+`CLOUD_IDENTITY_CUSTOMER_ID` repository variable. `idp-sync.yml` maps it to the exporter's
+`IDP_CUSTOMER_ID` input on both the protected pull-request path and the exact-main scheduled
+path. Do not rely on organization discovery: the read-only plan identity may have directory
+read authority without organization-list authority.
 
 The billing project only selects an API quota consumer. It does not grant directory read or write
 authority; the operator still needs the appropriate Cloud Identity role.

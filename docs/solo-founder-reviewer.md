@@ -38,6 +38,7 @@ between those accounts must never be represented as independent review.
 1. Set the quota project and verify the directory identity without changing it:
 
    ```sh
+   export IDP_CUSTOMER_ID='<verified Cloud Identity customer ID>'
    export IDP_BILLING_PROJECT=mc-b-cicd-fb7649
    gcloud identity users describe robpearc@mindclade.com \
      --billing-project="${IDP_BILLING_PROJECT}" \
@@ -81,6 +82,7 @@ between those accounts must never be represented as independent review.
 
    ```sh
    nix develop .#ci --command python3 scripts/export-idp-groups.py \
+     --customer-id="${IDP_CUSTOMER_ID}" \
      --billing-project="${IDP_BILLING_PROJECT}" \
      --apply
    ```

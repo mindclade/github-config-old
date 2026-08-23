@@ -142,6 +142,38 @@ EXPECTED_RUNNER_GROUPS = {
 }
 
 
+def idp_customer_id_binding_errors(
+    ci_variables: Mapping[str, Any], workflow: Mapping[str, Any]
+) -> list[str]:
+    """Require the catalog-managed customer ID on both IdP export paths."""
+
+    errors: list[str] = []
+    repository_variables = ci_variables.get("github-config", {})
+    if not isinstance(repository_variables, Mapping) or repository_variables.get(
+        "CLOUD_IDENTITY_CUSTOMER_ID"
+    ) != "env:CLOUD_IDENTITY_CUSTOMER_ID":
+        errors.append(
+            "ci-variables: github-config/CLOUD_IDENTITY_CUSTOMER_ID must be "
+            "'env:CLOUD_IDENTITY_CUSTOMER_ID'"
+        )
+
+    jobs = workflow.get("jobs", {})
+    if not isinstance(jobs, Mapping):
+        return errors + ["idp-sync.yml jobs must be an object"]
+    expected = "${{ vars.CLOUD_IDENTITY_CUSTOMER_ID }}"
+    for job_name in ("export_pr", "export_main"):
+        job = jobs.get(job_name, {})
+        environment = job.get("env", {}) if isinstance(job, Mapping) else {}
+        if not isinstance(environment, Mapping) or environment.get(
+            "IDP_CUSTOMER_ID"
+        ) != expected:
+            errors.append(
+                f"idp-sync.yml {job_name} must map IDP_CUSTOMER_ID from "
+                "vars.CLOUD_IDENTITY_CUSTOMER_ID"
+            )
+    return errors
+
+
 def dr_evidence_workflow_errors(
     workflow: Mapping[str, Any], v5_release_status: str | None
 ) -> list[str]:
