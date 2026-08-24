@@ -117,6 +117,17 @@ Review begins with the catalog diff and provider-free validation. Pull requests 
 credentialed speculative plan through a protected environment; after merge, CI creates a new
 plan for the exact `main` commit and applies it only after governance approval. Deletions and
 replacements fail closed unless an authorized operator provides the documented dispatch input.
+Every protected plan also records a checksummed current-head/source/run/freshness contract with a
+six-hour maximum. Head and age are rechecked before credentials and immediately before apply;
+active applies remain non-cancellable. An older source requires an explicit current-`main`
+`source_rollback` dispatch, a full strict-ancestor SHA, a change/incident reference, and the normal
+governance approval. This source rollback is distinct from a merge-queue rollout-stage rollback.
+
+Merging the freshness guard does not retrofit runs already queued, pending, or waiting for
+environment approval under an older workflow revision. Before treating the guard as active,
+cancel or reject every pre-guard run, dispatch a fresh run from the current protected `main`, and
+observe its final pre-apply source and freshness checks. Never approve a waiting pre-guard run on
+the strength of the newer source.
 
 ## Documentation and support
 

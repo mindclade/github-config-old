@@ -14,6 +14,18 @@ on:
         description: Permit explicitly reviewed destructive or replacement actions.
         type: boolean
         default: false
+      change_reference:
+        description: Required CHG-, INC-, SEC-, or DR- identifier for source rollback.
+        type: string
+        default: ""
+      source_rollback:
+        description: Explicitly plan an older reviewed source commit for emergency rollback.
+        type: boolean
+        default: false
+      source_rollback_sha:
+        description: Full strict-ancestor commit SHA; valid only when source_rollback is true.
+        type: string
+        default: ""
       rollout_phase:
         description: Exact staged enforcement phase for this reviewed run.
         type: choice
@@ -56,7 +68,36 @@ env:
   TF_PLUGIN_CACHE_DIR: /home/runner/.terraform.d/plugin-cache
 
 jobs:
+  source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      target_sha: ${{ steps.guard.outputs.target_sha }}
+      default_head_sha: ${{ steps.guard.outputs.default_head_sha }}
+      mode: ${{ steps.guard.outputs.mode }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - id: guard
+        name: Resolve current protected source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_ROLLBACK: ${{ inputs.source_rollback || false }}
+          SOURCE_ROLLBACK_SHA: ${{ inputs.source_rollback_sha || '' }}
+          CHANGE_REFERENCE: ${{ inputs.change_reference || '' }}
+        run: |
+          python3 scripts/validate-protected-run.py source \
+            --event-name "$GITHUB_EVENT_NAME" --event-ref "$GITHUB_REF" --event-sha "$GITHUB_SHA" \
+            --source-rollback "$SOURCE_ROLLBACK" --source-rollback-sha "$SOURCE_ROLLBACK_SHA" \
+            --change-reference "$CHANGE_REFERENCE" --git-root . --github-output "$GITHUB_OUTPUT"
+
   plan:
+    needs: source
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 35
@@ -71,7 +112,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ github.sha }}
+          ref: ${{ needs.source.outputs.target_sha }}
+          fetch-depth: 0
 
       - name: Validate catalog and access policy
         run: |
@@ -113,6 +155,32 @@ jobs:
             echo "TF_VAR_merge_queue_repository_enforcement_overrides=$(jq -c '.merge_queue_repository_enforcement_overrides' rollout-bundle.json)"
             echo "TF_VAR_merge_queue_canary_required_checks=$(jq -c '.merge_queue_canary_required_checks' rollout-bundle.json)"
           } >> "$GITHUB_ENV"
+
+      - name: Check out current guard implementation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: .protected-run-control
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Revalidate protected source before plan authentication
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ needs.source.outputs.target_sha }}
+          DEFAULT_HEAD_SHA: ${{ needs.source.outputs.default_head_sha }}
+          MODE: ${{ needs.source.outputs.mode }}
+          SOURCE_ROLLBACK: ${{ inputs.source_rollback || false }}
+          SOURCE_ROLLBACK_SHA: ${{ inputs.source_rollback_sha || '' }}
+          CHANGE_REFERENCE: ${{ inputs.change_reference || '' }}
+        run: |
+          python3 .protected-run-control/scripts/validate-protected-run.py check-source \
+            --event-name "$GITHUB_EVENT_NAME" --event-ref "$GITHUB_REF" --event-sha "$GITHUB_SHA" \
+            --source-rollback "$SOURCE_ROLLBACK" --source-rollback-sha "$SOURCE_ROLLBACK_SHA" \
+            --change-reference "$CHANGE_REFERENCE" --git-root .protected-run-control \
+            --expected-target-sha "$TARGET_SHA" --expected-default-head-sha "$DEFAULT_HEAD_SHA" \
+            --expected-mode "$MODE"
+          mv .protected-run-control "$RUNNER_TEMP/protected-run-control"
 
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093  # v3
         with:
@@ -169,9 +237,12 @@ jobs:
           TF_VAR_wif_pool_project_number: ${{ vars.WIF_POOL_PROJECT_NUMBER }}
           TF_VAR_environment_project_ids: ${{ vars.ENVIRONMENT_PROJECT_IDS }}
           TF_VAR_ci_variables: ${{ vars.CI_VARIABLES }}
+          TARGET_SHA: ${{ needs.source.outputs.target_sha }}
+          DEFAULT_HEAD_SHA: ${{ needs.source.outputs.default_head_sha }}
+          MODE: ${{ needs.source.outputs.mode }}
         run: |
           set -euo pipefail
-          artifact_name="github-config-plan-${GITHUB_SHA}"
+          artifact_name="github-config-plan-${TARGET_SHA}"
           terraform plan -input=false -no-color -lock-timeout=5m -out=tfplan
           terraform show -no-color tfplan > plan.txt
           terraform show -json tfplan > plan.json
@@ -195,7 +266,7 @@ jobs:
           sha256sum tfplan > tfplan.sha256
           sha256sum rollout-bundle.json > rollout-bundle.sha256
           jq -n \
-            --arg commit_sha "$GITHUB_SHA" \
+            --arg commit_sha "$TARGET_SHA" \
             --arg repository "$GITHUB_REPOSITORY" \
             --arg run_id "$GITHUB_RUN_ID" \
             --arg artifact_name "$artifact_name" \
@@ -207,12 +278,18 @@ jobs:
             --argjson replace_count "$replace_count" \
             '{commit_sha:$commit_sha,repository:$repository,run_id:$run_id,artifact_name:$artifact_name,rollout_phase:$rollout_phase,merge_queue_repository:$merge_queue_repository,merge_queue_stage:$merge_queue_stage,rollout_bundle:$rollout_bundle[0],destroy_count:$destroy_count,replace_count:$replace_count}' \
             > plan-metadata.json
-          echo "commit_sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          python3 "$RUNNER_TEMP/protected-run-control/scripts/validate-protected-run.py" record-plan \
+            --repository "$GITHUB_REPOSITORY" --run-id "$GITHUB_RUN_ID" \
+            --event-sha "$GITHUB_SHA" --target-sha "$TARGET_SHA" \
+            --default-head-sha "$DEFAULT_HEAD_SHA" --mode "$MODE" \
+            --output protected-run.json
+          sha256sum protected-run.json > protected-run.sha256
+          echo "commit_sha=$TARGET_SHA" >> "$GITHUB_OUTPUT"
           echo "artifact_name=$artifact_name" >> "$GITHUB_OUTPUT"
 
           {
             echo "### Exact post-merge plan"
-            echo "- Commit: \`$GITHUB_SHA\`"
+            echo "- Target commit: \`$TARGET_SHA\`"
             echo "- Rollout phase: \`$ROLLOUT_PHASE\`"
             echo "- Merge queue repository: \`$MERGE_QUEUE_REPOSITORY\`"
             echo "- Merge queue stage: \`$MERGE_QUEUE_STAGE\`"
@@ -233,13 +310,15 @@ jobs:
             plan.json
             state-list.txt
             plan-metadata.json
+            protected-run.json
+            protected-run.sha256
             rollout-bundle.json
             rollout-bundle.sha256
           if-no-files-found: error
           retention-days: 1
 
   apply:
-    needs: plan
+    needs: [source, plan]
     environment: governance
     runs-on: ubuntu-24.04
     timeout-minutes: 35
@@ -252,6 +331,63 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ needs.plan.outputs.commit_sha }}
+          fetch-depth: 0
+
+      - name: Check out current guard implementation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: .protected-run-control
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Stage current guard outside the target tree
+        run: mv .protected-run-control "$RUNNER_TEMP/protected-run-control"
+
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0  # v5
+        with:
+          name: ${{ needs.plan.outputs.artifact_name }}
+          path: plan-artifact
+
+      - name: Verify plan integrity, freshness, and provenance before authentication
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ needs.plan.outputs.commit_sha }}
+          TARGET_SHA: ${{ needs.source.outputs.target_sha }}
+          DEFAULT_HEAD_SHA: ${{ needs.source.outputs.default_head_sha }}
+          MODE: ${{ needs.source.outputs.mode }}
+          SOURCE_ROLLBACK: ${{ inputs.source_rollback || false }}
+          SOURCE_ROLLBACK_SHA: ${{ inputs.source_rollback_sha || '' }}
+          CHANGE_REFERENCE: ${{ inputs.change_reference || '' }}
+        run: |
+          set -euo pipefail
+          cd plan-artifact
+          sha256sum --check tfplan.sha256
+          sha256sum --check rollout-bundle.sha256
+          sha256sum --check protected-run.sha256
+          test "$(jq -r '.commit_sha' plan-metadata.json)" = "$EXPECTED_SHA"
+          test "$(jq -r '.repository' plan-metadata.json)" = "$GITHUB_REPOSITORY"
+          test "$EXPECTED_SHA" = "$(git -C .. rev-parse HEAD)"
+          rollout_phase="$(jq -r '.rollout_phase' plan-metadata.json)"
+          merge_queue_repository="$(jq -r '.merge_queue_repository' plan-metadata.json)"
+          merge_queue_stage="$(jq -r '.merge_queue_stage' plan-metadata.json)"
+          arguments=(--phase "$rollout_phase")
+          if [[ "$rollout_phase" == "merge-queue" ]]; then
+            [[ "$merge_queue_repository" != "none" && "$merge_queue_stage" != "none" ]]
+            arguments+=(--repository "$merge_queue_repository" --stage "$merge_queue_stage")
+          else
+            [[ "$merge_queue_repository" == "none" && "$merge_queue_stage" == "none" ]]
+          fi
+          expected_bundle="$(python3 ../scripts/governance-rollout.py "${arguments[@]}")"
+          jq -e --argjson expected "$expected_bundle" '.rollout_bundle == $expected' plan-metadata.json >/dev/null
+          jq -e --argjson expected "$expected_bundle" '. == $expected' rollout-bundle.json >/dev/null
+          python3 "$RUNNER_TEMP/protected-run-control/scripts/validate-protected-run.py" validate-plan \
+            --metadata protected-run.json --repository "$GITHUB_REPOSITORY" --run-id "$GITHUB_RUN_ID" \
+            --event-name "$GITHUB_EVENT_NAME" --event-ref "$GITHUB_REF" --event-sha "$GITHUB_SHA" \
+            --source-rollback "$SOURCE_ROLLBACK" --source-rollback-sha "$SOURCE_ROLLBACK_SHA" \
+            --change-reference "$CHANGE_REFERENCE" --git-root "$RUNNER_TEMP/protected-run-control" \
+            --expected-target-sha "$TARGET_SHA" --expected-default-head-sha "$DEFAULT_HEAD_SHA" \
+            --expected-mode "$MODE"
 
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093  # v3
         with:
@@ -284,44 +420,29 @@ jobs:
           mkdir -p "$TF_PLUGIN_CACHE_DIR"
           terraform init -input=false -lockfile=readonly -backend-config="bucket=${{ vars.TFSTATE_BUCKET }}"
 
-      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0  # v5
-        with:
-          name: ${{ needs.plan.outputs.artifact_name }}
-          path: plan-artifact
-
-      - name: Verify plan integrity and provenance
+      - name: Revalidate protected plan and apply
         env:
-          EXPECTED_SHA: ${{ needs.plan.outputs.commit_sha }}
-        run: |
-          set -euo pipefail
-          cd plan-artifact
-          sha256sum --check tfplan.sha256
-          sha256sum --check rollout-bundle.sha256
-          test "$(jq -r '.commit_sha' plan-metadata.json)" = "$EXPECTED_SHA"
-          test "$(jq -r '.repository' plan-metadata.json)" = "$GITHUB_REPOSITORY"
-          test "$EXPECTED_SHA" = "$(git -C .. rev-parse HEAD)"
-          rollout_phase="$(jq -r '.rollout_phase' plan-metadata.json)"
-          merge_queue_repository="$(jq -r '.merge_queue_repository' plan-metadata.json)"
-          merge_queue_stage="$(jq -r '.merge_queue_stage' plan-metadata.json)"
-          arguments=(--phase "$rollout_phase")
-          if [[ "$rollout_phase" == "merge-queue" ]]; then
-            [[ "$merge_queue_repository" != "none" && "$merge_queue_stage" != "none" ]]
-            arguments+=(--repository "$merge_queue_repository" --stage "$merge_queue_stage")
-          else
-            [[ "$merge_queue_repository" == "none" && "$merge_queue_stage" == "none" ]]
-          fi
-          expected_bundle="$(python3 ../scripts/governance-rollout.py "${arguments[@]}")"
-          jq -e --argjson expected "$expected_bundle" '.rollout_bundle == $expected' plan-metadata.json >/dev/null
-          jq -e --argjson expected "$expected_bundle" '. == $expected' rollout-bundle.json >/dev/null
-
-      - name: Apply reviewed plan
-        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ needs.source.outputs.target_sha }}
+          DEFAULT_HEAD_SHA: ${{ needs.source.outputs.default_head_sha }}
+          MODE: ${{ needs.source.outputs.mode }}
+          SOURCE_ROLLBACK: ${{ inputs.source_rollback || false }}
+          SOURCE_ROLLBACK_SHA: ${{ inputs.source_rollback_sha || '' }}
+          CHANGE_REFERENCE: ${{ inputs.change_reference || '' }}
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           TF_VAR_billing_email: ${{ vars.BILLING_EMAIL }}
           TF_VAR_wif_pool_project_number: ${{ vars.WIF_POOL_PROJECT_NUMBER }}
           TF_VAR_environment_project_ids: ${{ vars.ENVIRONMENT_PROJECT_IDS }}
           TF_VAR_ci_variables: ${{ vars.CI_VARIABLES }}
-        run: terraform apply -input=false -no-color -lock-timeout=5m plan-artifact/tfplan
+        run: |
+          python3 "$RUNNER_TEMP/protected-run-control/scripts/validate-protected-run.py" validate-plan \
+            --metadata plan-artifact/protected-run.json --repository "$GITHUB_REPOSITORY" --run-id "$GITHUB_RUN_ID" \
+            --event-name "$GITHUB_EVENT_NAME" --event-ref "$GITHUB_REF" --event-sha "$GITHUB_SHA" \
+            --source-rollback "$SOURCE_ROLLBACK" --source-rollback-sha "$SOURCE_ROLLBACK_SHA" \
+            --change-reference "$CHANGE_REFERENCE" --git-root "$RUNNER_TEMP/protected-run-control" \
+            --expected-target-sha "$TARGET_SHA" --expected-default-head-sha "$DEFAULT_HEAD_SHA" \
+            --expected-mode "$MODE"
+          terraform apply -input=false -no-color -lock-timeout=5m plan-artifact/tfplan
 
       - name: Enforce and verify immutable OIDC subjects
         env:

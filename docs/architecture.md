@@ -87,7 +87,7 @@ flowchart TD
 | Bootstrap output compiler | Source-bound, non-secret repository-variable handoffs | `scripts/export-ci-variables.py` and `contracts/` |
 | Resource modules | Compile normalized intent into provider resources | `modules/` |
 | Plan workflow | Static gates, base-branch scope classification, stable verdict, and read-oriented speculative plan | `.github/workflows/plan.yml` |
-| Apply workflow | Exact post-merge plan, approval, integrity check, apply | `.github/workflows/apply.yml` |
+| Apply workflow | Current-head guard, exact plan, freshness/provenance checks, approval, apply | `.github/workflows/apply.yml` |
 
 ## Change flow
 
@@ -98,11 +98,14 @@ flowchart TD
    both outcomes.
 3. Required rulesets and reviewers gate the merge.
 4. The push to `main` creates a fresh saved plan for that exact commit.
-5. The plan artifact records its checksum, repository, run, commit, rollout phase, exact
-   enforcement override map, delete count, and replacement count and is retained for one day.
+5. The plan artifact records its checksum, repository, run, target and default-head commits,
+   creation time, six-hour maximum, rollout phase, exact enforcement override map, delete count,
+   and replacement count and is retained for one day.
 6. The protected `governance` environment gates the separately credentialed apply job.
-7. The apply job verifies artifact integrity, commit provenance, and a freshly compiled match for
-   the recorded rollout phase and overrides before applying the saved plan.
+7. The apply job verifies artifact integrity, current default head, plan age, commit provenance,
+   and a freshly compiled match for the recorded rollout phase and overrides before credentials
+   and again immediately before applying the saved plan. A new `main` commit requires a new plan;
+   the non-cancellable concurrency group lets an already-started apply finish.
 
 ## Trust and security boundaries
 

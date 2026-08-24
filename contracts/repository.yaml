@@ -47,6 +47,8 @@ required_paths:
   - modules/rulesets
   - modules/repositories
   - modules/teams
+  - scripts/validate-protected-run.py
+  - tests/test_protected_run.py
 forbidden_paths:
   - .terraform
   - .terragrunt-cache
