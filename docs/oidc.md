@@ -57,7 +57,7 @@ workflow/ref claims, explicit audiences, and provider conditions supply defense 
 
 ## Bazel cache trust
 
-Bootstrap contract `1.5.0` defines a dedicated `gh-bazel-cache` provider for
+Bootstrap contract `2.0.0` defines a dedicated `gh-bazel-cache` provider for
 `mindclade-internal-monorepo`; it is not a broader repository provider. Its exact route contract
 allows pull-request merge refs to use only the cache reader and allows only protected-main pushes,
 merge-group refs for main, and the main-branch nightly schedule to use the cache writer. Manual
@@ -73,7 +73,7 @@ negative route qualification remain separate protected steps.
 
 ## Workstation image trust
 
-Bootstrap contract `1.6.0` defines `gh-workstation-image` for the internal monorepo's exact
+Bootstrap contract `2.0.0` defines `gh-workstation-image` for the internal monorepo's exact
 `nixos-image.yml@refs/heads/main` caller, immutable owner/repository IDs, manual dispatch, the
 protected `workstation-image-publication` environment, and
 `reusable-nixos-gce-image-publish.yml@refs/tags/v5.0.0`. The mapped `workstation-image:` subject

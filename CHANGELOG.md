@@ -61,6 +61,8 @@ not reconstructed or relabeled here.
 
 ### Changed
 
+- Migrated the bootstrap consumer atomically to platform contract `2.0.0`, removed the retired
+  Buildkite authority and catalog flag, and fail closed on all legacy platform versions.
 - Made the bootstrap protected-CI input handoff explicit and fail closed, including the exact
   legacy-replica disposition, U.S. Secret Manager location, state retention, and KMS protection
   values required to keep post-migration plans identical to the reviewed first apply.

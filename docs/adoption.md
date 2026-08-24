@@ -131,24 +131,22 @@ python3 scripts/export-ci-variables.py \
 ```
 
 The exporter requires a full immutable source commit and an explicit assertion that credential
-material is absent. Bootstrap contracts `1.2.0` and `1.4.0` consume applied handoff `1.3.0` with
-its exact 25-variable production-eligibility inventory. Bootstrap contract `1.5.0` instead
-requires applied handoff `1.4.0`, whose exact 28-variable inventory is the `1.3.0` contract plus
-`WIF_PROVIDER_BAZEL_CACHE`, `SA_BAZEL_CACHE_READER`, and `SA_BAZEL_CACHE_WRITER`. Versions are not
-interchangeable and stale, partial, or extra fields fail before GitHub can be changed. Bootstrap
-`1.6.0` requires applied handoff `1.5.0`, adding the exact workstation-image provider, publisher,
-and source bucket for a 31-variable inventory.
+material is absent. It accepts only bootstrap platform contract `2.0.0` and applied
+infrastructure handoff `1.5.0`. The handoff's exact 31-variable inventory includes the Bazel-cache
+provider/reader/writer and the workstation-image provider/publisher/source bucket. Stale, partial,
+extra, or legacy platform contracts fail before GitHub can be changed; there is no dual-reader
+compatibility window.
 
-Bootstrap supplies `PRODUCTION_QUALIFICATION_IDENTITY_JSON` and, under contract `1.5.0`,
+Bootstrap supplies `PRODUCTION_QUALIFICATION_IDENTITY_JSON` and
 `BAZEL_CACHE_IDENTITY_JSON` directly from `platform_contract`; an operator cannot substitute
 either value. The cache JSON is only the exact infrastructure source contract. The exporter does
-not publish the monorepo provider or its separate reader/writer service accounts until the applied
-`1.4.0` handoff matches the bootstrap provider and common-CI account identities. It does not
+not publish the monorepo provider or its separate reader/writer service accounts until applied
+handoff `1.5.0` matches the bootstrap provider and common-CI account identities. It does not
 publish a cache endpoint, enable a client, or claim that the provider, accounts, IAM bindings, or
 bucket are live. Supply only exact applied values for remaining non-handoff `env:` inputs and
 reapply `github-config`. Full mode remains fail-closed on every unresolved normal-plane input.
 
-Under bootstrap `1.6.0`, the exporter also validates `WORKSTATION_IMAGE_IDENTITY_JSON` and refuses
+Under bootstrap `2.0.0`, the exporter also validates `WORKSTATION_IMAGE_IDENTITY_JSON` and refuses
 to publish `WIF_PROVIDER_WORKSTATION_IMAGE`, `SA_WORKSTATION_IMAGE_BUILDER`, or
 `WORKSTATION_IMAGE_BUCKET` unless applied handoff `1.5.0` matches the bootstrap identity and exact
 common-CI resources. These values do not prove an object or Compute Image exists.
@@ -161,15 +159,14 @@ cross-bucket, zero-digest, and unqualified combinations.
 
 ### Publish the applied bootstrap account handoff
 
-Bootstrap contracts `1.5.0` and `1.6.0` make `BOOTSTRAP_ACCOUNT_HANDOFF_JSON` a derived governance
+Bootstrap contract `2.0.0` makes `BOOTSTRAP_ACCOUNT_HANDOFF_JSON` a derived governance
 output. It is not a catalog value and must never be reconstructed in the GitHub UI. The exporter
 requires the bootstrap checkout to be clean, records its full commit SHA, hashes the complete
 canonical `platform_contract`, validates the versioned schema, and binds the record to the exact
 state location, three state buckets, plan identity, and four apply identities already published as
 individual `infrastructure-live` variables. Terraform rejects the complete `CI_VARIABLES` payload
 if any duplicate differs. The credential-free validator pins the byte-identical version `1` schema
-shared with the infrastructure consumer. Bootstrap `1.2.0` and `1.4.0` exports omit the record
-entirely.
+shared with the infrastructure consumer.
 
 After the bootstrap apply is complete and its source commit is independently recorded, use this
 exact activation sequence. The first mutation updates only the self-hosting compiler input on
@@ -192,7 +189,7 @@ python3 scripts/export-ci-variables.py \
   > /protected/evidence/github-ci-variables.json
 jq -er '."infrastructure-live".BOOTSTRAP_ACCOUNT_HANDOFF_JSON | fromjson |
   .schema_version == 1 and
-  .bootstrap_contract_version == "1.5.0" and
+  .bootstrap_contract_version == "2.0.0" and
   .bootstrap_source_commit == env.BOOTSTRAP_APPLIED_SHA' \
   /protected/evidence/github-ci-variables.json >/dev/null
 
@@ -232,24 +229,24 @@ reviewed compiler payload from its exact clean bootstrap revision and running th
 plan/apply path; never edit or delete the downstream variable manually. Retain the compiled record,
 plan checksum, apply run, read-back, reviewer, and timestamps in the restricted evidence boundary.
 
-The same export accepts bootstrap `platform_contract` version `1.4.0`, `1.5.0`, or `1.6.0`, reads
+The export accepts only bootstrap `platform_contract` version `2.0.0`, reads
 `state.replica_buckets.bootstrap`, and publishes it as the managed
 `bootstrap/TFSTATE_REPLICA_BUCKET` Actions variable. The protected
 `bootstrap-recovery-read` environment is catalog-managed; never allow the recovery workflow to
 auto-create an unprotected environment with that name.
 
-The exporter requires `platform_contract.buildkite` to remain disabled with null pool/provider
-and the matching catalog flag. Buildkite cannot be re-enabled through an operator input. It also
-validates all six capability-specific ARC providers, collision-resistant mapped principals,
+Buildkite is absent from platform contract `2.0.0`, the Terraform authority, and the governance
+catalog; a legacy Buildkite field or CI variable is rejected. The exporter validates all six
+capability-specific ARC providers, collision-resistant mapped principals,
 trusted-main caller, exact immutable v5 canary/build/attestation/signing workflows, and the v5
 qualification-reader and promotion workflows before publishing any release variable.
 It also validates the exact eight-principal DR evidence provider and compiles the applied writer,
 project, and bucket outputs into environment variables on only the protected `scratch` and
 `staging` environments of `bootstrap`, `github-config`, `infrastructure-live`, and `gitops`.
-Under bootstrap `1.5.0`, it additionally validates the dedicated `gh-bazel-cache` provider, exact
+It additionally validates the dedicated `gh-bazel-cache` provider, exact
 immutable monorepo IDs, pull-request read route, and protected main, merge-group, and nightly write
 routes before exporting any cache-related value.
-Under bootstrap `1.6.0`, it additionally validates the exact protected workstation-image
+It also validates the exact protected workstation-image
 environment subject, caller on main, v5 reusable workflow, immutable repository IDs, and applied
 publisher/source-bucket handoff before exporting any workstation-image value.
 

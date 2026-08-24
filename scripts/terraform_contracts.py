@@ -851,7 +851,7 @@ def validate_bootstrap_account_handoff_ci_variable_contract(root: Path) -> None:
     }
     if required_expression not in required_alternatives:
         raise TerraformContractError(
-            f"{label}.required: bootstrap 1.5 activation expression differs"
+            f"{label}.required: bootstrap 2.0 activation expression differs"
         )
     expected_state_buckets = {
         "development": (
@@ -927,8 +927,7 @@ def validate_bootstrap_account_handoff_ci_variable_contract(root: Path) -> None:
         ),
         ("local.bootstrap_account_handoff.schema_version==1",),
         (
-            'contains(["1.5.0","1.6.0"],local.bootstrap_account_handoff.bootstrap_contract_version)',
-            'contains([1.5.0,1.6.0],local.bootstrap_account_handoff.bootstrap_contract_version)',
+            'local.bootstrap_account_handoff.bootstrap_contract_version=="2.0.0"',
         ),
         (
             'can(regex("^[0-9a-f]{40}$",local.bootstrap_account_handoff.bootstrap_source_commit))',

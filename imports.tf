@@ -48,12 +48,11 @@ import {
 
 # Read-only GitHub API inventory refreshed on 2026-08-22 proved these bootstrap variables already exist.
 # Import the exact intersection of live variables and the ARC-authority compiled catalog.
-# Retired Buildkite authority values are absent from both live state and this import set.
+# Retired authority variables are absent from both live state and this import set.
 locals {
   preexisting_bootstrap_actions_variables = toset([
     "BILLING_ACCOUNT",
     "BREAK_GLASS_PRINCIPALS_JSON",
-    "ENABLE_BUILDKITE_WIF",
     "GCP_ORG_ID",
     "GCP_REGION",
     "GH_ORGANIZATION",

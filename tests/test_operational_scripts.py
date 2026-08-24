@@ -92,11 +92,6 @@ class ExportSafetyTest(unittest.TestCase):
                     ),
                 },
             },
-            "buildkite": {
-                "enabled": False,
-                "workload_identity_pool": None,
-                "workload_identity_provider": None,
-            },
             "automation_identities": {
                 "bootstrap-plan": "bootstrap-plan@example.iam.gserviceaccount.com",
                 "bootstrap-drift": "bootstrap-drift@example.iam.gserviceaccount.com",
@@ -290,9 +285,9 @@ class ExportSafetyTest(unittest.TestCase):
         return CI.AppliedHandoff(contract_version="1.4.0", variables=variables)
 
     @classmethod
-    def staged_v16_contract(cls) -> dict[str, object]:
+    def platform_v20_contract(cls) -> dict[str, object]:
         platform = cls.staged_v15_contract()
-        platform["contract_version"] = "1.6.0"
+        platform["contract_version"] = "2.0.0"
         github = platform["github"]
         pool = github["workload_identity_pool"]
         repository_identity = github["repository_identities"][
@@ -353,39 +348,8 @@ class ExportSafetyTest(unittest.TestCase):
         )
         return CI.AppliedHandoff(contract_version="1.5.0", variables=variables)
 
-    def test_deployed_v12_contract_keeps_arc_authority_inactive(self) -> None:
-        catalog = {
-            ".github": {},
-            ".github-private": {},
-            "github-config": {"ENVIRONMENT_PROJECT_IDS": "{}"},
-            "bootstrap": {
-                "ENABLE_BUILDKITE_WIF": "false",
-                "SECURITY_CONTACT": "security@mindclade.com",
-            },
-            "infrastructure-live": {},
-            "gitops": {},
-            "mindclade-internal-monorepo": {},
-        }
-        outputs = {"platform_contract": {"value": self.deployed_v12_contract()}}
-        with (
-            mock.patch.object(CI, "run_json", side_effect=[catalog, outputs]),
-            mock.patch.object(CI, "resolve_environment", side_effect=lambda value: value),
-        ):
-            payload = CI.compile_payload(ROOT, stage="bootstrap")
-
-        self.assertNotIn(
-            "ARTIFACT_RELEASE_IDENTITIES_JSON", payload["infrastructure-live"]
-        )
-        self.assertEqual(
-            payload["mindclade-internal-monorepo"]["WIF_PROVIDER_SIGNER"],
-            payload["infrastructure-live"]["WIF_PROVIDER_SIGNER"],
-        )
-        self.assertNotIn(
-            "WIF_PROVIDER_ARC_BUILDER", payload["mindclade-internal-monorepo"]
-        )
-
-    def test_v16_workstation_image_handoff_is_exact(self) -> None:
-        platform = self.staged_v16_contract()
+    def test_v20_workstation_image_handoff_is_exact(self) -> None:
+        platform = self.platform_v20_contract()
         pool = platform["github"]["workload_identity_pool"]
         identity = CI.workstation_image_identity_contract(
             platform["github"], pool, "mindclade"
@@ -397,33 +361,6 @@ class ExportSafetyTest(unittest.TestCase):
         ]
         with self.assertRaisesRegex(ValueError, "publisher differs"):
             CI.validate_applied_workstation_image_handoff(handoff, identity)
-
-    def test_deployed_v12_rejects_a_future_signer_workflow(self) -> None:
-        platform = self.deployed_v12_contract()
-        platform["github"]["artifact_signer"]["job_workflow_ref"] = (
-            "mindclade/.github/.github/workflows/"
-            "reusable-binauthz-sign.yml@refs/tags/v5.0.0"
-        )
-        catalog = {
-            name: {}
-            for name in (
-                ".github",
-                ".github-private",
-                "github-config",
-                "bootstrap",
-                "infrastructure-live",
-                "gitops",
-                "mindclade-internal-monorepo",
-            )
-        }
-        catalog["bootstrap"]["ENABLE_BUILDKITE_WIF"] = "false"
-        outputs = {"platform_contract": {"value": platform}}
-        with (
-            mock.patch.object(CI, "run_json", side_effect=[catalog, outputs]),
-            mock.patch.object(CI, "resolve_environment", side_effect=lambda value: value),
-        ):
-            with self.assertRaisesRegex(ValueError, "legacy artifact signer"):
-                CI.compile_payload(ROOT, stage="bootstrap")
 
     def test_ci_generation_failure_never_calls_gh(self) -> None:
         arguments = SimpleNamespace(
@@ -443,45 +380,6 @@ class ExportSafetyTest(unittest.TestCase):
         ):
             self.assertEqual(CI.main(), 1)
         run.assert_not_called()
-
-    def test_disabled_buildkite_is_a_noop_without_deferred_inputs(self) -> None:
-        config = {
-            "bootstrap": {"ENABLE_BUILDKITE_WIF": "false"},
-            "mindclade-internal-monorepo": {
-                "ARC_PROMOTER_APP_ID": "env:ARC_PROMOTER_APP_ID",
-            },
-        }
-
-        pool = CI.configure_buildkite_phase(
-            config, {"enabled": False, "workload_identity_pool": None}
-        )
-
-        self.assertIsNone(pool)
-        self.assertEqual(config["bootstrap"], {"ENABLE_BUILDKITE_WIF": "false"})
-        self.assertEqual(
-            config["mindclade-internal-monorepo"],
-            {"ARC_PROMOTER_APP_ID": "env:ARC_PROMOTER_APP_ID"},
-        )
-
-    def test_enabled_buildkite_is_rejected_after_retirement(self) -> None:
-        config = {
-            "bootstrap": {"ENABLE_BUILDKITE_WIF": "true"},
-            "mindclade-internal-monorepo": {},
-        }
-
-        with self.assertRaisesRegex(ValueError, "retired"):
-            CI.configure_buildkite_phase(
-                config, {"enabled": True, "workload_identity_pool": None}
-            )
-
-        with self.assertRaisesRegex(ValueError, "retired"):
-            CI.configure_buildkite_phase(
-                config,
-                {
-                    "enabled": True,
-                    "workload_identity_pool": "projects/not-numeric/locations/global/workloadIdentityPools/buildkite",
-                },
-            )
 
     def test_arc_release_identities_are_provider_and_workflow_exact(self) -> None:
         pool = "projects/123456789/locations/global/workloadIdentityPools/github"
@@ -655,7 +553,7 @@ class ExportSafetyTest(unittest.TestCase):
             CI.validate_applied_bazel_cache_handoff(handoff, identity)
 
     def test_bootstrap_account_handoff_is_canonical_and_source_exact(self) -> None:
-        platform = self.staged_v15_contract()
+        platform = self.platform_v20_contract()
         values = {
             "STATE_LOCATION": platform["state"]["primary_location"],
             "TFSTATE_BUCKET_DEVELOPMENT": platform["state"]["primary_buckets"][
@@ -701,7 +599,7 @@ class ExportSafetyTest(unittest.TestCase):
             record["platform_contract_sha256"],
         )
         canonical_fixture = {
-            "contract_version": "1.5.0",
+            "contract_version": "2.0.0",
             "organization_id": "1",
             "state": {"primary_location": "US"},
             "unicode": "λ",
@@ -710,7 +608,7 @@ class ExportSafetyTest(unittest.TestCase):
             CI.build_bootstrap_account_handoff(
                 canonical_fixture, values, source_commit
             )["platform_contract_sha256"],
-            "sha256:b375ee572e6274f25c9be5e6c76dda6690ceb64a059a92c80cd9036d8931e613",
+            "sha256:2347f64f4c61c7c1d7d450b1a3f231ac34600ce2aa2d35d48c8ae611f3682789",
         )
 
         record["state_buckets"]["production"] = "redacted-substitution"
@@ -751,8 +649,8 @@ class ExportSafetyTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "free-form catalog input"):
                 CI.compile_payload(ROOT, stage="bootstrap")
 
-    def test_bootstrap_v15_full_export_requires_applied_v14_handoff(self) -> None:
-        platform = self.staged_v15_contract()
+    def test_bootstrap_v20_full_export_requires_applied_v15_handoff(self) -> None:
+        platform = self.platform_v20_contract()
         catalog = {
             repository: {}
             for repository in (
@@ -765,17 +663,16 @@ class ExportSafetyTest(unittest.TestCase):
                 "mindclade-internal-monorepo",
             )
         }
-        catalog["bootstrap"]["ENABLE_BUILDKITE_WIF"] = "false"
         outputs = {"platform_contract": {"value": platform}}
         with mock.patch.object(CI, "run_json", side_effect=[catalog, outputs]):
-            with self.assertRaisesRegex(ValueError, "requires applied handoff 1.4.0"):
+            with self.assertRaisesRegex(ValueError, "requires applied handoff 1.5.0"):
                 CI.compile_payload(ROOT, stage="full")
 
-    def test_bootstrap_v15_exports_source_contract_and_applied_cache_identities(
+    def test_bootstrap_v20_exports_source_and_applied_identities(
         self,
     ) -> None:
-        platform = self.staged_v15_contract()
-        handoff = self.staged_v14_handoff(platform)
+        platform = self.platform_v20_contract()
+        handoff = self.staged_v15_handoff(platform)
         catalog = {
             repository: {}
             for repository in (
@@ -788,12 +685,11 @@ class ExportSafetyTest(unittest.TestCase):
                 "mindclade-internal-monorepo",
             )
         }
-        catalog["bootstrap"]["ENABLE_BUILDKITE_WIF"] = "false"
         catalog["infrastructure-live"]["BAZEL_CACHE_IDENTITY_JSON"] = "{}"
         catalog["mindclade-internal-monorepo"].update(
             {
                 name: f"env:{name}"
-                for name in CI.APPLIED_HANDOFF_VARIABLES_BY_VERSION["1.4.0"]
+                for name in CI.APPLIED_HANDOFF_VARIABLES_BY_VERSION["1.5.0"]
             }
         )
         outputs = {"platform_contract": {"value": platform}}
@@ -841,8 +737,8 @@ class ExportSafetyTest(unittest.TestCase):
             },
         )
 
-    def test_bootstrap_v15_stage_exports_only_the_cache_source_contract(self) -> None:
-        platform = self.staged_v15_contract()
+    def test_bootstrap_v20_stage_exports_only_source_contracts(self) -> None:
+        platform = self.platform_v20_contract()
         catalog = {
             repository: {}
             for repository in (
@@ -855,7 +751,6 @@ class ExportSafetyTest(unittest.TestCase):
                 "mindclade-internal-monorepo",
             )
         }
-        catalog["bootstrap"]["ENABLE_BUILDKITE_WIF"] = "false"
         catalog["infrastructure-live"]["BAZEL_CACHE_IDENTITY_JSON"] = "{}"
         catalog["mindclade-internal-monorepo"].update(
             {
@@ -894,68 +789,6 @@ class ExportSafetyTest(unittest.TestCase):
             payload["mindclade-internal-monorepo"]["BAZEL_REMOTE_CACHE_STATE"],
             "blocked",
         )
-
-    def test_legacy_platform_prunes_cache_fields_and_rejects_v14_handoff(self) -> None:
-        platform = self.deployed_v12_contract()
-        variables = {
-            name: f"value-{name.lower()}"
-            for name in CI.APPLIED_HANDOFF_VARIABLES_BY_VERSION["1.3.0"]
-        }
-        handoff = CI.AppliedHandoff(
-            contract_version="1.3.0", variables=variables
-        )
-        catalog = {
-            repository: {}
-            for repository in (
-                ".github",
-                ".github-private",
-                "github-config",
-                "bootstrap",
-                "infrastructure-live",
-                "gitops",
-                "mindclade-internal-monorepo",
-            )
-        }
-        catalog["bootstrap"]["ENABLE_BUILDKITE_WIF"] = "false"
-        catalog["infrastructure-live"]["BAZEL_CACHE_IDENTITY_JSON"] = "{}"
-        catalog["mindclade-internal-monorepo"].update(
-            {
-                name: f"env:{name}"
-                for name in (
-                    CI.APPLIED_HANDOFF_VARIABLES_BY_VERSION["1.3.0"]
-                    | CI.BAZEL_CACHE_APPLIED_HANDOFF_VARIABLES
-                )
-            }
-        )
-        outputs = {"platform_contract": {"value": platform}}
-        with (
-            mock.patch.object(CI, "run_json", side_effect=[catalog, outputs]),
-            mock.patch.object(
-                CI, "resolve_environment", side_effect=lambda value: value
-            ),
-        ):
-            payload = CI.compile_payload(
-                ROOT, stage="full", applied_handoff=handoff
-            )
-        self.assertNotIn("BAZEL_CACHE_IDENTITY_JSON", payload["infrastructure-live"])
-        self.assertNotIn(
-            "BOOTSTRAP_ACCOUNT_HANDOFF_JSON", payload["infrastructure-live"]
-        )
-        for name in CI.BAZEL_CACHE_APPLIED_HANDOFF_VARIABLES:
-            self.assertNotIn(name, payload["mindclade-internal-monorepo"])
-
-        v14_handoff = CI.AppliedHandoff(
-            contract_version="1.4.0",
-            variables={
-                name: f"value-{name.lower()}"
-                for name in CI.APPLIED_HANDOFF_VARIABLES_BY_VERSION["1.4.0"]
-            },
-        )
-        with mock.patch.object(CI, "run_json", side_effect=[catalog, outputs]):
-            with self.assertRaisesRegex(ValueError, "requires applied handoff 1.3.0"):
-                CI.compile_payload(
-                    ROOT, stage="full", applied_handoff=v14_handoff
-                )
 
     def test_dr_evidence_environment_handoff_is_exact_and_applied(self) -> None:
         pool = "projects/123456789/locations/global/workloadIdentityPools/github"
@@ -1020,7 +853,6 @@ class ExportSafetyTest(unittest.TestCase):
             "bootstrap": {
                 "GH_ORGANIZATION": "mindclade",
                 "AUTOMATION_SECRET_LOCATION": "us-central1",
-                "ENABLE_BUILDKITE_WIF": "false",
                 "KMS_PROTECTION_LEVEL": "SOFTWARE",
                 "NONCURRENT_VERSION_COUNT": "100",
                 "NONCURRENT_VERSION_DAYS": "90",

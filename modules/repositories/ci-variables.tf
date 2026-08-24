@@ -310,7 +310,7 @@ check "bazel_cache_source_contract_is_exact" {
       ]),
       false,
     )
-    error_message = "BAZEL_CACHE_IDENTITY_JSON must be absent before bootstrap 1.5 or contain its exact provider, immutable repository IDs, and read/write route contract."
+    error_message = "BAZEL_CACHE_IDENTITY_JSON must contain the bootstrap 2.0 provider, immutable repository IDs, and exact read/write route contract when the handoff is active."
   }
 }
 
@@ -425,7 +425,7 @@ check "workstation_image_handoff_is_exact" {
       local.workstation_image_handoff.bucket == "mc-common-ci-workstation-images",
       false,
     )
-    error_message = "The workstation image handoff must be wholly absent before bootstrap 1.6 or contain the exact applied provider, publisher, source bucket, immutable caller, and v5 workflow contract."
+    error_message = "The workstation image handoff must be wholly absent during bootstrap staging or contain the exact bootstrap 2.0 provider, publisher, source bucket, immutable caller, and v5 workflow contract."
   }
 }
 
@@ -499,7 +499,7 @@ check "bootstrap_account_handoff_is_exact" {
         "service_accounts",
       ]) &&
       local.bootstrap_account_handoff.schema_version == 1 &&
-      contains(["1.5.0", "1.6.0"], local.bootstrap_account_handoff.bootstrap_contract_version) &&
+      local.bootstrap_account_handoff.bootstrap_contract_version == "2.0.0" &&
       can(regex("^[0-9a-f]{40}$", local.bootstrap_account_handoff.bootstrap_source_commit)) &&
       can(regex("^sha256:[0-9a-f]{64}$", local.bootstrap_account_handoff.platform_contract_sha256)) &&
       local.bootstrap_account_handoff.state_location == "US" &&
@@ -516,7 +516,7 @@ check "bootstrap_account_handoff_is_exact" {
       ]),
       false,
     )
-    error_message = "BOOTSTRAP_ACCOUNT_HANDOFF_JSON must be absent before bootstrap 1.5 or contain the exact schema-versioned, source-bound state and service-account values compiled from applied bootstrap output."
+    error_message = "BOOTSTRAP_ACCOUNT_HANDOFF_JSON must be absent during bootstrap staging or contain the exact schema-versioned bootstrap 2.0 source-bound state and service-account values compiled from applied output."
   }
 }
 
