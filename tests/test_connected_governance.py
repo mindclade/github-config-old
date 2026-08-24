@@ -126,6 +126,30 @@ class ConnectedGovernanceTest(unittest.TestCase):
             },
         )
 
+    def test_release_governance_reader_contract_is_exact_and_read_only(self) -> None:
+        document = AUDIT.load_yaml(ROOT / "catalog/github-apps.yaml")
+        source = document["mindclade-release-governance-reader"]
+        self.assertEqual(
+            source["repositories"], [".github", "mindclade-internal-monorepo"]
+        )
+        self.assertFalse(source["webhookActive"])
+        self.assertEqual(source["events"], [])
+        apps = AUDIT.runtime_app_contracts(document)
+        self.assertEqual(
+            apps["mindclade-release-governance-reader"],
+            {
+                "repositories": [".github", "mindclade-internal-monorepo"],
+                "permissions": {
+                    "actions": "read",
+                    "administration": "read",
+                    "contents": "read",
+                    "members": "read",
+                    "metadata": "read",
+                },
+                "events": [],
+            },
+        )
+
     def test_merge_queue_scope_is_compiled_from_repository_classes(self) -> None:
         rulesets = {"merge-queue": {"classes": ["production"], "enforcement": "active"}}
         repositories = {

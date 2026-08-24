@@ -146,6 +146,43 @@ check "ci_variables_are_not_empty" {
   }
 }
 
+locals {
+  release_governance_reader_app_ids = compact([
+    try(var.ci_variables[".github"]["RELEASE_GOVERNANCE_READER_APP_ID"], ""),
+    try(var.ci_variables["mindclade-internal-monorepo"]["RELEASE_GOVERNANCE_READER_APP_ID"], ""),
+  ])
+}
+
+check "release_governance_reader_handoff_is_exact" {
+  assert {
+    condition = (
+      length(local.release_governance_reader_app_ids) == 0 ||
+      (
+        length(local.release_governance_reader_app_ids) == 2 &&
+        length(distinct(local.release_governance_reader_app_ids)) == 1
+      )
+    )
+    error_message = "The release-governance reader App ID must be absent during bootstrap or present with the same value in exactly .github and mindclade-internal-monorepo."
+  }
+
+  assert {
+    condition = alltrue([
+      for repository, variables in var.ci_variables :
+      !contains(keys(variables), "RELEASE_GOVERNANCE_READER_APP_ID") ||
+      contains([".github", "mindclade-internal-monorepo"], repository)
+    ])
+    error_message = "The release-governance reader App ID may be published only to .github and mindclade-internal-monorepo."
+  }
+
+  assert {
+    condition = alltrue([
+      for _, variables in var.ci_variables :
+      !contains(keys(variables), "RELEASE_GOVERNANCE_READER_APP_PRIVATE_KEY")
+    ])
+    error_message = "The release-governance reader private key is an Actions secret and must never enter Terraform input or state."
+  }
+}
+
 # ---------------------------------------------------------------------------------------
 # Per-repository WIF isolation
 # ---------------------------------------------------------------------------------------

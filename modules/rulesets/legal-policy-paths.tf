@@ -32,6 +32,7 @@ locals {
     "catalog/teams.yaml",
     "catalog/access.yaml",
     "catalog/github-apps.yaml",
+    "catalog/schema/github-apps.schema.json",
     "catalog/rulesets.yaml",
     "idp/mappings.yaml",
     "scripts/export-idp-groups.py",

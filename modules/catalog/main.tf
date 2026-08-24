@@ -67,6 +67,7 @@ check "github_app_installation_contracts_are_exact" {
         "mindclade-estate-observer",
         "mindclade-policy-sync",
         "mindclade-ref-janitor",
+        "mindclade-release-governance-reader",
         "mindclade-release-promoter",
         "mindclade-production-qualification-reader",
         "mindclade-workflow-pin-updater",
@@ -76,6 +77,20 @@ check "github_app_installation_contracts_are_exact" {
       local.github_apps["mindclade-arc"].organizationPermissions.selfHostedRunners == "write" &&
       local.github_apps["mindclade-release-promoter"].repositoryPermissions.contents == "write" &&
       local.github_apps["mindclade-release-promoter"].repositoryPermissions.pullRequests == "write" &&
+      toset(local.github_apps["mindclade-release-governance-reader"].repositories) == toset([
+        ".github", "mindclade-internal-monorepo"
+      ]) &&
+      local.github_apps["mindclade-release-governance-reader"].webhookActive == false &&
+      length(local.github_apps["mindclade-release-governance-reader"].events) == 0 &&
+      local.github_apps["mindclade-release-governance-reader"].organizationPermissions == {
+        members = "read"
+      } &&
+      local.github_apps["mindclade-release-governance-reader"].repositoryPermissions == {
+        actions        = "read"
+        administration = "read"
+        contents       = "read"
+        metadata       = "read"
+      } &&
       toset(local.github_apps["mindclade-policy-sync"].repositories) == toset([
         ".github-private", "bootstrap", "github-config", "gitops",
         "infrastructure-live", "mindclade-internal-monorepo"

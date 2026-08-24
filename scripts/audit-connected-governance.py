@@ -267,10 +267,13 @@ def runtime_app_contracts(document: dict[str, Any]) -> dict[str, dict[str, Any]]
                 for key, value in app.get("organizationPermissions", {}).items()
             }
         )
-        result[name] = {
+        contract = {
             "repositories": sorted(app.get("repositories", [])),
             "permissions": permissions,
         }
+        if "events" in app:
+            contract["events"] = sorted(app.get("events", []))
+        result[name] = contract
     return result
 
 
@@ -455,6 +458,13 @@ def audit_apps(
         installation = by_slug.get(name, {})
         exact(f"{name} repository selection", installation.get("repository_selection"), "selected", errors)
         exact(f"{name} permissions", installation.get("permissions", {}), contract["permissions"], errors)
+        if "events" in contract:
+            exact(
+                f"{name} events",
+                sorted(installation.get("events", [])),
+                contract["events"],
+                errors,
+            )
         installation_id = installation.get("id")
         if not installation_id:
             continue

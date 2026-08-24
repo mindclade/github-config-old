@@ -10,6 +10,11 @@ not reconstructed or relabeled here.
 
 ### Added
 
+- Added a monorepo-only `terraform-module-release` environment with protected-main branch policy,
+  Security review, self-review prevention, administrator-bypass denial, and a five-minute wait.
+  Release authority remains separately bound by the signer contract and creation-only tag rule.
+  The source creates no tag or release and remains inert until protected plan/apply and connected
+  immutable-release and signer qualification complete.
 - Added a workspace-level GitHub platform qualifier with native gates, cross-repository policy and
   workflow contracts, and separate JSON/Markdown source and connected-evidence verdicts.
 - Added a schema-backed shared-workflow adoption graph, generated dashboard, expiring evidence
@@ -91,6 +96,9 @@ not reconstructed or relabeled here.
 
 ### Security
 
+- Added a read-only release-governance GitHub App contract selected only to `.github` and the
+  monorepo, with exact App-ID variables, no webhooks, and private-key activation explicitly kept
+  outside Git and Terraform state.
 - Split ARC presubmit from artifact authority with an exact second runner group, and corrected
   release access to the four reusable workflows that directly define ARC jobs instead of the
   caller workflow that cannot authorize them.

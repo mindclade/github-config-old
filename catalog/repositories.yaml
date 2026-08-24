@@ -159,6 +159,7 @@ mindclade-internal-monorepo:
     - release
     - nix-cache-publication
     - workstation-image-publication
+    - terraform-module-release
   topics:
     - monorepo
     - go

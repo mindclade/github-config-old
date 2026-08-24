@@ -175,6 +175,7 @@ run "deployment_gates_match_risk" {
       output.environments["bootstrap-recovery-read"].prevent_self_review &&
       output.environments["nix-cache-publication"].prevent_self_review &&
       output.environments["workstation-image-publication"].prevent_self_review &&
+      output.environments["terraform-module-release"].prevent_self_review &&
       output.environments["break-glass"].prevent_self_review
     )
     error_message = "Critical control-plane environments must prevent self-review."
@@ -194,6 +195,22 @@ run "deployment_gates_match_risk" {
       !output.environments["nix-cache-publication"].custom_branch_policies
     )
     error_message = "Nix cache publication must remain a delayed, independently reviewed, protected-main monorepo authority."
+  }
+
+  assert {
+    condition = (
+      contains(output.repositories["mindclade-internal-monorepo"].environments, "terraform-module-release") &&
+      alltrue([
+        for repository, config in output.repositories :
+        repository == "mindclade-internal-monorepo" || !contains(config.environments, "terraform-module-release")
+      ]) &&
+      toset(output.environments["terraform-module-release"].reviewer_teams) == toset(["security"]) &&
+      output.environments["terraform-module-release"].wait_timer >= 5 &&
+      output.environments["terraform-module-release"].protected_branches &&
+      output.environments["terraform-module-release"].prevent_self_review &&
+      !output.environments["terraform-module-release"].custom_branch_policies
+    )
+    error_message = "Terraform module publication requires its exact delayed, protected-main, independently reviewed monorepo environment."
   }
 
   assert {

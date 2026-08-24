@@ -77,6 +77,7 @@ EXPECTED_ENVIRONMENTS = {
     "release",
     "nix-cache-publication",
     "workstation-image-publication",
+    "terraform-module-release",
     "workflow-release-platform",
     "workflow-release-security",
     "repository-observability",
@@ -278,6 +279,9 @@ REQUIRED_CI_VARIABLES = {
     ".github": {
         "ESTATE_OBSERVER_APP_ID": "env:ESTATE_OBSERVER_APP_ID",
         "REF_JANITOR_APP_ID": "env:REF_JANITOR_APP_ID",
+        "RELEASE_GOVERNANCE_READER_APP_ID": (
+            "env:RELEASE_GOVERNANCE_READER_APP_ID"
+        ),
     },
     "github-config": {
         "BILLING_EMAIL": "env:BILLING_EMAIL",
@@ -321,6 +325,9 @@ REQUIRED_CI_VARIABLES = {
         "PRODUCTION_ELIGIBILITY_URL": "https://mindclade.studio",
     },
     "mindclade-internal-monorepo": {
+        "RELEASE_GOVERNANCE_READER_APP_ID": (
+            "env:RELEASE_GOVERNANCE_READER_APP_ID"
+        ),
         "ARTIFACT_REGISTRY_DR_HOST": "us-east4-docker.pkg.dev",
         "ARTIFACT_REGISTRY_HOST": "us-central1-docker.pkg.dev",
         "CI_PROJECT_ID": "env:CI_PROJECT_ID",
@@ -375,6 +382,7 @@ for stem in (
     "adoption-inventory",
     "environments",
     "control-plane-apps",
+    "github-apps",
     "connected-resource-exceptions",
     "governance-activation",
     "merge-queue-readiness",
@@ -543,6 +551,7 @@ if set(github_apps) != {
     "mindclade-estate-observer",
     "mindclade-policy-sync",
     "mindclade-ref-janitor",
+    "mindclade-release-governance-reader",
     "mindclade-release-promoter",
     "mindclade-production-qualification-reader",
     "mindclade-workflow-pin-updater",
@@ -573,6 +582,25 @@ else:
         err("release promoter App has an unexpected repository permission contract")
     if promoter.get("organizationPermissions") != {}:
         err("release promoter App must not have organization permissions")
+    release_reader = github_apps["mindclade-release-governance-reader"]
+    if release_reader.get("repositories") != [
+        ".github",
+        "mindclade-internal-monorepo",
+    ]:
+        err("release governance reader App must select exactly its two release repositories")
+    if release_reader.get("webhookActive") is not False or release_reader.get(
+        "events"
+    ) != []:
+        err("release governance reader App must disable webhooks and subscribe to no events")
+    if release_reader.get("organizationPermissions") != {"members": "read"}:
+        err("release governance reader App organization permissions are not exact")
+    if release_reader.get("repositoryPermissions") != {
+        "actions": "read",
+        "administration": "read",
+        "contents": "read",
+        "metadata": "read",
+    }:
+        err("release governance reader App repository permissions are not exact and read-only")
     qualification = github_apps["mindclade-production-qualification-reader"]
     if set(qualification.get("repositories", [])) != EXPECTED_REPOS:
         err("production qualification App must select exactly the seven managed repositories")
@@ -900,6 +928,7 @@ for name, cfg in environments.items():
         "release",
         "nix-cache-publication",
         "workstation-image-publication",
+        "terraform-module-release",
         "workflow-release-platform",
         "workflow-release-security",
         "repository-maintenance",
@@ -987,6 +1016,26 @@ workstation_image_repositories = {
 }
 if workstation_image_repositories != {"mindclade-internal-monorepo"}:
     err("workstation-image-publication must be assigned only to mindclade-internal-monorepo")
+terraform_module_release_environment = environments.get("terraform-module-release", {})
+if (
+    set(terraform_module_release_environment.get("reviewer_teams", []))
+    != {"security"}
+    or terraform_module_release_environment.get("wait_timer", 0) < 5
+    or not terraform_module_release_environment.get("protected_branches")
+    or terraform_module_release_environment.get("custom_branch_policies")
+    or not terraform_module_release_environment.get("prevent_self_review")
+):
+    err(
+        "environment terraform-module-release requires protected main, Security review, "
+        "no self-review, and a wait timer"
+    )
+terraform_module_release_repositories = {
+    repository
+    for repository, config in repos.items()
+    if "terraform-module-release" in config.get("environments", [])
+}
+if terraform_module_release_repositories != {"mindclade-internal-monorepo"}:
+    err("terraform-module-release must be assigned only to mindclade-internal-monorepo")
 break_glass_environment = environments.get("break-glass", {})
 if set(break_glass_environment.get("reviewer_teams", [])) != {"security"}:
     err(
@@ -1373,6 +1422,29 @@ for repo, required in REQUIRED_CI_VARIABLES.items():
     for name, expected_value in required.items():
         if variables.get(name) != expected_value:
             err(f"ci-variables: {repo}/{name} must be {expected_value!r}")
+release_reader_app_id_repositories = {
+    repo
+    for repo, variables in ci_variables.items()
+    if isinstance(variables, dict)
+    and "RELEASE_GOVERNANCE_READER_APP_ID" in variables
+}
+if release_reader_app_id_repositories != {
+    ".github",
+    "mindclade-internal-monorepo",
+}:
+    err(
+        "ci-variables: release governance reader App ID must select exactly .github "
+        "and mindclade-internal-monorepo"
+    )
+if any(
+    "RELEASE_GOVERNANCE_READER_APP_PRIVATE_KEY" in variables
+    for variables in ci_variables.values()
+    if isinstance(variables, dict)
+):
+    err(
+        "ci-variables: release governance reader private key must remain an Actions "
+        "secret outside Terraform and Git"
+    )
 environment_project_handoff = ci_variables.get("github-config", {}).get(
     "ENVIRONMENT_PROJECT_IDS"
 )

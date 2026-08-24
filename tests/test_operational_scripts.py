@@ -1004,7 +1004,12 @@ class ExportSafetyTest(unittest.TestCase):
 
     def test_bootstrap_stage_omits_deferred_catalog_inputs(self) -> None:
         config = {
-            ".github": {"PIN_AUDIT_APP_ID": "env:PIN_AUDIT_APP_ID"},
+            ".github": {
+                "PIN_AUDIT_APP_ID": "env:PIN_AUDIT_APP_ID",
+                "RELEASE_GOVERNANCE_READER_APP_ID": (
+                    "env:RELEASE_GOVERNANCE_READER_APP_ID"
+                ),
+            },
             ".github-private": {},
             "github-config": {
                 "ORGANIZATION": "mindclade",
@@ -1035,6 +1040,9 @@ class ExportSafetyTest(unittest.TestCase):
             "mindclade-internal-monorepo": {
                 "ARTIFACT_REGISTRY_HOST": "us-central1-docker.pkg.dev",
                 "BINAUTHZ_BUILD_ATTESTOR": "env:BINAUTHZ_BUILD_ATTESTOR",
+                "RELEASE_GOVERNANCE_READER_APP_ID": (
+                    "env:RELEASE_GOVERNANCE_READER_APP_ID"
+                ),
             },
         }
 
@@ -1046,6 +1054,10 @@ class ExportSafetyTest(unittest.TestCase):
         self.assertNotIn("RENDER_APP_ID", selected["gitops"])
         self.assertNotIn(
             "BINAUTHZ_BUILD_ATTESTOR", selected["mindclade-internal-monorepo"]
+        )
+        self.assertNotIn(
+            "RELEASE_GOVERNANCE_READER_APP_ID",
+            selected["mindclade-internal-monorepo"],
         )
         self.assertEqual(selected["github-config"]["ENVIRONMENT_PROJECT_IDS"], "{}")
         self.assertEqual(

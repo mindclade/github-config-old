@@ -44,6 +44,8 @@ required_paths:
   - catalog/teams.yaml
   - catalog/access.yaml
   - catalog/environments.yaml
+  - catalog/github-apps.yaml
+  - catalog/schema/github-apps.schema.json
   - modules/rulesets
   - modules/repositories
   - modules/teams
